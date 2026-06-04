@@ -6,7 +6,6 @@ import {
   CircleCheck,
   Timer,
   PhoneForwarded,
-  Plus,
   ArrowRight,
 } from "lucide-react";
 import { getCurrentOrg } from "@/lib/db/context";
@@ -19,8 +18,7 @@ import { StatCard } from "@/components/ui/stat";
 import { Card } from "@/components/ui/card";
 import { RoleIcon } from "@/components/role-badge";
 import { AgentStatusDot, CallStatusBadge } from "@/components/status-badges";
-import { buttonVariants } from "@/components/ui/button";
-import { cn, formatDuration, formatNumber } from "@/lib/utils";
+import { formatDuration, formatNumber } from "@/lib/utils";
 
 export const metadata = { title: "Vue d'ensemble" };
 
@@ -44,15 +42,7 @@ export default async function OverviewPage() {
       <PageHeader
         title="Vue d'ensemble"
         description={`Activité des 14 derniers jours · ${org.name}`}
-      >
-        <Link
-          href="/agents/new"
-          className={cn(buttonVariants({ variant: "brand" }), "gap-1.5")}
-        >
-          <Plus className="size-4" />
-          Créer un agent
-        </Link>
-      </PageHeader>
+      />
 
       {/* KPI */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">

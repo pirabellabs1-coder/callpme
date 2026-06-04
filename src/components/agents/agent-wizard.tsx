@@ -684,7 +684,12 @@ export function AgentWizard({
                       max={120}
                       value={s.maxDurationMin}
                       onChange={(e) =>
-                        set({ maxDurationMin: Math.max(0, Number(e.target.value) || 0) })
+                        set({
+                          maxDurationMin: Math.min(
+                            120,
+                            Math.max(0, Number(e.target.value) || 0),
+                          ),
+                        })
                       }
                     />
                   </div>

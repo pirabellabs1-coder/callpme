@@ -60,21 +60,26 @@ export async function POST(req: NextRequest) {
     const body = await req.json().catch(() => null);
     const parsed = createAgentSchema.safeParse(body);
     if (!parsed.success) {
-      return badRequest("Données invalides", parsed.error.flatten());
+      const issue = parsed.error.issues[0];
+      const msg = issue
+        ? `Champ invalide « ${issue.path.join(".")} » : ${issue.message}`
+        : "Données invalides";
+      return badRequest(msg, parsed.error.flatten());
     }
 
     const limit = await canCreateAgent(orgId, session.org.plan);
     if (!limit.ok) return forbidden(limit.message);
 
     const d = parsed.data;
+    // Coerce les chaînes vides en null : sur PostgreSQL une FK "" viole la contrainte.
     const input: CreateAgentInput = {
       name: d.name,
       role: d.role as AgentRole,
       status: d.status as AgentStatus | undefined,
       config: d.config as AgentConfig,
-      phoneNumber: d.phoneNumber ?? null,
-      clientId: d.clientId ?? (await getActiveClientId(orgId)),
-      knowledgeBaseId: d.knowledgeBaseId ?? null,
+      phoneNumber: d.phoneNumber || null,
+      clientId: d.clientId || (await getActiveClientId(orgId)),
+      knowledgeBaseId: d.knowledgeBaseId || null,
     };
     const agent = await createAgent(orgId, input);
     await dispatchEvent(orgId, "agent.created", {

@@ -333,7 +333,13 @@ function VoiceCard({
 
 /* --------------------------------- Studio --------------------------------- */
 
-export function VoiceStudio({ initial }: { initial: VoiceRecord[] }) {
+export function VoiceStudio({
+  initial,
+  showCatalog = true,
+}: {
+  initial: VoiceRecord[];
+  showCatalog?: boolean;
+}) {
   const [voices, setVoices] = useState(initial);
   const [open, setOpen] = useState(initial.length === 0);
   const [byId, setById] = useState(false);
@@ -419,6 +425,7 @@ export function VoiceStudio({ initial }: { initial: VoiceRecord[] }) {
       )}
 
       {/* Bibliothèque de voix de la plateforme */}
+      {showCatalog && (
       <div className="space-y-4 border-t border-border pt-6">
         <div>
           <h2 className="text-[0.95rem] font-semibold tracking-tight text-foreground">
@@ -462,6 +469,7 @@ export function VoiceStudio({ initial }: { initial: VoiceRecord[] }) {
           </div>
         ))}
       </div>
+      )}
     </div>
   );
 }

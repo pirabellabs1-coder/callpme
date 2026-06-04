@@ -34,18 +34,23 @@ export async function PATCH(req: NextRequest, { params }: Ctx) {
     const body = await req.json().catch(() => null);
     const parsed = updateAgentSchema.safeParse(body);
     if (!parsed.success) {
-      return badRequest("Données invalides", parsed.error.flatten());
+      const issue = parsed.error.issues[0];
+      const msg = issue
+        ? `Champ invalide « ${issue.path.join(".")} » : ${issue.message}`
+        : "Données invalides";
+      return badRequest(msg, parsed.error.flatten());
     }
     const d = parsed.data;
+    // FK vides -> null (sinon violation de contrainte sur PostgreSQL).
     const patch: UpdateAgentInput = {
       ...(d.name !== undefined ? { name: d.name } : {}),
       ...(d.role !== undefined ? { role: d.role as AgentRole } : {}),
       ...(d.status !== undefined ? { status: d.status as AgentStatus } : {}),
       ...(d.config !== undefined ? { config: d.config as AgentConfig } : {}),
-      ...(d.phoneNumber !== undefined ? { phoneNumber: d.phoneNumber } : {}),
-      ...(d.clientId !== undefined ? { clientId: d.clientId } : {}),
+      ...(d.phoneNumber !== undefined ? { phoneNumber: d.phoneNumber || null } : {}),
+      ...(d.clientId !== undefined ? { clientId: d.clientId || null } : {}),
       ...(d.knowledgeBaseId !== undefined
-        ? { knowledgeBaseId: d.knowledgeBaseId }
+        ? { knowledgeBaseId: d.knowledgeBaseId || null }
         : {}),
     };
     const agent = await updateAgent(params.id, patch);

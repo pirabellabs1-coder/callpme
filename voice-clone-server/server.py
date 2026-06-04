@@ -115,6 +115,16 @@ app.add_middleware(
 )
 
 
+@app.middleware("http")
+async def _allow_private_network(request, call_next):
+    # Chrome « Private Network Access » : un site PUBLIC (https) qui appelle
+    # localhost est bloqué SAUF si le serveur renvoie cet en-tête. Sans lui,
+    # la requête est rejetée avant d'arriver -> l'agent retombe sur une autre voix.
+    response = await call_next(request)
+    response.headers["Access-Control-Allow-Private-Network"] = "true"
+    return response
+
+
 class CloneReq(BaseModel):
     text: str
     sample: str            # data URL ou base64 brut de l'enregistrement

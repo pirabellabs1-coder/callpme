@@ -29,8 +29,8 @@ export const configSchema = z.object({
   persona: z.string().max(1000).optional(),
   customRole: z
     .object({
-      label: z.string().max(80),
-      description: z.string().max(2000),
+      label: z.string().max(80).optional().default(""),
+      description: z.string().max(2000).optional().default(""),
     })
     .optional(),
   maxDurationSec: z.number().min(0).max(7200).optional(),

@@ -1,8 +1,12 @@
 # Serveur de clonage vocal local Callpme (Coqui XTTS-v2)
-# Python 3.10 ou 3.11 recommandé (évitez 3.12+).
+#
+# ⚠️ PYTHON 3.11 (ou 3.10) OBLIGATOIRE — XTTS ne s'installe PAS sur 3.12 / 3.13.
+#    Installe-le :  winget install Python.Python.3.11
+#    (run.bat le détecte et l'utilise automatiquement.)
+#
 TTS==0.22.0
 fastapi
 uvicorn[standard]
 pydantic
-# torch est tiré par TTS. Pour le GPU (NVIDIA), installez-le AVANT, via :
+# torch est tiré par TTS. Pour le GPU (NVIDIA), installe-le AVANT, via :
 #   pip install torch --index-url https://download.pytorch.org/whl/cu121

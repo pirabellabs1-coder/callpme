@@ -13,7 +13,9 @@ sur **ta** machine ; tes données ne sortent jamais de chez toi.
 
 ## 1. Pré-requis
 
-- **Python 3.10 ou 3.11** (évite 3.12+). Vérifie : `py -3.11 --version`
+- **Python 3.11** (ou 3.10) — ⚠️ **PAS 3.12 / 3.13** (XTTS ne s'y installe pas).
+  Installe : `winget install Python.Python.3.11` · Vérifie : `py -3.11 --version`
+  *(run.bat refuse de démarrer s'il ne trouve pas 3.11/3.10 — pas de mauvaise surprise.)*
 - **ffmpeg** dans le PATH. Sur Windows : `winget install Gyan.FFmpeg` puis rouvre le terminal.
 - **8 Go de RAM** minimum. Un **GPU NVIDIA** rend la voix quasi instantanée ;
   sur CPU ça marche mais compte ~5–20 s par phrase.

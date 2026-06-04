@@ -31,22 +31,15 @@ except Exception:
 # chargement bloque en attendant une saisie clavier).
 os.environ.setdefault("COQUI_TOS_AGREED", "1")
 
-import torch  # noqa: E402
-
-# Correctif torch >= 2.6 : `weights_only=True` est devenu le défaut et casse le
-# chargement de XTTS (« WeightsUnpickler error »). On rétablit l'ancien comportement.
-_ORIG_TORCH_LOAD = torch.load
-def _safe_torch_load(*args, **kwargs):
-    kwargs.setdefault("weights_only", False)
-    return _ORIG_TORCH_LOAD(*args, **kwargs)
-torch.load = _safe_torch_load
-
 from fastapi import FastAPI, HTTPException  # noqa: E402
 from fastapi.middleware.cors import CORSMiddleware  # noqa: E402
 from fastapi.responses import Response  # noqa: E402
 from pydantic import BaseModel  # noqa: E402
 
-DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
+# torch / TTS sont importés PARESSEUSEMENT dans _load_model : ainsi le serveur
+# démarre (et /health répond) même si ces dépendances lourdes manquent ou
+# échouent — l'erreur est alors renvoyée proprement plutôt qu'un « injoignable ».
+DEVICE = "cpu"
 
 # Map des langues Callpme → codes XTTS.
 LANG = {
@@ -68,8 +61,16 @@ _lock = threading.Lock()
 
 
 def _load_model():
-    global _tts, _load_error
+    global _tts, _load_error, DEVICE
     try:
+        import torch  # import tardif (lourd)
+        # Correctif torch >= 2.6 : weights_only=True casse le chargement de XTTS.
+        _orig = torch.load
+        def _safe(*a, **k):
+            k.setdefault("weights_only", False)
+            return _orig(*a, **k)
+        torch.load = _safe
+        DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
         from TTS.api import TTS  # import tardif
         print(f"[Callpme clone] Chargement de XTTS-v2 sur {DEVICE}... "
               "(1re fois : telechargement ~2 Go puis mise en cache)")

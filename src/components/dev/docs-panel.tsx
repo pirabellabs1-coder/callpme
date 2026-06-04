@@ -105,7 +105,22 @@ export function DocsPanel({ apiBaseUrl }: { apiBaseUrl: string }) {
     '      "role": "receptionist",',
     '      "status": "active",',
     '      "phoneNumber": "+33182880000",',
-    '      "createdAt": "2026-06-01T09:12:00.000Z"',
+    '      "config": {',
+    '        "voice": { "provider": "elevenlabs", "voiceId": "amelie", "language": "fr-FR", "speed": 1 },',
+    '        "model": { "provider": "anthropic", "modelId": "claude-3-5-haiku-latest", "temperature": 0.4 },',
+    '        "systemPrompt": "Tu es l\'agent d\'accueil de…",',
+    '        "firstMessage": "Bonjour, bienvenue chez Acme…",',
+    '        "firstSpeaker": "agent",',
+    '        "guardrails": [],',
+    '        "tools": [],',
+    '        "maxDurationSec": 600',
+    "      },",
+    '      "callsTotal": 42,',
+    '      "callsToday": 5,',
+    '      "avgDurationSec": 168,',
+    '      "resolutionRate": 78,',
+    '      "createdAt": "2026-06-01T09:12:00.000Z",',
+    '      "updatedAt": "2026-06-02T10:00:00.000Z"',
     "    }",
     "  ]",
     "}",
@@ -168,14 +183,22 @@ export function DocsPanel({ apiBaseUrl }: { apiBaseUrl: string }) {
     '  "data": {',
     '    "id": "call_3a9…",',
     '    "agentId": "agt_8f2c…",',
+    '    "agentName": "Standard Accueil",',
+    '    "agentRole": "receptionist",',
     '    "direction": "inbound",',
+    '    "fromNumber": "+33600000000",',
+    '    "toNumber": "+33182880000",',
     '    "status": "completed",',
     '    "durationSec": 132,',
     '    "outcome": "Rendez-vous pris",',
+    '    "summary": "Le client a pris un rendez-vous pour mardi 9h30.",',
+    '    "satisfaction": 5,',
     '    "transcript": [',
     '      { "speaker": "agent", "text": "Bonjour…", "at": 0 },',
-    '      { "speaker": "caller", "text": "Je voudrais un rendez-vous", "at": 3 }',
-    "    ]",
+    '      { "speaker": "caller", "text": "Je voudrais un rendez-vous", "at": 3 },',
+    '      { "speaker": "tool", "text": "Rendez-vous créé", "at": 8, "toolName": "book_appointment" }',
+    "    ],",
+    '    "createdAt": "2026-06-01T09:12:00.000Z"',
     "  }",
     "}",
   ].join("\n");
@@ -308,10 +331,10 @@ export function DocsPanel({ apiBaseUrl }: { apiBaseUrl: string }) {
               { name: "firstSpeaker", type: "enum", desc: "agent · caller — qui parle en premier." },
               { name: "guardrails", type: "string[]", desc: "Garde-fous injectés dans le prompt." },
               { name: "persona", type: "string", desc: "Personnalité de l'agent." },
-              { name: "customRole", type: "object", desc: "{ label, description } si role = custom." },
+              { name: "customRole", type: "object", desc: "{ label?, description? } — utilisé si role = custom. Champs facultatifs." },
               { name: "tools", type: "string[]", desc: "Noms des outils / fonctions activés." },
-              { name: "voice", type: "object", desc: "{ provider, voiceId, language, speed }." },
-              { name: "model", type: "object", desc: "{ provider, modelId, temperature }." },
+              { name: "voice", type: "object", desc: "{ provider (elevenlabs · azure · playht), voiceId, language, speed 0.5–2 }. Champs facultatifs." },
+              { name: "model", type: "object", desc: "{ provider (openai · anthropic · mistral), modelId, temperature 0–1 }. Champs facultatifs." },
             ]}
           />
           <CodeTabs
@@ -348,7 +371,7 @@ export function DocsPanel({ apiBaseUrl }: { apiBaseUrl: string }) {
         title="Lister les appels"
         method="GET"
         path="/api/v1/calls"
-        desc="Historique des appels. Filtres : agentId, status, direction (inbound | outbound), limit (max 500)."
+        desc="Historique des appels. Filtres : agentId, status (completed | transferred | failed | missed | in_progress), direction (inbound | outbound), limit (défaut 100, max 500)."
       >
         <CodeBlock language="bash" code={callsCurl} />
       </DocSection>

@@ -28,7 +28,7 @@ export const PRIMARY_NAV: NavItem[] = [
   { href: "/agents", label: "Agents", icon: Bot, match: "/agents" },
   { href: "/campaigns", label: "Campagnes", icon: Megaphone, match: "/campaigns" },
   { href: "/calls", label: "Appels", icon: PhoneCall, match: "/calls" },
-  { href: "/analytics", label: "Analytics", icon: BarChart3 },
+  { href: "/analytics", label: "Statistiques", icon: BarChart3 },
 ];
 
 export const AGENCY_NAV: NavItem[] = [

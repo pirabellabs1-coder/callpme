@@ -67,7 +67,7 @@ export function AdminVoices({ initial }: { initial: VoiceRow[] }) {
         <form onSubmit={add} className="mt-4 space-y-4">
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
             <div className="space-y-1.5">
-              <Label htmlFor="provider">Provider</Label>
+              <Label htmlFor="provider">Fournisseur</Label>
               <Select
                 id="provider"
                 value={provider}

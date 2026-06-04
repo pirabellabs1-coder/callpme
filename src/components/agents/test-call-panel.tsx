@@ -49,6 +49,63 @@ function clamp(v: number, lo: number, hi: number) {
   return Math.min(hi, Math.max(lo, v));
 }
 
+/** Extrait le texte de la réponse Puter (string, message.content string|blocs). */
+function puterText(r: unknown): string {
+  if (!r) return "";
+  if (typeof r === "string") return r.trim();
+  const obj = r as {
+    message?: { content?: unknown };
+    content?: unknown;
+    text?: unknown;
+  };
+  const c = obj.message?.content ?? obj.content ?? obj.text;
+  if (typeof c === "string") return c.trim();
+  if (Array.isArray(c))
+    return c
+      .map((b) => (typeof b === "string" ? b : (b?.text ?? "")))
+      .join("")
+      .trim();
+  try {
+    const s = String(r);
+    return s === "[object Object]" ? "" : s.trim();
+  } catch {
+    return "";
+  }
+}
+
+/**
+ * Cerveau Claude via Puter (client-side, sans clé API). Renvoie le texte ou
+ * `null` si Puter est indisponible / échoue (on retombe alors sur le repli).
+ */
+async function puterReply(
+  messages: { role: string; content: string }[],
+  model: string,
+): Promise<string | null> {
+  const p = (
+    window as unknown as {
+      puter?: {
+        ai?: {
+          chat?: (
+            messages: { role: string; content: string }[],
+            opts: { model: string; temperature?: number },
+          ) => Promise<unknown>;
+        };
+      };
+    }
+  ).puter;
+  if (!p?.ai?.chat) return null;
+  try {
+    const res = await p.ai.chat(messages, {
+      model: model || "claude-sonnet-4-5",
+      temperature: 0.6,
+    });
+    const text = puterText(res);
+    return text || null;
+  } catch {
+    return null;
+  }
+}
+
 /** Choisit une voix système selon le voiceURI, le genre, puis la langue. */
 function pickVoice(
   voices: SpeechSynthesisVoice[],
@@ -276,6 +333,12 @@ export function TestCallPanel({
       body: JSON.stringify({ messages: messagesRef.current }),
     });
     const data = await res.json();
+    // Cerveau Claude via Puter : le serveur a assemblé le prompt système + RAG
+    // + l'historique ; on lance l'inférence côté client. Repli sur data.reply.
+    if (data.usePuter && Array.isArray(data.messages)) {
+      const text = await puterReply(data.messages, data.model);
+      if (text) return { reply: text, toolCalls: [] };
+    }
     return {
       reply: data.reply ?? "Pardon, pouvez-vous répéter ?",
       toolCalls: Array.isArray(data.toolCalls) ? data.toolCalls : [],

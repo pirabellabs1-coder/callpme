@@ -55,6 +55,12 @@ export interface VoiceConfig {
   language: SupportedLanguage | string;
   /** 0.8 – 1.2 */
   speed: number;
+  /** Origine de la voix : préréglage, voix enregistrée au Studio, ou fournisseur par ID. */
+  kind?: "preset" | "custom" | "provider";
+  /** Enregistrement réel (data URL) pour les voix Studio personnalisées — lu tel quel. */
+  sampleUrl?: string | null;
+  /** Libellé lisible affiché dans l'UI (ex. nom de la voix Studio). */
+  voiceLabel?: string;
 }
 
 export interface ModelConfig {

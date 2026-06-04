@@ -42,11 +42,57 @@ export interface GenerateResult {
   toolCalls: ToolInvocation[];
 }
 
-export function hasLLMKey(provider: string): boolean {
-  if (provider === "openai") return Boolean(process.env.OPENAI_API_KEY);
-  if (provider === "anthropic") return Boolean(process.env.ANTHROPIC_API_KEY);
-  if (provider === "mistral") return Boolean(process.env.MISTRAL_API_KEY);
-  return false;
+type Provider = "openai" | "anthropic" | "mistral";
+
+/** Clé d'environnement par provider (vide => indisponible). */
+const ENV_KEY: Record<Provider, () => string | undefined> = {
+  openai: () => process.env.OPENAI_API_KEY || undefined,
+  anthropic: () => process.env.ANTHROPIC_API_KEY || undefined,
+  mistral: () => process.env.MISTRAL_API_KEY || undefined,
+};
+
+/** Une seule clé LLM (n'importe quel provider) suffit à alimenter tous les agents. */
+export function anyLLMKey(): boolean {
+  return Boolean(ENV_KEY.anthropic() || ENV_KEY.openai() || ENV_KEY.mistral());
+}
+
+/**
+ * Vrai dès qu'un vrai modèle peut répondre. On garde le paramètre `provider`
+ * pour compat, mais la décision se base sur la présence de N'IMPORTE quelle clé
+ * (l'opérateur fournit une clé unique qui sert tous les agents).
+ */
+export function hasLLMKey(_provider?: string): boolean {
+  return anyLLMKey();
+}
+
+/**
+ * Provider réellement utilisable : celui configuré sur l'agent si sa clé est
+ * présente, sinon le premier provider dont la clé est disponible. Ainsi une
+ * unique clé (ex. Anthropic) fait fonctionner même les agents configurés OpenAI.
+ */
+function resolveProvider(configured: string): Provider | null {
+  const all: Provider[] = ["anthropic", "openai", "mistral"];
+  const order = (all.includes(configured as Provider) ? [configured as Provider] : []).concat(
+    all.filter((p) => p !== configured),
+  );
+  for (const p of order) if (ENV_KEY[p]()) return p;
+  return null;
+}
+
+/**
+ * Identifiant de modèle valide pour le provider effectif. Si l'agent a été
+ * configuré pour un autre provider (ex. « gpt-4o » alors qu'on bascule sur
+ * Anthropic), on substitue un modèle par défaut cohérent.
+ */
+function effectiveModelId(provider: Provider, configured: string): string {
+  const id = (configured || "").trim();
+  if (provider === "openai") return /^(gpt|o\d|chatgpt)/i.test(id) ? id : "gpt-4o-mini";
+  if (provider === "mistral")
+    return /mistral|ministral|codestral/i.test(id) ? id : "mistral-small-latest";
+  // anthropic — alias « -latest » stable, surchargé par ANTHROPIC_MODEL au besoin.
+  return /^claude/i.test(id)
+    ? id
+    : process.env.ANTHROPIC_MODEL || "claude-3-5-haiku-latest";
 }
 
 export async function generateReply(opts: {
@@ -57,15 +103,23 @@ export async function generateReply(opts: {
   executeTool?: ToolExecutor;
 }): Promise<GenerateResult> {
   const { model, role, messages, tools = [], executeTool } = opts;
-  try {
-    if (model.provider === "openai" && process.env.OPENAI_API_KEY)
-      return await openAICompatible("https://api.openai.com/v1/chat/completions", process.env.OPENAI_API_KEY, model, messages, tools, executeTool);
-    if (model.provider === "mistral" && process.env.MISTRAL_API_KEY)
-      return await openAICompatible("https://api.mistral.ai/v1/chat/completions", process.env.MISTRAL_API_KEY, model, messages, tools, executeTool);
-    if (model.provider === "anthropic" && process.env.ANTHROPIC_API_KEY)
-      return await anthropic(model, messages, tools, executeTool);
-  } catch {
-    /* repli sur le moteur intégré */
+  const provider = resolveProvider(model.provider);
+  if (provider) {
+    const eff: ModelConfig = {
+      ...model,
+      provider,
+      modelId: effectiveModelId(provider, model.modelId),
+    };
+    try {
+      if (provider === "openai")
+        return await openAICompatible("https://api.openai.com/v1/chat/completions", ENV_KEY.openai()!, eff, messages, tools, executeTool);
+      if (provider === "mistral")
+        return await openAICompatible("https://api.mistral.ai/v1/chat/completions", ENV_KEY.mistral()!, eff, messages, tools, executeTool);
+      if (provider === "anthropic")
+        return await anthropic(eff, messages, tools, executeTool);
+    } catch {
+      /* clé/modèle invalide ou réseau : repli sur le moteur intégré */
+    }
   }
   return localFlow(role, messages, tools, executeTool);
 }
@@ -101,6 +155,7 @@ async function openAICompatible(
       }),
       signal: AbortSignal.timeout(20000),
     });
+    if (!res.ok) throw new Error(`LLM ${res.status}`);
     const data = await res.json();
     const msg = data.choices?.[0]?.message;
     const calls = msg?.tool_calls as
@@ -170,6 +225,7 @@ async function anthropic(
       }),
       signal: AbortSignal.timeout(20000),
     });
+    if (!res.ok) throw new Error(`LLM ${res.status}`);
     const data = await res.json();
     const blocks = (data.content ?? []) as {
       type: string;

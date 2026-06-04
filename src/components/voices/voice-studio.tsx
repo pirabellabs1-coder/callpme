@@ -213,13 +213,24 @@ function VoiceCard({
   const ext = externalVoiceId(voice.settings);
   const isProvider = TTS_PROVIDER_IDS.includes(voice.provider) && !!ext;
 
-  function preview() {
+  async function preview() {
     if (speaking) {
+      engine.stop();
       engine.stopSpeaking();
       setSpeaking(false);
       return;
     }
     setSpeaking(true);
+    // Voix enregistrée au Studio : on rejoue le VRAI enregistrement (réglages appliqués).
+    if (voice.sampleUrl) {
+      try {
+        const buffer = await engine.decode(voice.sampleUrl);
+        engine.play(buffer, settings, () => setSpeaking(false));
+        return;
+      } catch {
+        /* échantillon illisible : repli sur la synthèse */
+      }
+    }
     engine.speak(voice.sampleText || DEFAULT_SAMPLE, settings, "fr-FR", () =>
       setSpeaking(false),
     );
@@ -529,7 +540,7 @@ function AddByIdForm({ onSaved }: { onSaved: (v: VoiceRecord) => void }) {
       <div className="space-y-4 p-5">
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
           <div className="space-y-1.5">
-            <label className="text-xs font-medium text-muted-foreground">Provider</label>
+            <label className="text-xs font-medium text-muted-foreground">Fournisseur</label>
             <Select
               value={provider}
               onChange={(e) => {

@@ -1,5 +1,5 @@
 import { requireSession } from "@/lib/auth/session";
-import { listConnectedProviders } from "@/lib/db/integrations";
+import { listConnectedIntegrations } from "@/lib/db/integrations";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { IntegrationsManager } from "@/components/integrations/integrations-manager";
 
@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 
 export default async function IntegrationsPage() {
   const session = await requireSession();
-  const connected = await listConnectedProviders(session.org.id);
+  const connected = await listConnectedIntegrations(session.org.id);
 
   return (
     <div className="space-y-6">

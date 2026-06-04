@@ -45,7 +45,7 @@ const FEATURES = [
   },
   {
     icon: BarChart3,
-    title: "Analytics en temps réel",
+    title: "Statistiques en temps réel",
     text: "Taux de résolution, durée moyenne, transferts, satisfaction : tout est mesuré et visible.",
   },
   {
@@ -74,7 +74,7 @@ const PRICING = [
     price: "49 €",
     period: "/ mois",
     desc: "Pour démarrer avec un premier agent.",
-    features: ["1 agent vocal", "1 numéro inclus", "500 minutes / mois", "Analytics de base"],
+    features: ["1 agent vocal", "1 numéro inclus", "500 minutes / mois", "Statistiques de base"],
     cta: "Commencer",
     highlight: false,
   },
@@ -88,7 +88,7 @@ const PRICING = [
       "10 agents vocaux",
       "5 numéros inclus",
       "3 000 minutes / mois",
-      "Analytics avancées",
+      "Statistiques avancées",
       "Tous les outils & garde-fous",
     ],
     cta: "Choisir Pro",

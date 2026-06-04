@@ -8,6 +8,7 @@ import { getTool, resolveTools } from "@/lib/tools/registry";
 import { signPayload } from "@/lib/webhooks/dispatch";
 import {
   generateReply,
+  anyLLMKey,
   type ChatMessage,
   type ResolvedTool,
   type ToolExecutor,
@@ -150,7 +151,23 @@ export async function POST(
       tools,
       executeTool,
     });
-    return ok({ reply: result.text, toolCalls: result.toolCalls });
+
+    // Sans clé LLM serveur, on délègue l'inférence au cerveau Claude côté
+    // client (Puter) : on renvoie les messages déjà assemblés (prompt système +
+    // RAG + historique) et le modèle. `reply` reste un repli local si Puter
+    // échoue. Avec une clé serveur, `reply` est déjà la vraie réponse du modèle.
+    const useServerLLM = anyLLMKey();
+    return ok({
+      reply: result.text,
+      toolCalls: result.toolCalls,
+      ...(useServerLLM
+        ? {}
+        : {
+            usePuter: true,
+            model: process.env.PUTER_MODEL || "claude-sonnet-4-5",
+            messages,
+          }),
+    });
   } catch {
     return serverError("Impossible de générer la réponse");
   }

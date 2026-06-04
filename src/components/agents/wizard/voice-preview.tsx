@@ -21,6 +21,7 @@ export function VoicePreview({
   gender,
   provider,
   externalVoiceId,
+  sampleUrl,
   label = "Écouter un échantillon",
 }: {
   text: string;
@@ -30,6 +31,8 @@ export function VoicePreview({
   gender?: string | null;
   provider?: string;
   externalVoiceId?: string;
+  /** Enregistrement réel de la voix (data URL). Prioritaire : on lit VRAIMENT cet audio. */
+  sampleUrl?: string | null;
   label?: string;
 }) {
   const [state, setState] = useState<"idle" | "loading" | "playing">("idle");
@@ -86,6 +89,24 @@ export function VoicePreview({
 
   async function play() {
     stopAll();
+    // Voix enregistrée au Studio : on lit VRAIMENT l'audio de la personne.
+    if (sampleUrl) {
+      try {
+        const audio = new Audio(sampleUrl);
+        audioRef.current = audio;
+        audio.onended = () => setState("idle");
+        audio.onerror = () => {
+          // Échantillon illisible : repli sur la synthèse.
+          audioRef.current = null;
+          browserSpeak();
+        };
+        setState("playing");
+        await audio.play();
+        return;
+      } catch {
+        /* repli ci-dessous */
+      }
+    }
     // Voix provider « par ID » : tente l'audio réel d'abord.
     if (provider && externalVoiceId) {
       setState("loading");
@@ -122,7 +143,7 @@ export function VoicePreview({
     setState("idle");
   }
 
-  if (!supported && !provider) {
+  if (!supported && !provider && !sampleUrl) {
     return (
       <p className="text-xs text-muted-foreground">
         L'écoute n'est pas supportée par ce navigateur.

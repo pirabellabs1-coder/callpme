@@ -22,7 +22,7 @@ import { AreaChart } from "@/components/charts/area-chart";
 import { Donut, type DonutSegment } from "@/components/charts/donut";
 import { BarList } from "@/components/charts/bar-list";
 
-export const metadata = { title: "Analytics" };
+export const metadata = { title: "Statistiques" };
 
 const STATUS_COLORS: Record<CallStatus, string> = {
   completed: "hsl(142 46% 40%)",
@@ -48,7 +48,7 @@ export default async function AnalyticsPage() {
   if (a.totalCalls === 0) {
     return (
       <div className="space-y-6">
-        <PageHeader title="Analytics" description="Performance de vos agents." />
+        <PageHeader title="Statistiques" description="Performance de vos agents." />
         <EmptyState
           icon={BarChart3}
           title="Pas encore de données"
@@ -76,7 +76,7 @@ export default async function AnalyticsPage() {
   return (
     <div className="space-y-7">
       <PageHeader
-        title="Analytics"
+        title="Statistiques"
         description="Performance de vos agents sur les 14 derniers jours."
       />
 

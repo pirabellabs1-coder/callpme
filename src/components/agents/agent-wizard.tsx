@@ -172,7 +172,13 @@ export function AgentWizard({
   availableNumbers: PhoneNumberRecord[];
   customTools: CustomToolRecord[];
   knowledgeBases: { id: string; name: string }[];
-  studioVoices: { id: string; name: string; gender: string | null }[];
+  studioVoices: {
+    id: string;
+    name: string;
+    gender: string | null;
+    sampleUrl: string | null;
+    provider?: string;
+  }[];
   template?: AgentTemplate;
   agent?: Agent;
 }) {
@@ -188,7 +194,8 @@ export function AgentWizard({
 
   const set = (patch: Partial<State>) => setS((prev) => ({ ...prev, ...patch }));
 
-  const isStudioVoice = studioVoices.some((v) => v.id === s.voiceId);
+  const selectedStudio = studioVoices.find((v) => v.id === s.voiceId);
+  const isStudioVoice = Boolean(selectedStudio);
   const selectedPreset = getPresetVoice(s.voiceId);
   const GENDER_LABEL: Record<string, string> = {
     feminine: "Féminine",
@@ -275,6 +282,14 @@ export function AgentWizard({
         voiceId: s.voiceId,
         language: s.language,
         speed: s.speed,
+        kind: selectedStudio
+          ? selectedStudio.provider && selectedStudio.provider !== "custom"
+            ? "provider"
+            : "custom"
+          : "preset",
+        // On embarque l'enregistrement réel pour qu'il soit rejoué tel quel.
+        sampleUrl: selectedStudio?.sampleUrl ?? null,
+        voiceLabel: selectedStudio?.name ?? selectedPreset?.label,
       },
       model: {
         provider: s.modelProvider,
@@ -497,14 +512,20 @@ export function AgentWizard({
                 <div className="flex items-center justify-between rounded-lg border border-border bg-secondary/30 p-3">
                   <div className="min-w-0">
                     <p className="text-sm font-medium text-foreground">
-                      {selectedPreset
-                        ? `Aperçu — ${selectedPreset.label}`
-                        : "Aperçu de la voix"}
+                      {selectedStudio
+                        ? `Aperçu — ${selectedStudio.name}`
+                        : selectedPreset
+                          ? `Aperçu — ${selectedPreset.label}`
+                          : "Aperçu de la voix"}
                     </p>
                     <p className="truncate text-xs text-muted-foreground">
-                      {selectedPreset?.description ??
-                        s.firstMessage ??
-                        "Bonjour, comment puis-je vous aider ?"}
+                      {selectedStudio
+                        ? selectedStudio.sampleUrl
+                          ? "Votre voix enregistrée au Studio — écoute du vrai enregistrement."
+                          : "Voix Studio (réglages synthèse)."
+                        : (selectedPreset?.description ??
+                          s.firstMessage ??
+                          "Bonjour, comment puis-je vous aider ?")}
                     </p>
                   </div>
                   <VoicePreview
@@ -512,7 +533,8 @@ export function AgentWizard({
                     language={s.language}
                     speed={s.speed}
                     pitch={selectedPreset?.pitch ?? 0}
-                    gender={selectedPreset?.gender}
+                    gender={selectedStudio?.gender ?? selectedPreset?.gender}
+                    sampleUrl={selectedStudio?.sampleUrl}
                   />
                 </div>
                 <div className="space-y-2">

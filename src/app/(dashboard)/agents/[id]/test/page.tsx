@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Script from "next/script";
 import { notFound } from "next/navigation";
 import { ArrowLeft, Mic, BrainCircuit, Volume2, Info } from "lucide-react";
 import { requireSession } from "@/lib/auth/session";
@@ -28,11 +29,14 @@ export default async function TestAgentPage({
   const agent = await getAgentById(params.id);
   if (!agent || agent.organizationId !== session.org.id) notFound();
 
-  const liveMode = hasLLMKey(agent.config.model.provider);
-  const modelLabel =
+  const hasServerKey = hasLLMKey(agent.config.model.provider);
+  const configuredLabel =
     MODELS[agent.config.model.provider]?.find(
       (m) => m.id === agent.config.model.modelId,
     )?.label ?? agent.config.model.modelId;
+  // Le cerveau réel : clé serveur si présente, sinon Claude via Puter (client).
+  const modelLabel = hasServerKey ? configuredLabel : "Claude Sonnet 4.5 · Puter";
+  const liveMode = true;
   const roleLabel =
     agent.role === "custom"
       ? agent.config.customRole?.label || "Rôle personnalisé"
@@ -75,6 +79,8 @@ export default async function TestAgentPage({
 
   return (
     <div className="space-y-6">
+      {/* Cerveau Claude (Puter) chargé côté client — aucune clé API requise. */}
+      <Script src="https://js.puter.com/v2/" strategy="afterInteractive" />
       <Link
         href={`/agents/${agent.id}`}
         className="inline-flex items-center gap-1.5 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
@@ -139,6 +145,14 @@ export default async function TestAgentPage({
                 vous avez configuré — rôle, voix, modèle{" "}
                 <strong>{modelLabel}</strong>, prompt, outils et base de
                 connaissances — est utilisé en direct dans la conversation.
+                {!hasServerKey && (
+                  <>
+                    {" "}
+                    Le cerveau Claude est fourni par Puter : à la première
+                    réponse, autorisez l'accès dans la fenêtre Puter (gratuit,
+                    sans clé API).
+                  </>
+                )}
               </p>
             </div>
           </Card>

@@ -95,7 +95,7 @@ export default async function OverviewPage() {
               href="/analytics"
               className="inline-flex items-center gap-1 text-sm font-medium text-brand hover:text-brand-700"
             >
-              Analytics
+              Statistiques
               <ArrowRight className="size-3.5" />
             </Link>
           </div>

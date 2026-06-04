@@ -38,7 +38,7 @@ export default async function AdminAgentsPage() {
               <span className="flex w-24 items-center justify-end gap-1.5">
                 <AgentStatusDot status={a.status as "active" | "paused" | "draft"} />
                 <span className="text-xs text-muted-foreground">
-                  {a.status === "active" ? "En ligne" : a.status === "paused" ? "Pause" : "Brouillon"}
+                  {a.status === "active" ? "En ligne" : a.status === "paused" ? "En pause" : "Brouillon"}
                 </span>
               </span>
             </Link>

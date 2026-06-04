@@ -20,38 +20,59 @@ function base(): string {
   return getCloneUrl().replace(/\/+$/, "");
 }
 
-/** Vérifie que le serveur local répond. */
-export async function cloneHealth(): Promise<boolean> {
+export interface CloneHealth {
+  ok: boolean;
+  loaded: boolean;
+  error: string | null;
+}
+
+/** Vérifie que le serveur local répond, et si le modèle est prêt. */
+export async function cloneHealth(): Promise<CloneHealth> {
   try {
     const res = await fetch(`${base()}/health`, {
       signal: AbortSignal.timeout(4000),
     });
-    return res.ok;
+    if (!res.ok) return { ok: false, loaded: false, error: `HTTP ${res.status}` };
+    const j = await res.json();
+    return { ok: true, loaded: Boolean(j.loaded), error: j.error ?? null };
   } catch {
-    return false;
+    return { ok: false, loaded: false, error: "injoignable" };
   }
 }
 
 /**
  * Génère l'audio de `text` AVEC la voix de `sampleUrl` (enregistrement Studio).
- * Renvoie une object-URL audio à lire, ou null si le serveur est indisponible.
+ * Renvoie une object-URL audio à lire, ou une erreur lisible expliquant le repli.
  */
 export async function cloneSpeak(
   text: string,
   sampleUrl: string,
   language: string,
-): Promise<string | null> {
+): Promise<{ url: string | null; error: string }> {
   try {
     const res = await fetch(`${base()}/clone`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ text: text.slice(0, 600), sample: sampleUrl, language }),
-      signal: AbortSignal.timeout(60000),
+      signal: AbortSignal.timeout(120000),
     });
-    if (!res.ok) return null;
+    if (!res.ok) {
+      let detail = `erreur serveur (${res.status})`;
+      try {
+        const j = await res.json();
+        if (j?.detail) detail = String(j.detail);
+      } catch {
+        /* pas de corps JSON */
+      }
+      return { url: null, error: detail };
+    }
     const blob = await res.blob();
-    return URL.createObjectURL(blob);
-  } catch {
-    return null;
+    return { url: URL.createObjectURL(blob), error: "" };
+  } catch (e) {
+    const msg =
+      e instanceof Error && e.name === "TimeoutError"
+        ? "délai dépassé (modèle lent — réessaie)"
+        : "serveur de clonage injoignable";
+    return { url: null, error: msg };
   }
 }

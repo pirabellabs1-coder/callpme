@@ -14,7 +14,10 @@ import { Label } from "@/components/ui/label";
  */
 export function CloneServerConfig() {
   const [url, setUrl] = useState("");
-  const [state, setState] = useState<"idle" | "checking" | "ok" | "ko">("idle");
+  const [state, setState] = useState<
+    "idle" | "checking" | "ok" | "loading" | "ko"
+  >("idle");
+  const [detail, setDetail] = useState("");
 
   useEffect(() => {
     setUrl(getCloneUrl());
@@ -23,7 +26,16 @@ export function CloneServerConfig() {
   async function check() {
     setCloneUrl(url);
     setState("checking");
-    setState((await cloneHealth()) ? "ok" : "ko");
+    setDetail("");
+    const h = await cloneHealth();
+    if (!h.ok) {
+      setState("ko");
+    } else if (!h.loaded) {
+      setState("loading");
+      setDetail(h.error || "");
+    } else {
+      setState("ok");
+    }
   }
 
   return (
@@ -66,7 +78,18 @@ export function CloneServerConfig() {
 
       {state === "ok" && (
         <p className="mt-2 inline-flex items-center gap-1.5 text-xs font-medium text-emerald-600">
-          <CheckCircle2 className="size-4" /> Connecté — l'agent parlera avec ta voix.
+          <CheckCircle2 className="size-4" /> Connecté, modèle prêt — l'agent
+          parlera avec ta voix.
+        </p>
+      )}
+      {state === "loading" && (
+        <p className="mt-2 inline-flex items-start gap-1.5 text-xs font-medium text-amber-700">
+          <Loader2 className="mt-0.5 size-4 shrink-0 animate-spin" />
+          <span>
+            Connecté, mais le <strong>modèle se charge</strong> (1ʳᵉ fois ~2 Go).
+            Patiente quelques minutes puis re-clique « Vérifier ».
+            {detail ? ` — ${detail}` : ""}
+          </span>
         </p>
       )}
       {state === "ko" && (

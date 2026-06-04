@@ -63,20 +63,27 @@ os.makedirs(_SAMPLE_DIR, exist_ok=True)
 #  immédiatement ; le modèle (~2 Go) ne se charge qu'au 1er clonage.           #
 # --------------------------------------------------------------------------- #
 _tts = None
+_load_error = None
 _lock = threading.Lock()
 
 
-def _get_tts():
-    global _tts
-    if _tts is None:
-        with _lock:
-            if _tts is None:
-                from TTS.api import TTS  # import tardif
-                print(f"[Callpme clone] Chargement de XTTS-v2 sur {DEVICE}... "
-                      "(1re fois : telechargement ~2 Go puis mise en cache)")
-                _tts = TTS("tts_models/multilingual/multi-dataset/xtts_v2").to(DEVICE)
-                print("[Callpme clone] Modele pret -- l'agent peut parler avec ta voix.")
-    return _tts
+def _load_model():
+    global _tts, _load_error
+    try:
+        from TTS.api import TTS  # import tardif
+        print(f"[Callpme clone] Chargement de XTTS-v2 sur {DEVICE}... "
+              "(1re fois : telechargement ~2 Go puis mise en cache)")
+        model = TTS("tts_models/multilingual/multi-dataset/xtts_v2").to(DEVICE)
+        _tts = model
+        print("[Callpme clone] Modele pret -- l'agent peut parler avec ta voix.")
+    except Exception as e:  # noqa: BLE001
+        _load_error = str(e)
+        print("[Callpme clone] ERREUR de chargement du modele :", e)
+
+
+# Charge le modele EN ARRIERE-PLAN des le demarrage : /health repond tout de
+# suite, et le modele est pret avant le 1er appel (evite un time-out client).
+threading.Thread(target=_load_model, daemon=True).start()
 
 
 def _decode_sample(sample: str) -> str:
@@ -133,7 +140,13 @@ class CloneReq(BaseModel):
 
 @app.get("/health")
 def health():
-    return {"ok": True, "device": DEVICE, "model": "xtts_v2", "loaded": _tts is not None}
+    return {
+        "ok": True,
+        "device": DEVICE,
+        "model": "xtts_v2",
+        "loaded": _tts is not None,
+        "error": _load_error,
+    }
 
 
 @app.post("/clone")
@@ -141,14 +154,17 @@ def clone(req: CloneReq):
     text = (req.text or "").strip()
     if not text:
         raise HTTPException(400, "Texte vide.")
+    if _tts is None:
+        if _load_error:
+            raise HTTPException(503, f"Modele non charge : {_load_error}")
+        raise HTTPException(503, "Modele en cours de chargement, reessaie dans quelques instants.")
     lang = LANG.get(req.language, "fr")
     speaker_wav = _decode_sample(req.sample)
-    tts = _get_tts()
     out_path = os.path.join(
         tempfile.gettempdir(), f"out_{os.getpid()}_{threading.get_ident()}.wav"
     )
     with _lock:  # XTTS n'est pas thread-safe : on sérialise les inférences.
-        tts.tts_to_file(
+        _tts.tts_to_file(
             text=text[:600],
             speaker_wav=speaker_wav,
             language=lang,

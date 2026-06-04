@@ -239,6 +239,7 @@ export function TestCallPanel({
   const [brainErr, setBrainErr] = useState("");
   // Diagnostic voix clonée : null = inconnu, true = ta voix, false = repli (serveur off).
   const [cloneOk, setCloneOk] = useState<boolean | null>(null);
+  const [cloneErr, setCloneErr] = useState("");
 
   const activeRef = useRef(false);
   const statusRef = useRef<Status>("idle");
@@ -360,9 +361,10 @@ export function TestCallPanel({
     // Voix CLONÉE via le serveur local auto-hébergé : TA voix enregistrée,
     // sur n'importe quel texte, sans aucun service externe.
     if (voiceSampleUrl) {
-      const url = await cloneSpeak(text, voiceSampleUrl, language);
+      const { url, error } = await cloneSpeak(text, voiceSampleUrl, language);
       if (url) {
         setCloneOk(true);
+        setCloneErr("");
         const audio = new Audio(url);
         audioRef.current = audio;
         const done = () => {
@@ -374,7 +376,9 @@ export function TestCallPanel({
         await audio.play().catch(done);
         return;
       }
-      setCloneOk(false); // serveur local injoignable → repli ci-dessous
+      // Échec du clonage : on affiche la raison précise et on se replie.
+      setCloneOk(false);
+      setCloneErr(error);
     }
     // Voix réelle via Puter (sans clé) — UNIQUEMENT pour les préréglages.
     // Pour une voix du Studio, on respecte la voix/réglages choisis (ci-dessous),
@@ -616,7 +620,7 @@ export function TestCallPanel({
                 </span>
               ) : (
                 <span
-                  title="Serveur de clonage local injoignable — voix de repli"
+                  title={cloneErr ? `Voix de repli — ${cloneErr}` : "Voix de repli"}
                   className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-[0.7rem] font-medium text-amber-700 ring-1 ring-inset ring-amber-600/20"
                 >
                   <Mic className="size-3" />
@@ -624,6 +628,11 @@ export function TestCallPanel({
                 </span>
               ))}
           </div>
+          {cloneOk === false && cloneErr && (
+            <p className="mt-1 text-[0.7rem] text-amber-700" title={cloneErr}>
+              Clonage indisponible : {cloneErr}
+            </p>
+          )}
           {brainOk === false && brainErr && (
             <p className="mt-1 truncate text-[0.7rem] text-amber-700" title={brainErr}>
               Puter indisponible : {brainErr}

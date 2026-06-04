@@ -1,0 +1,8 @@
+# Serveur de clonage vocal local Callpme (Coqui XTTS-v2)
+# Python 3.10 ou 3.11 recommandé (évitez 3.12+).
+TTS==0.22.0
+fastapi
+uvicorn[standard]
+pydantic
+# torch est tiré par TTS. Pour le GPU (NVIDIA), installez-le AVANT, via :
+#   pip install torch --index-url https://download.pytorch.org/whl/cu121

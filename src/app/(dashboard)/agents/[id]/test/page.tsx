@@ -10,6 +10,7 @@ import { hasLLMKey } from "@/lib/llm/chat";
 import { MODELS } from "@/lib/agents/catalog";
 import { Card } from "@/components/ui/card";
 import { TestCallPanel } from "@/components/agents/test-call-panel";
+import { CloneServerConfig } from "@/components/agents/clone-server-config";
 
 export const metadata = { title: "Test d'appel" };
 export const dynamic = "force-dynamic";
@@ -114,11 +115,13 @@ export default async function TestAgentPage({
             voiceProfile={voiceProfile}
             voiceGender={studioVoice?.gender ?? preset?.gender ?? null}
             studioActive={Boolean(studioVoice)}
+            voiceSampleUrl={studioVoice?.sampleUrl ?? null}
             maxDurationSec={agent.config.maxDurationSec}
           />
         </div>
 
         <div className="space-y-5 lg:col-span-2">
+          {studioVoice?.sampleUrl && <CloneServerConfig />}
           <Card className="p-5">
             <h2 className="text-[0.95rem] font-semibold tracking-tight">
               Comment ça marche

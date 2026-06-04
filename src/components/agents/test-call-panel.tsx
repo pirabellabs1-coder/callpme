@@ -19,6 +19,7 @@ import type { AgentRole, FirstSpeaker } from "@/lib/shared/types";
 import { cn } from "@/lib/utils";
 import { RoleIcon, RoleBadge } from "@/components/role-badge";
 import { Button } from "@/components/ui/button";
+import { cloneSpeak } from "@/lib/voices/clone-client";
 
 type Status =
   | "idle"
@@ -207,6 +208,7 @@ export function TestCallPanel({
   voiceProfile,
   voiceGender,
   studioActive,
+  voiceSampleUrl,
   maxDurationSec,
 }: {
   agentId: string;
@@ -222,6 +224,8 @@ export function TestCallPanel({
   voiceGender?: string | null;
   /** L'agent utilise une voix du Studio : on respecte SA voix, pas Puter TTS. */
   studioActive?: boolean;
+  /** Enregistrement de la voix (data URL) → clonage via le serveur local. */
+  voiceSampleUrl?: string | null;
   maxDurationSec?: number;
 }) {
   const [status, setStatus] = useState<Status>("idle");
@@ -233,6 +237,8 @@ export function TestCallPanel({
   // Diagnostic cerveau : null = inconnu, true = Claude/Puter actif, false = repli local.
   const [brainOk, setBrainOk] = useState<boolean | null>(null);
   const [brainErr, setBrainErr] = useState("");
+  // Diagnostic voix clonée : null = inconnu, true = ta voix, false = repli (serveur off).
+  const [cloneOk, setCloneOk] = useState<boolean | null>(null);
 
   const activeRef = useRef(false);
   const statusRef = useRef<Status>("idle");
@@ -350,6 +356,25 @@ export function TestCallPanel({
       } catch {
         /* repli synthèse navigateur */
       }
+    }
+    // Voix CLONÉE via le serveur local auto-hébergé : TA voix enregistrée,
+    // sur n'importe quel texte, sans aucun service externe.
+    if (voiceSampleUrl) {
+      const url = await cloneSpeak(text, voiceSampleUrl, language);
+      if (url) {
+        setCloneOk(true);
+        const audio = new Audio(url);
+        audioRef.current = audio;
+        const done = () => {
+          URL.revokeObjectURL(url);
+          resolve();
+        };
+        audio.onended = done;
+        audio.onerror = done;
+        await audio.play().catch(done);
+        return;
+      }
+      setCloneOk(false); // serveur local injoignable → repli ci-dessous
     }
     // Voix réelle via Puter (sans clé) — UNIQUEMENT pour les préréglages.
     // Pour une voix du Studio, on respecte la voix/réglages choisis (ci-dessous),
@@ -582,6 +607,22 @@ export function TestCallPanel({
                 {brainOk ? "Claude (Puter)" : modelLabel}
               </span>
             )}
+            {voiceSampleUrl &&
+              cloneOk !== null &&
+              (cloneOk ? (
+                <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[0.7rem] font-medium text-emerald-700 ring-1 ring-inset ring-emerald-600/15">
+                  <Mic className="size-3" />
+                  Ta voix
+                </span>
+              ) : (
+                <span
+                  title="Serveur de clonage local injoignable — voix de repli"
+                  className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-[0.7rem] font-medium text-amber-700 ring-1 ring-inset ring-amber-600/20"
+                >
+                  <Mic className="size-3" />
+                  Voix de repli
+                </span>
+              ))}
           </div>
           {brainOk === false && brainErr && (
             <p className="mt-1 truncate text-[0.7rem] text-amber-700" title={brainErr}>

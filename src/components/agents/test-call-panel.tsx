@@ -94,16 +94,27 @@ async function puterReply(
     }
   ).puter;
   if (!p?.ai?.chat) return null;
-  try {
-    const res = await p.ai.chat(messages, {
-      model: model || "claude-sonnet-4-5",
-      temperature: 0.6,
-    });
-    const text = puterText(res);
-    return text || null;
-  } catch {
-    return null;
+  // On essaie plusieurs identifiants de modèle Claude : si Puter en refuse un,
+  // on passe au suivant avant de renoncer (évite un repli silencieux sur le
+  // moteur local si l'ID de modèle a changé côté Puter).
+  const candidates = [
+    model,
+    "claude-sonnet-4-5",
+    "claude-sonnet-4",
+    "claude-3-7-sonnet",
+    "claude-3-5-sonnet",
+  ].filter((m, i, a) => Boolean(m) && a.indexOf(m) === i);
+  for (const m of candidates) {
+    try {
+      const res = await p.ai.chat(messages, { model: m, temperature: 0.6 });
+      const text = puterText(res);
+      if (text) return text;
+    } catch (e) {
+      if (typeof console !== "undefined")
+        console.warn("[Puter] modèle refusé :", m, e);
+    }
   }
+  return null;
 }
 
 /** Choisit une voix système selon le voiceURI, le genre, puis la langue. */

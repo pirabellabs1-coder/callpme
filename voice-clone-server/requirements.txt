@@ -4,9 +4,13 @@
 #    Installe-le :  winget install Python.Python.3.11
 #    (run.bat le détecte et l'utilise automatiquement.)
 #
-TTS==0.22.0
+# coqui-tts = fork MAINTENU de Coqui TTS (même API « from TTS.api import TTS »,
+# même modèle xtts_v2), plus fiable à installer aujourd'hui que l'ancien « TTS ».
+# Si jamais ça coince, remplace la ligne par :  TTS==0.22.0
+coqui-tts
 fastapi
 uvicorn[standard]
 pydantic
-# torch est tiré par TTS. Pour le GPU (NVIDIA), installe-le AVANT, via :
+# torch est tiré automatiquement. Pour le GPU NVIDIA (fortement recommandé),
+# installe-le AVANT, via :
 #   pip install torch --index-url https://download.pytorch.org/whl/cu121

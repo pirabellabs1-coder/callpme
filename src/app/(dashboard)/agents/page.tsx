@@ -59,13 +59,6 @@ export default async function AgentsPage({
           <LayoutTemplate className="size-4" />
           Modèles
         </Link>
-        <Link
-          href="/agents/new"
-          className={cn(buttonVariants({ variant: "brand" }), "gap-1.5")}
-        >
-          <Plus className="size-4" />
-          Créer un agent
-        </Link>
       </PageHeader>
 
       {/* Carte de recherche / filtres */}

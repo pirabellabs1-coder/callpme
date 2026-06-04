@@ -27,10 +27,16 @@ export const configSchema = z.object({
   guardrails: z.array(z.string().max(500)).max(30),
   tools: z.array(z.string().max(80)).max(60),
   persona: z.string().max(1000).optional(),
+  // Tolérant à toute forme (null, undefined, champ manquant, anciens clients…) :
+  // n'importe quelle valeur est ramenée à du texte → jamais d'« Invalid input ».
   customRole: z
-    .object({
-      label: z.string().max(80).optional().default(""),
-      description: z.string().max(2000).optional().default(""),
+    .any()
+    .transform((v): { label: string; description: string } | undefined => {
+      if (!v || typeof v !== "object") return undefined;
+      const label = typeof v.label === "string" ? v.label.slice(0, 80) : "";
+      const description =
+        typeof v.description === "string" ? v.description.slice(0, 2000) : "";
+      return { label, description };
     })
     .optional(),
   maxDurationSec: z.number().min(0).max(7200).optional(),

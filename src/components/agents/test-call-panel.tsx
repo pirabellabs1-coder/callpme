@@ -206,6 +206,7 @@ export function TestCallPanel({
   modelLabel,
   voiceProfile,
   voiceGender,
+  studioActive,
   maxDurationSec,
 }: {
   agentId: string;
@@ -219,6 +220,8 @@ export function TestCallPanel({
   modelLabel: string;
   voiceProfile?: VoiceProfile;
   voiceGender?: string | null;
+  /** L'agent utilise une voix du Studio : on respecte SA voix, pas Puter TTS. */
+  studioActive?: boolean;
   maxDurationSec?: number;
 }) {
   const [status, setStatus] = useState<Status>("idle");
@@ -348,18 +351,22 @@ export function TestCallPanel({
         /* repli synthèse navigateur */
       }
     }
-    // Voix réelle via Puter (sans clé) — voix françaises distinctes (AWS Polly).
-    try {
-      const audio = await puterSpeak(text, voiceGender, language);
-      if (audio) {
-        audioRef.current = audio;
-        audio.onended = () => resolve();
-        audio.onerror = () => resolve();
-        await audio.play().catch(() => resolve());
-        return;
+    // Voix réelle via Puter (sans clé) — UNIQUEMENT pour les préréglages.
+    // Pour une voix du Studio, on respecte la voix/réglages choisis (ci-dessous),
+    // sinon Puter remplacerait la voix personnalisée par une voix générique.
+    if (!studioActive) {
+      try {
+        const audio = await puterSpeak(text, voiceGender, language);
+        if (audio) {
+          audioRef.current = audio;
+          audio.onended = () => resolve();
+          audio.onerror = () => resolve();
+          await audio.play().catch(() => resolve());
+          return;
+        }
+      } catch {
+        /* repli synthèse navigateur */
       }
-    } catch {
-      /* repli synthèse navigateur */
     }
     // Repli : synthèse du navigateur avec la signature de la voix.
     if (!("speechSynthesis" in window)) return resolve();

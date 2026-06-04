@@ -113,6 +113,7 @@ export default async function TestAgentPage({
             modelLabel={modelLabel}
             voiceProfile={voiceProfile}
             voiceGender={studioVoice?.gender ?? preset?.gender ?? null}
+            studioActive={Boolean(studioVoice)}
             maxDurationSec={agent.config.maxDurationSec}
           />
         </div>

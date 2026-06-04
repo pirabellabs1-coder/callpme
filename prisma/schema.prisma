@@ -1,0 +1,340 @@
+// Schéma Prisma Callpme.
+//
+// En local : SQLite (zéro Docker, démarrage immédiat).
+// Les champs riches (config d'agent, transcript) sont stockés en TEXT JSON
+// pour une portabilité totale ; sur PostgreSQL ils deviennent `Json`/`jsonb`.
+// La (dé)sérialisation typée est gérée dans `src/lib/db` — les types métier
+// (`AgentConfig`, `TranscriptTurn[]`) restent la source de vérité.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Organization {
+  id             String               @id @default(cuid())
+  name           String
+  plan           String               @default("starter") // starter | pro | agency
+  agents         Agent[]
+  users          User[]
+  apiKeys        ApiKey[]
+  webhooks       Webhook[]
+  customTools    CustomTool[]
+  phoneNumbers   PhoneNumber[]
+  providers      ProviderConnection[]
+  clients        Client[]
+  campaigns      Campaign[]
+  knowledgeBases KnowledgeBase[]
+  voices         Voice[]
+  notifications  Notification[]
+  integrations   Integration[]
+  createdAt      DateTime             @default(now())
+}
+
+model User {
+  id             String       @id @default(cuid())
+  email          String       @unique
+  name           String?
+  passwordHash   String? // scrypt: "scrypt$salt$hash"
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  role           String       @default("member") // owner | admin | member
+  isAdmin        Boolean      @default(false) // super-admin plateforme
+  sessions       Session[]
+  createdAt      DateTime     @default(now())
+
+  @@index([organizationId])
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+model ApiKey {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  name           String
+  prefix         String // partie visible, ex: cpk_live_8Fz3
+  lastFour       String
+  hash           String       @unique // sha256 de la clé complète
+  lastUsedAt     DateTime?
+  revokedAt      DateTime?
+  createdAt      DateTime     @default(now())
+
+  @@index([organizationId])
+  @@index([hash])
+}
+
+model Webhook {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  url            String
+  events         String // JSON: string[] (ex: ["agent.created"])
+  secret         String // pour la signature HMAC
+  enabled        Boolean      @default(true)
+  lastStatus     Int?
+  lastDeliveryAt DateTime?
+  createdAt      DateTime     @default(now())
+
+  @@index([organizationId])
+}
+
+model Agent {
+  id              String         @id @default(cuid())
+  organizationId  String
+  organization    Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  clientId        String?
+  client          Client?        @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  knowledgeBaseId String?
+  knowledgeBase   KnowledgeBase? @relation(fields: [knowledgeBaseId], references: [id], onDelete: SetNull)
+  name            String
+  role            String // support | appointment | lead_qualification | outbound_sales | receptionist | survey | custom
+  status          String         @default("draft") // active | paused | draft
+  config          String // JSON: AgentConfig (voice, model, prompt, tools, guardrails)
+  phoneNumber     String?        @unique
+  calls           Call[]
+  campaigns       Campaign[]
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+
+  @@index([organizationId])
+  @@index([clientId])
+  @@index([role])
+}
+
+model Call {
+  id           String   @id @default(cuid())
+  agentId      String
+  agent        Agent    @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  direction    String // inbound | outbound
+  fromNumber   String
+  toNumber     String
+  status       String // completed | transferred | failed | missed | in_progress
+  durationSec  Int      @default(0)
+  transcript   String // JSON: TranscriptTurn[]
+  summary      String?
+  outcome      String?
+  satisfaction Int? // 1..5
+  createdAt    DateTime    @default(now())
+  evaluation   Evaluation?
+
+  @@index([agentId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+// Fonction personnalisée (function calling) — connectable aux agents.
+// Les arguments collectés peuvent être POSTés vers `serverUrl` (façon Vapi).
+model CustomTool {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  name           String // identifiant technique, ex: collectContact
+  label          String
+  description    String // pour le LLM
+  parameters     String // JSON Schema des arguments
+  serverUrl      String? // destination POST des arguments collectés
+  secret         String? // signature HMAC de l'appel sortant
+  method         String       @default("POST")
+  async          Boolean      @default(false) // exécution asynchrone
+  strict         Boolean      @default(false) // validation stricte des paramètres
+  lockSchema     Boolean      @default(false) // aucune propriété additionnelle
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@unique([organizationId, name])
+  @@index([organizationId])
+}
+
+// Numéro de téléphone (importé depuis un provider : Twilio, Zadarma…).
+model PhoneNumber {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  number         String       @unique
+  label          String
+  provider       String // twilio | zadarma | vonage | ovh | telnyx | manual
+  monthlyPrice   Float        @default(0)
+  status         String       @default("active") // active | pending
+  createdAt      DateTime     @default(now())
+
+  @@index([organizationId])
+}
+
+// Connexion à un opérateur téléphonique (identifiants API).
+model ProviderConnection {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  provider       String // twilio | zadarma | vonage | ovh | telnyx
+  label          String
+  accountSid     String?
+  authToken      String?
+  apiKey         String?
+  apiSecret      String?
+  enabled        Boolean      @default(true)
+  createdAt      DateTime     @default(now())
+
+  @@index([organizationId])
+}
+
+// ----- Espace agence multi-clients (Track 3) -----
+model Client {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  name           String
+  brandColor     String? // marque blanche
+  logoUrl        String?
+  contactEmail   String?
+  agents         Agent[]
+  createdAt      DateTime     @default(now())
+
+  @@index([organizationId])
+}
+
+// ----- Campagnes d'appels sortants (Track 2) -----
+model Campaign {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  agentId        String
+  agent          Agent        @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  name           String
+  status         String       @default("draft") // draft | running | paused | completed
+  contacts       Contact[]
+  createdAt      DateTime     @default(now())
+
+  @@index([organizationId])
+  @@index([agentId])
+}
+
+model Contact {
+  id         String    @id @default(cuid())
+  campaignId String
+  campaign   Campaign  @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  name       String
+  phone      String
+  status     String    @default("pending") // pending | calling | completed | failed | no_answer | opted_out
+  outcome    String?
+  data       String? // JSON champs additionnels
+  calledAt   DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@index([campaignId])
+  @@index([status])
+}
+
+// ----- Base de connaissances / RAG (Track 4) -----
+model KnowledgeBase {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  name           String
+  description    String?
+  documents      Document[]
+  agents         Agent[]
+  createdAt      DateTime     @default(now())
+
+  @@index([organizationId])
+}
+
+model Document {
+  id              String        @id @default(cuid())
+  knowledgeBaseId String
+  knowledgeBase   KnowledgeBase @relation(fields: [knowledgeBaseId], references: [id], onDelete: Cascade)
+  title           String
+  source          String        @default("text") // text | url | pdf
+  content         String // texte indexé
+  createdAt       DateTime      @default(now())
+
+  @@index([knowledgeBaseId])
+}
+
+// ----- Studio Voix (entraînement de voix) -----
+model Voice {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  name           String
+  provider       String       @default("custom") // custom | elevenlabs | azure | playht
+  status         String       @default("ready") // training | ready | failed
+  gender         String? // feminine | masculine | neutral
+  accent         String?
+  description    String?
+  sampleText     String?
+  settings       String? // JSON : { pitch, rate, gain, eqLow, eqMid, eqHigh, reverb, compression, voiceURI }
+  sampleUrl      String? // échantillon enregistré (data URL audio) ou rendu traité
+  createdAt      DateTime     @default(now())
+
+  @@index([organizationId])
+}
+
+// ----- Évaluation automatique des appels (bonus) -----
+model Evaluation {
+  id           String   @id @default(cuid())
+  callId       String   @unique
+  call         Call     @relation(fields: [callId], references: [id], onDelete: Cascade)
+  successScore Int // 0..100
+  goalAchieved Boolean  @default(false)
+  sentiment    String? // positive | neutral | negative
+  summary      String?
+  createdAt    DateTime @default(now())
+}
+
+// ----- Notifications (bonus) -----
+model Notification {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  type           String       @default("info") // info | call | campaign | system
+  title          String
+  body           String?
+  href           String?
+  read           Boolean      @default(false)
+  createdAt      DateTime     @default(now())
+
+  @@index([organizationId])
+}
+
+// ----- Intégrations (bonus) -----
+model Integration {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  provider       String // google_calendar | hubspot | salesforce | pipedrive | slack | zapier
+  status         String       @default("connected") // connected | disconnected
+  config         String? // JSON
+  createdAt      DateTime     @default(now())
+
+  @@unique([organizationId, provider])
+  @@index([organizationId])
+}
+
+// ----- Codes promo (super-admin) -----
+model PromoCode {
+  id             String    @id @default(cuid())
+  code           String    @unique
+  description    String?
+  discountType   String    @default("percent") // percent | amount | plan
+  discountValue  Int       @default(0) // % ou € selon le type
+  grantPlan      String? // offre offerte (si type = plan)
+  maxRedemptions Int       @default(0) // 0 = illimité
+  redeemedCount  Int       @default(0)
+  active         Boolean   @default(true)
+  expiresAt      DateTime?
+  createdAt      DateTime  @default(now())
+}

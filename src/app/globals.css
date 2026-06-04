@@ -1,0 +1,207 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+ * Callpme — système de tokens.
+ * Couleurs en HSL (canaux) pour permettre les modificateurs d'opacité Tailwind.
+ * Esprit : papier blanc cassé chaud, encre noire chaude, orange de marque #E8572A.
+ */
+@layer base {
+  :root {
+    /* Surfaces */
+    --background: 40 33% 98%; /* papier blanc cassé chaud */
+    --foreground: 24 12% 12%; /* encre noire chaude */
+    --card: 0 0% 100%; /* blanc pur, légèrement surélevé */
+    --card-foreground: 24 12% 12%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 24 12% 12%;
+
+    /* Marque */
+    --brand: 14 81% 54%; /* #E8572A */
+    --brand-foreground: 0 0% 100%;
+
+    /* Primaire = encre (boutons sombres type Linear/Stripe) */
+    --primary: 24 14% 13%;
+    --primary-foreground: 40 33% 98%;
+
+    /* Secondaire / sourdine / accent — gris chauds */
+    --secondary: 36 22% 96%;
+    --secondary-foreground: 24 12% 18%;
+    --muted: 36 20% 95.5%;
+    --muted-foreground: 28 8% 42%;
+    --accent: 36 24% 94%;
+    --accent-foreground: 24 14% 16%;
+
+    /* États */
+    --destructive: 4 70% 50%;
+    --destructive-foreground: 0 0% 100%;
+    --success: 142 46% 38%;
+    --success-foreground: 0 0% 100%;
+    --warning: 34 84% 46%;
+    --warning-foreground: 0 0% 100%;
+
+    /* Traits */
+    --border: 30 14% 90%;
+    --input: 30 14% 88%;
+    --ring: 14 81% 54%;
+
+    --radius: 0.625rem;
+  }
+
+  /* Mode sombre — réservé au dashboard si activé ; pédestal chaud et profond. */
+  .dark {
+    --background: 24 12% 8%;
+    --foreground: 36 20% 94%;
+    --card: 24 11% 11%;
+    --card-foreground: 36 20% 94%;
+    --popover: 24 11% 11%;
+    --popover-foreground: 36 20% 94%;
+    --brand: 14 84% 57%;
+    --brand-foreground: 0 0% 100%;
+    --primary: 36 20% 94%;
+    --primary-foreground: 24 14% 12%;
+    --secondary: 24 8% 16%;
+    --secondary-foreground: 36 20% 92%;
+    --muted: 24 8% 15%;
+    --muted-foreground: 30 6% 60%;
+    --accent: 24 8% 18%;
+    --accent-foreground: 36 20% 92%;
+    --destructive: 4 64% 52%;
+    --destructive-foreground: 0 0% 100%;
+    --success: 142 44% 44%;
+    --success-foreground: 0 0% 100%;
+    --warning: 34 82% 52%;
+    --warning-foreground: 24 14% 12%;
+    --border: 24 8% 20%;
+    --input: 24 8% 22%;
+    --ring: 14 84% 57%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  html {
+    -webkit-text-size-adjust: 100%;
+    text-rendering: optimizeLegibility;
+    scroll-behavior: smooth;
+  }
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-feature-settings: "cv01", "cv03", "ss01", "ss03";
+  }
+  /* Chiffres tabulaires partout où ils s'alignent (métriques, tableaux) */
+  .tabular {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum";
+  }
+  /* Sélection de texte aux couleurs de marque */
+  ::selection {
+    background: hsl(14 81% 54% / 0.18);
+  }
+  /* Anneau de focus de base (les composants peuvent surcharger) */
+  :focus-visible {
+    @apply outline-none ring-2 ring-ring/40;
+  }
+  /* Barres de défilement sobres */
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: hsl(28 8% 80%);
+    border: 3px solid transparent;
+    background-clip: content-box;
+    border-radius: 999px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: hsl(28 8% 70%);
+    background-clip: content-box;
+  }
+}
+
+@layer components {
+  /* Grain papier très léger pour casser l'aplat « plat numérique » */
+  .bg-grain {
+    background-image: radial-gradient(
+      hsl(28 12% 50% / 0.025) 0.5px,
+      transparent 0.5px
+    );
+    background-size: 4px 4px;
+  }
+
+  /* Carte de surface standard de la plateforme */
+  .surface {
+    @apply rounded-xl border border-border bg-card shadow-sm;
+  }
+
+  /* Trait de séparation hairline cohérent */
+  .hairline {
+    @apply border-border;
+  }
+
+  /* Étiquette technique (numéros, IDs) en Geist Mono */
+  .mono {
+    @apply font-mono tabular tracking-tight;
+  }
+
+  /* Conteneur de contenu marketing */
+  .container-marketing {
+    @apply mx-auto w-full max-w-[1180px] px-6 lg:px-8;
+  }
+
+  /* Accordéon FAQ natif (<details>) — chevron rotatif sans JS */
+  .faq-chevron {
+    transition: transform 0.2s ease;
+  }
+  details[open] .faq-chevron {
+    transform: rotate(180deg);
+  }
+  details > summary {
+    list-style: none;
+  }
+  details > summary::-webkit-details-marker {
+    display: none;
+  }
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+  .text-pretty {
+    text-wrap: pretty;
+  }
+  /* Dégradé de texte SOBRE encre→encre douce (jamais multicolore « IA ») */
+  .text-ink-gradient {
+    @apply bg-gradient-to-br from-foreground to-foreground/70 bg-clip-text text-transparent;
+  }
+  /* Masque de fondu en bas (carrousels, listes) */
+  .mask-fade-b {
+    mask-image: linear-gradient(to bottom, black 70%, transparent 100%);
+  }
+  /* Quadrillage de fond extrêmement discret pour sections techniques */
+  .bg-grid {
+    background-image:
+      linear-gradient(to right, hsl(30 14% 90% / 0.6) 1px, transparent 1px),
+      linear-gradient(to bottom, hsl(30 14% 90% / 0.6) 1px, transparent 1px);
+    background-size: 56px 56px;
+  }
+}
+
+/* Respect des préférences de réduction de mouvement */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

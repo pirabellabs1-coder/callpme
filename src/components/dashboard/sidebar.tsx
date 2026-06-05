@@ -104,7 +104,7 @@ export function Sidebar({
   userName: string;
   userEmail: string;
   isAdmin: boolean;
-  clients: { id: string; name: string }[];
+  clients: { id: string; name: string; brandColor?: string | null }[];
   activeClientId: string | null;
   onNavigate?: () => void;
 }) {
@@ -112,6 +112,11 @@ export function Sidebar({
   const isActive = (item: NavItem) =>
     item.match ? pathname.startsWith(item.match) : pathname === item.href;
   const plan = getPlan(orgPlan);
+  const isAgency = plan.id === "agency";
+  // Multi-clients réservé à l'offre Agence.
+  const agencyNav = isAgency
+    ? AGENCY_NAV
+    : AGENCY_NAV.filter((i) => i.href !== "/clients");
 
   return (
     <div className="flex h-full flex-col bg-card">
@@ -137,17 +142,19 @@ export function Sidebar({
         </Link>
       </div>
 
-      {/* Client actif */}
-      <ClientSwitcher
-        clients={clients}
-        activeClientId={activeClientId}
-        onNavigate={onNavigate}
-      />
+      {/* Client actif (agence uniquement) */}
+      {isAgency && (
+        <ClientSwitcher
+          clients={clients}
+          activeClientId={activeClientId}
+          onNavigate={onNavigate}
+        />
+      )}
 
       {/* Navigation */}
       <nav className="flex-1 space-y-3 overflow-y-auto px-3 py-4">
         <NavSection label="Plateforme" items={PRIMARY_NAV} isActive={isActive} onNavigate={onNavigate} />
-        <NavSection label="Agence" items={AGENCY_NAV} isActive={isActive} onNavigate={onNavigate} />
+        <NavSection label="Agence" items={agencyNav} isActive={isActive} onNavigate={onNavigate} />
         <NavSection label="Système" items={SYSTEM_NAV} isActive={isActive} onNavigate={onNavigate} />
       </nav>
 

@@ -2,6 +2,7 @@ import { Bot, Hash, Clock, Info } from "lucide-react";
 import { requireSession } from "@/lib/auth/session";
 import { prisma } from "@/lib/db/client";
 import { countAgents } from "@/lib/db/agents";
+import { monthlyMinutesUsed } from "@/lib/billing/limits";
 import { getPlan, limitLabel, UNLIMITED } from "@/lib/billing/plans";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { Card } from "@/components/ui/card";
@@ -58,11 +59,12 @@ export default async function BillingPage() {
   const session = await requireSession();
   const plan = getPlan(session.org.plan);
 
-  const [agents, numbers, agencyRow] = await Promise.all([
+  const [agents, numbers, minutesUsed, agencyRow] = await Promise.all([
     countAgents(session.org.id),
     prisma.agent.count({
       where: { organizationId: session.org.id, phoneNumber: { not: null } },
     }),
+    monthlyMinutesUsed(session.org.id),
     prisma.agencyRequest.findFirst({
       where: { organizationId: session.org.id },
       orderBy: { createdAt: "desc" },
@@ -100,7 +102,7 @@ export default async function BillingPage() {
         <div className="mt-5 grid grid-cols-1 gap-5 sm:grid-cols-3">
           <UsageRow icon={Bot} label="Agents" used={agents} max={plan.maxAgents} />
           <UsageRow icon={Hash} label="Numéros" used={numbers} max={plan.maxNumbers} />
-          <UsageRow icon={Clock} label="Minutes" used={0} max={plan.minutes} unit="" />
+          <UsageRow icon={Clock} label="Minutes" used={minutesUsed} max={plan.minutes} unit="" />
         </div>
       </Card>
 

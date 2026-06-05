@@ -51,6 +51,24 @@ export async function createClient(
   };
 }
 
+export async function updateClient(
+  orgId: string,
+  id: string,
+  patch: { name?: string; brandColor?: string | null; contactEmail?: string | null },
+): Promise<boolean> {
+  const r = await prisma.client.findUnique({ where: { id } });
+  if (!r || r.organizationId !== orgId) return false;
+  await prisma.client.update({
+    where: { id },
+    data: {
+      ...(patch.name !== undefined ? { name: patch.name.trim() || r.name } : {}),
+      ...(patch.brandColor !== undefined ? { brandColor: patch.brandColor || null } : {}),
+      ...(patch.contactEmail !== undefined ? { contactEmail: patch.contactEmail || null } : {}),
+    },
+  });
+  return true;
+}
+
 export async function deleteClient(orgId: string, id: string) {
   const r = await prisma.client.findUnique({ where: { id } });
   if (!r || r.organizationId !== orgId) return false;

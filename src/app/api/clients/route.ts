@@ -2,7 +2,13 @@ import { NextRequest } from "next/server";
 import { z } from "zod";
 import { getSession } from "@/lib/auth/session";
 import { createClient } from "@/lib/db/clients";
-import { created, badRequest, unauthorized, serverError } from "@/lib/api/respond";
+import {
+  created,
+  badRequest,
+  unauthorized,
+  forbidden,
+  serverError,
+} from "@/lib/api/respond";
 
 export const dynamic = "force-dynamic";
 
@@ -16,6 +22,9 @@ export async function POST(req: NextRequest) {
   try {
     const session = await getSession();
     if (!session) return unauthorized();
+    if (session.org.plan !== "agency") {
+      return forbidden("Le multi-clients est réservé à l'offre Agence.");
+    }
     const body = await req.json().catch(() => null);
     const parsed = schema.safeParse(body);
     if (!parsed.success) return badRequest("Données invalides");

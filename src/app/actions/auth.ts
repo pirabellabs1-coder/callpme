@@ -12,6 +12,9 @@ import {
 import { isPlanId } from "@/lib/billing/plans";
 import { sendEmail } from "@/lib/email/resend";
 import { welcomeEmail } from "@/lib/email/templates";
+import { makeResetToken, verifyResetToken } from "@/lib/auth/reset-token";
+
+const PUBLIC_URL = process.env.PUBLIC_URL || "https://www.callpme.com";
 
 export interface AuthResult {
   ok?: boolean;
@@ -106,4 +109,45 @@ export async function register(formData: FormData): Promise<AuthResult> {
 export async function logout(): Promise<void> {
   await destroySession();
   redirect("/login");
+}
+
+/** Demande de réinitialisation : envoie un lien signé par e-mail. */
+export async function requestPasswordReset(formData: FormData): Promise<AuthResult> {
+  const email = String(formData.get("email") || "").toLowerCase().trim();
+  if (!email || !email.includes("@")) return { error: "E-mail invalide." };
+  const user = await prisma.user.findUnique({ where: { email } });
+  // On répond toujours « ok » pour ne pas divulguer l'existence d'un compte.
+  if (user) {
+    const link = `${PUBLIC_URL}/reinitialiser-mot-de-passe?token=${makeResetToken(user.id)}`;
+    const html =
+      `<p>Bonjour,</p><p>Vous avez demandé à réinitialiser votre mot de passe Callpme. ` +
+      `Ce lien est valable 1 heure :</p>` +
+      `<p><a href="${link}" style="color:#E8572A;font-weight:600">Réinitialiser mon mot de passe</a></p>` +
+      `<p style="color:#666;font-size:13px">Si vous n'êtes pas à l'origine de cette demande, ignorez cet e-mail.</p>`;
+    void sendEmail({
+      to: email,
+      subject: "Réinitialisation de votre mot de passe Callpme",
+      html,
+      text: `Réinitialisez votre mot de passe : ${link}`,
+    }).catch(() => {});
+  }
+  return { ok: true };
+}
+
+/** Réinitialise le mot de passe à partir d'un jeton valide. */
+export async function resetPassword(formData: FormData): Promise<AuthResult> {
+  const token = String(formData.get("token") || "");
+  const password = String(formData.get("password") || "");
+  if (password.length < 8) return { error: "8 caractères minimum." };
+  const userId = verifyResetToken(token);
+  if (!userId) return { error: "Lien invalide ou expiré. Refaites une demande." };
+  try {
+    const passwordHash = await hashPassword(password);
+    await prisma.user.update({ where: { id: userId }, data: { passwordHash } });
+    // Invalide les sessions existantes par sécurité.
+    await prisma.session.deleteMany({ where: { userId } });
+  } catch {
+    return { error: "Réinitialisation impossible." };
+  }
+  return { ok: true };
 }

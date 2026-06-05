@@ -192,19 +192,6 @@ export default function LandingPage() {
             <TerminalWindow title="POST /api/v1/agents">
               <CodeBlock code={HERO_CURL} language="bash" className="border-0 bg-transparent" />
             </TerminalWindow>
-            {/* Carte appel flottante */}
-            <div className="absolute -bottom-8 -left-6 hidden w-64 rotate-[-3deg] sm:block">
-              <CallPreview
-                name="Camille — Support"
-                role="support"
-                firstMessage={ROLE_META.support.firstMessage}
-                voiceLabel="Amélie"
-                language="fr-FR"
-                modelLabel="Claude"
-                temperature={0.4}
-                toolsCount={4}
-              />
-            </div>
           </div>
         </div>
 
@@ -236,7 +223,7 @@ export default function LandingPage() {
       </section>
 
       {/* ───────────────────── DÉVELOPPEURS ───────────────────── */}
-      <section id="developpeurs" className="border-b border-border bg-foreground py-20 text-white">
+      <section id="developpeurs" className="border-b border-border bg-foreground py-14 sm:py-20 text-white">
         <div className="container-marketing grid items-center gap-12 lg:grid-cols-2">
           <div>
             <p className="font-mono text-sm font-semibold uppercase tracking-wider text-brand">Pour les développeurs</p>
@@ -283,7 +270,7 @@ export default function LandingPage() {
       </section>
 
       {/* ─────────────────── APERÇU PRODUIT (bento) ─────────────────── */}
-      <section className="border-b border-border py-20">
+      <section className="border-b border-border py-14 sm:py-20">
         <div className="container-marketing">
           <SectionHeading
             eyebrow="Le produit"
@@ -319,7 +306,7 @@ export default function LandingPage() {
       </section>
 
       {/* ───────────────────────── RÔLES ───────────────────────── */}
-      <section id="roles" className="border-b border-border py-20">
+      <section id="roles" className="border-b border-border py-14 sm:py-20">
         <div className="container-marketing">
           <SectionHeading
             eyebrow="Rôles"
@@ -346,7 +333,7 @@ export default function LandingPage() {
       </section>
 
       {/* ───────────────────── PIPELINE ───────────────────── */}
-      <section className="border-b border-border bg-card/40 py-20">
+      <section className="border-b border-border bg-card/40 py-14 sm:py-20">
         <div className="container-marketing">
           <SectionHeading
             eyebrow="Sous le capot"
@@ -376,7 +363,7 @@ export default function LandingPage() {
       </section>
 
       {/* ───────────────────── CAPACITÉS (bento) ───────────────────── */}
-      <section className="border-b border-border py-20">
+      <section className="border-b border-border py-14 sm:py-20">
         <div className="container-marketing">
           <SectionHeading
             eyebrow="Plateforme complète"
@@ -404,7 +391,7 @@ export default function LandingPage() {
       </section>
 
       {/* ───────────────────── TARIFS ───────────────────── */}
-      <section id="tarifs" className="border-b border-border py-20">
+      <section id="tarifs" className="border-b border-border py-14 sm:py-20">
         <div className="container-marketing">
           <SectionHeading eyebrow="Tarifs" title="Une offre par maturité" subtitle="Commencez petit, passez à l'échelle quand vous êtes prêt." />
           <div className="mt-12 grid grid-cols-1 gap-5 lg:grid-cols-3">
@@ -437,7 +424,7 @@ export default function LandingPage() {
       </section>
 
       {/* ───────────────────── TÉMOIGNAGE ───────────────────── */}
-      <section className="border-b border-border bg-card/40 py-20">
+      <section className="border-b border-border bg-card/40 py-14 sm:py-20">
         <div className="container-marketing max-w-3xl text-center">
           <p className="text-display-sm font-medium leading-snug tracking-tight text-foreground text-balance">
             « Depuis Callpme, nous ne ratons plus un seul appel. Nos agents
@@ -454,7 +441,7 @@ export default function LandingPage() {
       </section>
 
       {/* ───────────────────── FAQ ───────────────────── */}
-      <section id="faq" className="border-b border-border py-20">
+      <section id="faq" className="border-b border-border py-14 sm:py-20">
         <div className="container-marketing max-w-3xl">
           <SectionHeading eyebrow="FAQ" title="Questions fréquentes" subtitle="" />
           <div className="mt-10 divide-y divide-border overflow-hidden rounded-2xl border border-border bg-card">
@@ -472,7 +459,7 @@ export default function LandingPage() {
       </section>
 
       {/* ───────────────────── CTA ───────────────────── */}
-      <section className="py-20">
+      <section className="py-14 sm:py-20">
         <div className="container-marketing">
           <div className="relative overflow-hidden rounded-3xl bg-foreground px-8 py-14 text-center shadow-xl sm:px-16">
             <div className="pointer-events-none absolute inset-0 opacity-50" style={{ background: "radial-gradient(closest-side at 50% 0%, hsl(14 81% 54% / 0.30), transparent)" }} />
@@ -558,7 +545,7 @@ function DashboardMockup() {
         <span className="size-2.5 rounded-full bg-muted-foreground/30" />
         <span className="ml-2 font-mono text-xs text-muted-foreground">app.callpme.com/overview</span>
       </div>
-      <div className="grid grid-cols-[120px_1fr]">
+      <div className="grid grid-cols-1 sm:grid-cols-[120px_1fr]">
         <div className="hidden flex-col gap-1 border-r border-border p-3 sm:flex">
           {[["Bot", "Agents", true], ["PhoneIncoming", "Appels", false], ["Megaphone", "Campagnes", false], ["BarChart3", "Statistiques", false], ["AudioLines", "Studio", false]].map(([icon, label, active]) => (
             <span key={label as string} className={cn("flex items-center gap-2 rounded-md px-2 py-1.5 text-xs", active ? "bg-brand-50 font-medium text-brand-700" : "text-muted-foreground")}>

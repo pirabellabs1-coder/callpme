@@ -30,6 +30,8 @@ const schema = z.object({
     )
     .max(300),
   durationSec: z.number().min(0).max(7200),
+  // Enregistrement réel de l'appel (data URL audio), facultatif. ~12 Mo max.
+  audio: z.string().max(12_000_000).startsWith("data:audio").optional(),
 });
 
 /** POST /api/agents/:id/test-call — enregistre la conversation de test. */
@@ -52,6 +54,7 @@ export async function POST(
     const callId = await createTestCall(agent.id, {
       transcript,
       durationSec: parsed.data.durationSec,
+      audioUrl: parsed.data.audio ?? null,
     });
 
     // Évaluation automatique + notification

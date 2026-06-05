@@ -4,44 +4,48 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Script from "next/script";
 import { Play, Pause, Square, Download, Loader2, AudioLines } from "lucide-react";
 import type { TranscriptTurn } from "@/lib/shared/types";
+import { sanitizeSpoken } from "@/lib/voice/speech-text";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 
 type Gender = "feminine" | "masculine" | "neutral" | null;
 
-interface PuterTTS {
+interface PuterApi {
   ai?: {
     txt2speech?: (
       text: string,
       opts: { voice?: string; language?: string; engine?: string },
     ) => Promise<HTMLAudioElement>;
   };
+  auth?: { signIn?: () => Promise<unknown> };
 }
-function getPuter(): PuterTTS | null {
+function getPuter(): PuterApi | null {
   if (typeof window === "undefined") return null;
-  return (window as unknown as { puter?: PuterTTS }).puter ?? null;
+  return (window as unknown as { puter?: PuterApi }).puter ?? null;
 }
 
+function frLang(language: string): string {
+  return (language || "fr-FR").startsWith("fr") ? "fr-FR" : language;
+}
 /** Voix AWS Polly (via Puter) selon le genre + la langue. */
 function pollyVoice(gender: Gender, language: string): string {
   const fr = (language || "fr-FR").startsWith("fr");
   if (gender === "masculine") return fr ? "Mathieu" : "Matthew";
   return fr ? "Lea" : "Joanna";
 }
-
 /** Genre « opposé » pour distinguer l'appelant de l'agent. */
 function otherGender(g: Gender): Gender {
   return g === "masculine" ? "feminine" : "masculine";
 }
 
-function fmt(t: number): string {
-  if (!isFinite(t) || t < 0) t = 0;
-  const m = Math.floor(t / 60);
-  const s = Math.floor(t % 60);
-  return `${m}:${String(s).padStart(2, "0")}`;
+function withTimeout<T>(pr: Promise<T>, ms: number): Promise<T> {
+  return Promise.race([
+    pr,
+    new Promise<T>((_, reject) => setTimeout(() => reject(new Error("timeout")), ms)),
+  ]);
 }
 
-/** Encode un AudioBuffer mono en WAV PCM 16 bits. */
+/** Encode un Float32 mono en WAV PCM 16 bits. */
 function encodeWav(samples: Float32Array, sampleRate: number): Blob {
   const buffer = new ArrayBuffer(44 + samples.length * 2);
   const view = new DataView(buffer);
@@ -53,8 +57,8 @@ function encodeWav(samples: Float32Array, sampleRate: number): Blob {
   writeStr(8, "WAVE");
   writeStr(12, "fmt ");
   view.setUint32(16, 16, true);
-  view.setUint16(20, 1, true); // PCM
-  view.setUint16(22, 1, true); // mono
+  view.setUint16(20, 1, true);
+  view.setUint16(22, 1, true);
   view.setUint32(24, sampleRate, true);
   view.setUint32(28, sampleRate * 2, true);
   view.setUint16(32, 2, true);
@@ -70,7 +74,6 @@ function encodeWav(samples: Float32Array, sampleRate: number): Blob {
   return new Blob([view], { type: "audio/wav" });
 }
 
-/** Downmix d'un AudioBuffer en Float32 mono. */
 function toMono(buf: AudioBuffer): Float32Array {
   if (buf.numberOfChannels === 1) return buf.getChannelData(0).slice();
   const out = new Float32Array(buf.length);
@@ -104,70 +107,136 @@ export function CallAudio({
       turns
         .filter((t) => (t.speaker === "agent" || t.speaker === "caller") && t.text.trim())
         .slice(0, MAX_TURNS)
-        .map((t) => ({ speaker: t.speaker as "agent" | "caller", text: t.text.trim() })),
+        .map((t) => ({ speaker: t.speaker as "agent" | "caller", text: sanitizeSpoken(t.text) }))
+        .filter((t) => t.text.length > 0),
     [turns],
   );
+  const truncated =
+    turns.filter((t) => t.speaker === "agent" || t.speaker === "caller").length > MAX_TURNS;
 
-  const [state, setState] = useState<"idle" | "loading" | "ready" | "playing" | "paused" | "fallback">("idle");
-  const [progress, setProgress] = useState(0); // synthèse 0..1
-  const [pos, setPos] = useState(0); // lecture, secondes
-  const [duration, setDuration] = useState(0);
-  const [error, setError] = useState<string | null>(null);
-  const [truncated] = useState(
-    turns.filter((t) => t.speaker === "agent" || t.speaker === "caller").length > MAX_TURNS,
-  );
+  // Lecture (synthèse vocale du navigateur — fiable, sans dépendance externe)
+  const [play, setPlay] = useState<"idle" | "playing" | "paused">("idle");
+  const [curTurn, setCurTurn] = useState(0);
+  const idxRef = useRef(0);
+  const stoppedRef = useRef(false);
+  const voicesRef = useRef<SpeechSynthesisVoice[]>([]);
 
-  const ctxRef = useRef<AudioContext | null>(null);
-  const bufRef = useRef<AudioBuffer | null>(null);
-  const monoRef = useRef<Float32Array | null>(null);
-  const srcRef = useRef<AudioBufferSourceNode | null>(null);
-  const startedAtRef = useRef(0); // ctx.currentTime au démarrage
-  const offsetRef = useRef(0); // position de reprise
-  const rafRef = useRef<number | null>(null);
+  // Téléchargement (génère un vrai fichier audio via le service vocal Puter)
+  const [dl, setDl] = useState<"idle" | "preparing" | "error">("idle");
+  const [dlProgress, setDlProgress] = useState(0);
+  const [dlMsg, setDlMsg] = useState<string | null>(null);
 
   useEffect(() => {
+    function loadVoices() {
+      voicesRef.current = window.speechSynthesis?.getVoices() ?? [];
+    }
+    loadVoices();
+    window.speechSynthesis?.addEventListener?.("voiceschanged", loadVoices);
     return () => {
-      if (rafRef.current) cancelAnimationFrame(rafRef.current);
-      try {
-        srcRef.current?.stop();
-      } catch {
-        /* déjà arrêté */
-      }
-      try {
-        window.speechSynthesis?.cancel();
-      } catch {
-        /* ignore */
-      }
-      ctxRef.current?.close().catch(() => {});
+      window.speechSynthesis?.removeEventListener?.("voiceschanged", loadVoices);
+      window.speechSynthesis?.cancel();
     };
   }, []);
 
-  function ensureCtx(): AudioContext {
-    if (!ctxRef.current) {
-      const AC =
-        window.AudioContext ||
-        (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-      ctxRef.current = new AC();
+  function pickVoice(gender: Gender): SpeechSynthesisVoice | undefined {
+    const voices = voicesRef.current;
+    if (!voices.length) return undefined;
+    const fr = voices.filter((v) => v.lang?.toLowerCase().startsWith("fr"));
+    const pool = fr.length ? fr : voices;
+    const fem = /lea|léa|amelie|amélie|audrey|marie|julie|virginie|chlo|female|femme|woman|aurelie|aurélie/i;
+    const masc = /thomas|nicolas|paul|henri|mathieu|daniel|male|homme|\bman\b/i;
+    const rx = gender === "masculine" ? masc : gender === "feminine" ? fem : null;
+    if (rx) {
+      const m = pool.find((v) => rx.test(v.name));
+      if (m) return m;
     }
-    return ctxRef.current;
+    return pool[0];
   }
 
-  /** Synthétise un tour via Puter et renvoie le Float32 mono (ou null). */
-  async function synthMono(text: string, gender: Gender, ctx: AudioContext): Promise<Float32Array | null> {
-    const p = getPuter();
-    if (!p?.ai?.txt2speech) return null;
-    const lang = (language || "fr-FR").startsWith("fr") ? "fr-FR" : language;
+  function speakFrom(start: number) {
+    const synth = window.speechSynthesis;
+    if (!synth) return;
+    stoppedRef.current = false;
+    setPlay("playing");
+    const speakNext = (j: number) => {
+      if (stoppedRef.current) return;
+      if (j >= spoken.length) {
+        setPlay("idle");
+        setCurTurn(0);
+        idxRef.current = 0;
+        return;
+      }
+      idxRef.current = j;
+      setCurTurn(j);
+      const t = spoken[j];
+      const u = new SpeechSynthesisUtterance(t.text);
+      u.lang = frLang(language);
+      const g = t.speaker === "agent" ? agentGender : otherGender(agentGender);
+      const v = pickVoice(g);
+      if (v) u.voice = v;
+      u.rate = 1;
+      u.pitch = g === "masculine" ? 0.9 : 1.05;
+      u.onend = () => speakNext(j + 1);
+      u.onerror = () => speakNext(j + 1);
+      synth.speak(u);
+    };
+    speakNext(start);
+  }
+
+  function onPlay() {
+    const synth = window.speechSynthesis;
+    if (!synth) return;
+    if (play === "paused") {
+      synth.resume();
+      setPlay("playing");
+      return;
+    }
+    if (play === "playing") return;
+    synth.cancel();
+    speakFrom(0);
+  }
+  function onPause() {
+    window.speechSynthesis?.pause();
+    setPlay("paused");
+  }
+  function onStop() {
+    stoppedRef.current = true;
+    window.speechSynthesis?.cancel();
+    setPlay("idle");
+    setCurTurn(0);
+    idxRef.current = 0;
+  }
+
+  async function puterSignIn(p: PuterApi) {
+    if (!p.auth?.signIn) return;
+    try {
+      await withTimeout(Promise.resolve(p.auth.signIn()), 60_000);
+    } catch {
+      /* déjà connecté ou refusé */
+    }
+  }
+
+  async function synthMono(
+    p: PuterApi,
+    text: string,
+    gender: Gender,
+    ctx: AudioContext,
+  ): Promise<Float32Array | null> {
+    if (!p.ai?.txt2speech) return null;
+    const lang = frLang(language);
     const attempts = [
       { voice: pollyVoice(gender, lang), engine: "neural" as const },
       { voice: pollyVoice(gender, lang) },
-      {},
     ];
     for (const a of attempts) {
       try {
-        const audio = await p.ai.txt2speech(text.slice(0, 2500), { language: lang, ...a });
+        const audio = await withTimeout(
+          p.ai.txt2speech(text.slice(0, 2500), { language: lang, ...a }),
+          12_000,
+        );
         const src = audio?.src;
         if (!src) continue;
-        const arr = await (await fetch(src)).arrayBuffer();
+        const arr = await withTimeout(fetch(src).then((r) => r.arrayBuffer()), 10_000);
         const decoded = await ctx.decodeAudioData(arr.slice(0));
         return toMono(decoded);
       } catch {
@@ -177,177 +246,72 @@ export function CallAudio({
     return null;
   }
 
-  /** Génère l'audio complet de l'appel (concaténation des tours). */
-  async function prepare(): Promise<boolean> {
-    if (bufRef.current) return true;
-    setState("loading");
-    setError(null);
-    setProgress(0);
-    const ctx = ensureCtx();
-    await ctx.resume().catch(() => {});
-    const gap = Math.round(ctx.sampleRate * 0.32); // 320 ms de silence
-    const chunks: Float32Array[] = [];
-    let ok = 0;
-    for (let i = 0; i < spoken.length; i++) {
-      const t = spoken[i];
-      const g = t.speaker === "agent" ? agentGender : otherGender(agentGender);
-      const mono = await synthMono(t.text, g, ctx);
-      if (mono) {
-        chunks.push(mono);
-        chunks.push(new Float32Array(gap));
-        ok++;
-      }
-      setProgress((i + 1) / spoken.length);
-    }
-    if (ok === 0) {
-      // Puter indisponible → lecture navigateur (sans téléchargement).
-      setState("fallback");
-      return false;
-    }
-    const total = chunks.reduce((n, c) => n + c.length, 0);
-    const merged = new Float32Array(total);
-    let off = 0;
-    for (const c of chunks) {
-      merged.set(c, off);
-      off += c.length;
-    }
-    const audioBuf = ctx.createBuffer(1, merged.length, ctx.sampleRate);
-    audioBuf.copyToChannel(merged, 0);
-    bufRef.current = audioBuf;
-    monoRef.current = merged;
-    setDuration(audioBuf.duration);
-    setState("ready");
-    return true;
-  }
-
-  function tick() {
-    const ctx = ctxRef.current;
-    if (!ctx) return;
-    const elapsed = offsetRef.current + (ctx.currentTime - startedAtRef.current);
-    setPos(Math.min(elapsed, duration));
-    rafRef.current = requestAnimationFrame(tick);
-  }
-
-  function startFrom(offset: number) {
-    const ctx = ensureCtx();
-    const buf = bufRef.current;
-    if (!buf) return;
-    try {
-      srcRef.current?.stop();
-    } catch {
-      /* ignore */
-    }
-    const src = ctx.createBufferSource();
-    src.buffer = buf;
-    src.connect(ctx.destination);
-    src.onended = () => {
-      if (rafRef.current) cancelAnimationFrame(rafRef.current);
-      // onended se déclenche aussi sur stop() manuel ; on ne réinitialise que si fini.
-      const ended = offsetRef.current + (ctx.currentTime - startedAtRef.current) >= buf.duration - 0.05;
-      if (ended) {
-        offsetRef.current = 0;
-        setPos(0);
-        setState("ready");
-      }
-    };
-    src.start(0, Math.max(0, Math.min(offset, buf.duration - 0.01)));
-    srcRef.current = src;
-    startedAtRef.current = ctx.currentTime;
-    offsetRef.current = offset;
-    setState("playing");
-    rafRef.current = requestAnimationFrame(tick);
-  }
-
-  async function onPlay() {
-    if (state === "playing") return;
-    if (!bufRef.current) {
-      const built = await prepare();
-      if (!built) {
-        playFallback();
-        return;
-      }
-    }
-    startFrom(offsetRef.current);
-  }
-
-  function onPause() {
-    const ctx = ctxRef.current;
-    if (!ctx || state !== "playing") return;
-    const elapsed = offsetRef.current + (ctx.currentTime - startedAtRef.current);
-    offsetRef.current = Math.min(elapsed, duration);
-    try {
-      srcRef.current?.stop();
-    } catch {
-      /* ignore */
-    }
-    if (rafRef.current) cancelAnimationFrame(rafRef.current);
-    setState("paused");
-  }
-
-  function onStop() {
-    try {
-      srcRef.current?.stop();
-    } catch {
-      /* ignore */
-    }
-    if (rafRef.current) cancelAnimationFrame(rafRef.current);
-    window.speechSynthesis?.cancel();
-    offsetRef.current = 0;
-    setPos(0);
-    setState(bufRef.current ? "ready" : "idle");
-  }
-
-  /** Repli : lecture séquentielle via la synthèse vocale du navigateur. */
-  function playFallback() {
-    const synth = window.speechSynthesis;
-    if (!synth) {
-      setError("La lecture audio n'est pas disponible sur ce navigateur.");
-      setState("idle");
+  async function onDownload() {
+    if (dl === "preparing") return;
+    setDl("preparing");
+    setDlMsg(null);
+    setDlProgress(0);
+    const p = getPuter();
+    if (!p?.ai?.txt2speech) {
+      setDl("error");
+      setDlMsg("Le service vocal n'est pas disponible sur cette page. Réessayez dans un instant.");
       return;
     }
-    setState("playing");
-    const voices = synth.getVoices();
-    let i = 0;
-    const next = () => {
-      if (i >= spoken.length) {
-        setState("fallback");
-        return;
+    try {
+      await puterSignIn(p);
+      const AC =
+        window.AudioContext ||
+        (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+      const ctx = new AC();
+      const gap = Math.round(ctx.sampleRate * 0.32);
+      const chunks: Float32Array[] = [];
+      let ok = 0;
+      for (let i = 0; i < spoken.length; i++) {
+        const t = spoken[i];
+        const g = t.speaker === "agent" ? agentGender : otherGender(agentGender);
+        const mono = await synthMono(p, t.text, g, ctx);
+        if (mono) {
+          chunks.push(mono, new Float32Array(gap));
+          ok++;
+        } else if (i === 0) {
+          break; // le service vocal ne répond pas → on abandonne vite
+        }
+        setDlProgress((i + 1) / spoken.length);
       }
-      const t = spoken[i++];
-      const u = new SpeechSynthesisUtterance(t.text);
-      u.lang = (language || "fr-FR").startsWith("fr") ? "fr-FR" : language;
-      const g = t.speaker === "agent" ? agentGender : otherGender(agentGender);
-      const rx = g === "masculine" ? /thomas|paul|henri|male|homme|man/i : /lea|léa|amelie|amélie|marie|female|femme|woman/i;
-      const v = voices.find((x) => x.lang?.toLowerCase().startsWith("fr") && rx.test(x.name));
-      if (v) u.voice = v;
-      u.rate = 1;
-      u.onend = next;
-      u.onerror = next;
-      synth.speak(u);
-    };
-    next();
-  }
-
-  function download() {
-    const mono = monoRef.current;
-    const ctx = ctxRef.current;
-    if (!mono || !ctx) return;
-    const blob = encodeWav(mono, ctx.sampleRate);
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `appel-${callId}.wav`;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 4000);
+      if (ok === 0) {
+        await ctx.close();
+        throw new Error("tts-failed");
+      }
+      const total = chunks.reduce((n, c) => n + c.length, 0);
+      const merged = new Float32Array(total);
+      let off = 0;
+      for (const c of chunks) {
+        merged.set(c, off);
+        off += c.length;
+      }
+      const blob = encodeWav(merged, ctx.sampleRate);
+      await ctx.close();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `appel-${callId}.wav`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 5000);
+      setDl("idle");
+    } catch {
+      setDl("error");
+      setDlMsg(
+        "Téléchargement indisponible pour le moment (service vocal injoignable). La lecture reste disponible ci-dessus.",
+      );
+    }
   }
 
   if (spoken.length === 0) return null;
 
-  const busy = state === "loading";
-  const canDownload = !!monoRef.current;
-  const pct = duration > 0 ? Math.min((pos / duration) * 100, 100) : 0;
+  const preparing = dl === "preparing";
+  const playPct = spoken.length > 0 ? ((curTurn + (play === "idle" ? 0 : 1)) / spoken.length) * 100 : 0;
 
   return (
     <Card className="p-5">
@@ -360,12 +324,12 @@ export function CallAudio({
         <Button
           variant="ghost"
           size="sm"
-          onClick={download}
-          disabled={!canDownload || busy}
-          title={canDownload ? "Télécharger l'audio (WAV)" : "Générez d'abord l'audio en cliquant sur Lecture"}
+          onClick={onDownload}
+          disabled={preparing}
+          title="Télécharger l'audio de l'appel (WAV)"
         >
-          <Download className="size-4" />
-          Télécharger
+          {preparing ? <Loader2 className="size-4 animate-spin" /> : <Download className="size-4" />}
+          {preparing ? `Préparation… ${Math.round(dlProgress * spoken.length)}/${spoken.length}` : "Télécharger"}
         </Button>
       </div>
 
@@ -375,18 +339,18 @@ export function CallAudio({
       </p>
 
       <div className="mt-4 flex items-center gap-3">
-        {state === "playing" ? (
+        {play === "playing" ? (
           <Button variant="brand" size="sm" onClick={onPause} className="shrink-0">
             <Pause className="size-4" />
             Pause
           </Button>
         ) : (
-          <Button variant="brand" size="sm" onClick={onPlay} disabled={busy} className="shrink-0">
-            {busy ? <Loader2 className="size-4 animate-spin" /> : <Play className="size-4" />}
-            {busy ? "Génération…" : state === "paused" ? "Reprendre" : "Lecture"}
+          <Button variant="brand" size="sm" onClick={onPlay} className="shrink-0">
+            <Play className="size-4" />
+            {play === "paused" ? "Reprendre" : "Lecture"}
           </Button>
         )}
-        {(state === "playing" || state === "paused") && (
+        {play !== "idle" && (
           <Button variant="outline" size="sm" onClick={onStop} className="shrink-0">
             <Square className="size-4" />
           </Button>
@@ -395,33 +359,24 @@ export function CallAudio({
         <div className="min-w-0 flex-1">
           <div className="h-2 overflow-hidden rounded-full bg-secondary">
             <div
-              className="h-full rounded-full bg-brand transition-[width] duration-150"
-              style={{ width: `${busy ? progress * 100 : pct}%` }}
+              className="h-full rounded-full bg-brand transition-[width] duration-300"
+              style={{ width: `${play === "idle" ? 0 : playPct}%` }}
             />
           </div>
-          <div className="mt-1 flex justify-between text-[0.7rem] tabular text-muted-foreground">
-            <span>
-              {busy
-                ? `Génération de l'audio… ${Math.round(progress * spoken.length)}/${spoken.length}`
-                : fmt(pos)}
-            </span>
-            {!busy && duration > 0 && <span>{fmt(duration)}</span>}
+          <div className="mt-1 text-[0.7rem] tabular text-muted-foreground">
+            {play === "idle"
+              ? `${spoken.length} tours de parole`
+              : `Lecture — tour ${curTurn + 1}/${spoken.length}`}
           </div>
         </div>
       </div>
 
-      {state === "fallback" && (
-        <p className="mt-3 text-xs text-amber-600">
-          Audio lu via la synthèse du navigateur (service de voix indisponible) — le
-          téléchargement n&apos;est pas possible dans ce mode.
-        </p>
-      )}
+      {dl === "error" && dlMsg && <p className="mt-3 text-xs text-amber-600">{dlMsg}</p>}
       {truncated && (
         <p className="mt-2 text-[0.7rem] text-muted-foreground">
-          Seuls les {MAX_TURNS} premiers tours de parole sont inclus dans l&apos;audio.
+          Seuls les {MAX_TURNS} premiers tours de parole sont inclus.
         </p>
       )}
-      {error && <p className="mt-2 text-xs text-destructive">{error}</p>}
     </Card>
   );
 }

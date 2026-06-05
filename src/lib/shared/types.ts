@@ -210,6 +210,8 @@ export interface Call {
   status: CallStatus;
   durationSec: number;
   transcript: TranscriptTurn[];
+  /** Enregistrement réel de l'appel (data URL), si capté. Chargé au détail uniquement. */
+  audioUrl?: string | null;
   summary?: string | null;
   /** Issue métier : « RDV pris », « Commande retrouvée », « Transfert »… */
   outcome?: string | null;

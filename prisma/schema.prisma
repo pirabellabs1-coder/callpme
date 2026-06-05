@@ -127,6 +127,7 @@ model Call {
   status       String // completed | transferred | failed | missed | in_progress
   durationSec  Int      @default(0)
   transcript   String // JSON: TranscriptTurn[]
+  audioUrl     String? // enregistrement réel de l'appel (data URL), si capté
   summary      String?
   outcome      String?
   satisfaction Int? // 1..5

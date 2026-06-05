@@ -28,6 +28,7 @@ interface CallRow {
   status: string;
   durationSec: number;
   transcript: string;
+  audioUrl?: string | null;
   summary: string | null;
   outcome: string | null;
   satisfaction: number | null;
@@ -45,6 +46,7 @@ function toCall(row: CallRow): Call {
     status: row.status as CallStatus,
     durationSec: row.durationSec,
     transcript: parseTranscript(row.transcript),
+    audioUrl: row.audioUrl ?? null,
     summary: row.summary,
     outcome: row.outcome,
     satisfaction: row.satisfaction,
@@ -82,6 +84,8 @@ export async function listCalls(
           }
         : {}),
     },
+    // L'enregistrement audio (lourd) n'est jamais chargé dans les listes.
+    omit: { audioUrl: true },
     include: { agent: { select: { name: true, role: true } } },
     orderBy: { createdAt: "desc" },
     take: opts.limit ?? 100,
@@ -121,6 +125,7 @@ export async function createTestCall(
     durationSec: number;
     summary?: string;
     outcome?: string;
+    audioUrl?: string | null;
   },
 ): Promise<string> {
   const row = await prisma.call.create({
@@ -132,6 +137,7 @@ export async function createTestCall(
       status: "completed",
       durationSec: data.durationSec,
       transcript: JSON.stringify(data.transcript),
+      audioUrl: data.audioUrl ?? null,
       summary: data.summary ?? "Appel de test depuis le navigateur.",
       outcome: data.outcome ?? "Test",
     },

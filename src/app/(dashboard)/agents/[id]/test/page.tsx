@@ -105,6 +105,7 @@ export default async function TestAgentPage({
           <TestCallPanel
             agentId={agent.id}
             agentName={agent.name}
+            organizationName={session.org.name}
             role={agent.role}
             roleLabel={roleLabel}
             firstMessage={agent.config.firstMessage}

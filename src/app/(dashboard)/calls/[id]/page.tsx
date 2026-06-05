@@ -6,6 +6,8 @@ import {
   Star,
   ListTree,
   ExternalLink,
+  AudioLines,
+  Download,
 } from "lucide-react";
 import { getCallById } from "@/lib/db/calls";
 import { getAgentById } from "@/lib/db/agents";
@@ -101,12 +103,35 @@ export default async function CallTranscriptPage({
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
         {/* Colonne principale */}
         <div className="space-y-5 lg:col-span-2">
-          <CallAudio
-            callId={call.id}
-            turns={call.transcript}
-            agentGender={audioGender}
-            language={audioLang}
-          />
+          {call.audioUrl ? (
+            <Card className="p-5">
+              <h2 className="flex items-center gap-2 text-[0.95rem] font-semibold tracking-tight">
+                <AudioLines className="size-4 text-brand" />
+                Écouter l&apos;appel
+              </h2>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Enregistrement réel de l&apos;appel — votre voix et celle de l&apos;agent,
+                tels qu&apos;ils ont été échangés.
+              </p>
+              {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
+              <audio controls preload="metadata" src={call.audioUrl} className="mt-3 w-full" />
+              <a
+                href={call.audioUrl}
+                download={`appel-${call.id}.webm`}
+                className="mt-3 inline-flex items-center gap-1.5 text-sm font-medium text-brand hover:underline"
+              >
+                <Download className="size-4" />
+                Télécharger l&apos;enregistrement
+              </a>
+            </Card>
+          ) : (
+            <CallAudio
+              callId={call.id}
+              turns={call.transcript}
+              agentGender={audioGender}
+              language={audioLang}
+            />
+          )}
           <Card className="p-5">
             <h2 className="mb-4 text-[0.95rem] font-semibold tracking-tight">
               Transcription

@@ -20,6 +20,7 @@ import { cn } from "@/lib/utils";
 import { RoleIcon, RoleBadge } from "@/components/role-badge";
 import { Button } from "@/components/ui/button";
 import { cloneSpeak } from "@/lib/voices/clone-client";
+import { sanitizeSpoken } from "@/lib/voice/speech-text";
 
 type Status =
   | "idle"
@@ -198,6 +199,7 @@ function pickVoice(
 export function TestCallPanel({
   agentId,
   agentName,
+  organizationName,
   role,
   roleLabel,
   firstMessage,
@@ -213,6 +215,7 @@ export function TestCallPanel({
 }: {
   agentId: string;
   agentName: string;
+  organizationName?: string;
   role: AgentRole;
   roleLabel?: string;
   firstMessage: string;
@@ -248,6 +251,13 @@ export function TestCallPanel({
   const recogRef = useRef<any>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  // Enregistrement RÉEL de l'appel (micro de l'utilisateur + voix de l'agent).
+  const recCtxRef = useRef<AudioContext | null>(null);
+  const recDestRef = useRef<MediaStreamAudioDestinationNode | null>(null);
+  const recorderRef = useRef<MediaRecorder | null>(null);
+  const chunksRef = useRef<Blob[]>([]);
+  const micStreamRef = useRef<MediaStream | null>(null);
+  const recMimeRef = useRef<string>("audio/webm");
 
   const setStat = (s: Status) => {
     statusRef.current = s;
@@ -289,6 +299,13 @@ export function TestCallPanel({
         audioRef.current.pause();
         audioRef.current = null;
       }
+      try {
+        if (recorderRef.current && recorderRef.current.state !== "inactive") {
+          recorderRef.current.stop();
+        }
+      } catch {}
+      micStreamRef.current?.getTracks().forEach((t) => t.stop());
+      recCtxRef.current?.close().catch(() => {});
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [language]);
@@ -324,6 +341,116 @@ export function TestCallPanel({
     }
   }
 
+  /* ----------------------- Enregistrement réel de l'appel ---------------------- */
+
+  function pickRecMime(): string {
+    const MR = (window as unknown as { MediaRecorder?: typeof MediaRecorder }).MediaRecorder;
+    if (!MR) return "";
+    for (const m of ["audio/webm;codecs=opus", "audio/webm", "audio/mp4"]) {
+      try {
+        if (MR.isTypeSupported(m)) return m;
+      } catch {
+        /* ignore */
+      }
+    }
+    return "";
+  }
+
+  /** Prépare la capture : micro de l'utilisateur + voix de l'agent, mixés. */
+  async function setupRecording() {
+    try {
+      const AC =
+        window.AudioContext ||
+        (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+      const MR = (window as unknown as { MediaRecorder?: typeof MediaRecorder }).MediaRecorder;
+      if (!AC || !MR) return;
+      const ctx = new AC();
+      await ctx.resume().catch(() => {});
+      const dest = ctx.createMediaStreamDestination();
+      recCtxRef.current = ctx;
+      recDestRef.current = dest;
+      // Micro = la VRAIE voix de l'utilisateur.
+      try {
+        const mic = await navigator.mediaDevices.getUserMedia({ audio: true });
+        micStreamRef.current = mic;
+        ctx.createMediaStreamSource(mic).connect(dest);
+      } catch {
+        /* micro refusé : on enregistrera au moins la voix de l'agent */
+      }
+      const mime = pickRecMime();
+      const rec = mime ? new MR(dest.stream, { mimeType: mime }) : new MR(dest.stream);
+      recMimeRef.current = rec.mimeType || mime || "audio/webm";
+      chunksRef.current = [];
+      rec.ondataavailable = (e) => {
+        if (e.data && e.data.size > 0) chunksRef.current.push(e.data);
+      };
+      rec.start();
+      recorderRef.current = rec;
+    } catch {
+      /* enregistrement indisponible : l'appel fonctionne quand même */
+    }
+  }
+
+  /** Route l'audio de l'agent (même origine) dans le mixage enregistré. */
+  function routeForRecording(audio: HTMLAudioElement) {
+    const ctx = recCtxRef.current;
+    const dest = recDestRef.current;
+    if (!ctx || !dest) return;
+    const src = audio.src || "";
+    // On ne route que les sources sûres (blob:/data:) pour ne pas « teinter »
+    // l'élément cross-origin (ce qui couperait le son pour l'utilisateur).
+    if (!src.startsWith("blob:") && !src.startsWith("data:")) return;
+    try {
+      const node = ctx.createMediaElementSource(audio);
+      node.connect(dest); // → enregistrement
+      node.connect(ctx.destination); // → haut-parleurs
+    } catch {
+      /* déjà routé / non routable : lecture normale */
+    }
+  }
+
+  function blobToDataUrl(blob: Blob): Promise<string | null> {
+    return new Promise((resolve) => {
+      const r = new FileReader();
+      r.onload = () => resolve(typeof r.result === "string" ? r.result : null);
+      r.onerror = () => resolve(null);
+      r.readAsDataURL(blob);
+    });
+  }
+
+  /** Stoppe la capture et renvoie l'enregistrement en data URL (ou null). */
+  async function stopRecording(): Promise<string | null> {
+    const rec = recorderRef.current;
+    recorderRef.current = null;
+    let dataUrl: string | null = null;
+    if (rec && rec.state !== "inactive") {
+      const blob = await new Promise<Blob | null>((resolve) => {
+        rec.onstop = () =>
+          resolve(
+            chunksRef.current.length
+              ? new Blob(chunksRef.current, { type: recMimeRef.current })
+              : null,
+          );
+        try {
+          rec.stop();
+        } catch {
+          resolve(null);
+        }
+      });
+      // ~9 Mo max pour rester raisonnable en base.
+      if (blob && blob.size > 0 && blob.size <= 9_000_000) {
+        dataUrl = await blobToDataUrl(blob);
+      }
+    }
+    micStreamRef.current?.getTracks().forEach((t) => t.stop());
+    micStreamRef.current = null;
+    recCtxRef.current?.close().catch(() => {});
+    recCtxRef.current = null;
+    recDestRef.current = null;
+    chunksRef.current = [];
+    return dataUrl;
+  }
+
   function speak(text: string): Promise<void> {
     return new Promise((resolve) => {
       void speakImpl(text, resolve);
@@ -349,6 +476,7 @@ export function TestCallPanel({
         if (data.audio) {
           const audio = new Audio(data.audio);
           audioRef.current = audio;
+          routeForRecording(audio);
           audio.onended = () => resolve();
           audio.onerror = () => resolve();
           await audio.play().catch(() => resolve());
@@ -367,6 +495,7 @@ export function TestCallPanel({
         setCloneErr("");
         const audio = new Audio(url);
         audioRef.current = audio;
+        routeForRecording(audio);
         const done = () => {
           URL.revokeObjectURL(url);
           resolve();
@@ -388,6 +517,7 @@ export function TestCallPanel({
         const audio = await puterSpeak(text, voiceGender, language);
         if (audio) {
           audioRef.current = audio;
+          routeForRecording(audio);
           audio.onended = () => resolve();
           audio.onerror = () => resolve();
           await audio.play().catch(() => resolve());
@@ -431,7 +561,11 @@ export function TestCallPanel({
     }
   }
 
-  async function agentSay(text: string) {
+  async function agentSay(raw: string) {
+    // Jamais de variables non résolues ni de markdown à voix haute.
+    const text =
+      sanitizeSpoken(raw, { agentName, organizationName }) ||
+      "Bonjour, comment puis-je vous aider ?";
     setTurns((t) => [...t, { speaker: "agent", text, at: elapsedRef.current }]);
     messagesRef.current.push({ role: "assistant", content: text });
     setStat("speaking");
@@ -515,6 +649,8 @@ export function TestCallPanel({
     // Autorise Puter DANS le geste du clic (sinon la fenêtre d'autorisation
     // est bloquée par le navigateur et l'agent retombe sur le moteur local).
     await puterSignIn();
+    // Démarre la capture du VRAI audio (micro + voix de l'agent) pour la réécoute.
+    await setupRecording();
     activeRef.current = true;
     elapsedRef.current = 0;
     setElapsed(0);
@@ -535,6 +671,8 @@ export function TestCallPanel({
     if ("speechSynthesis" in window) window.speechSynthesis.cancel();
     stopAudio();
     setStat("ended");
+    // Récupère l'enregistrement réel de l'appel (peut être null).
+    const audioUrl = await stopRecording();
     // Journalise l'appel de test
     if (turns.length > 0) {
       try {
@@ -550,6 +688,7 @@ export function TestCallPanel({
                 text: t.text,
                 at: t.at,
               })),
+            ...(audioUrl ? { audio: audioUrl } : {}),
           }),
         });
         const data = await res.json();

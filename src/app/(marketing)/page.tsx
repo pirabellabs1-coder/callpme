@@ -142,14 +142,14 @@ export default function LandingPage() {
         <div className="absolute inset-0 bg-grid [mask-image:radial-gradient(60%_50%_at_50%_0%,black,transparent)]" />
         <div className="container-marketing relative grid items-center gap-12 py-16 lg:grid-cols-[1fr_1.05fr] lg:py-24">
           {/* Colonne texte */}
-          <div>
+          <div className="min-w-0">
             <span className="inline-flex items-center gap-2 rounded-full border border-border bg-card px-3 py-1 font-mono text-xs font-medium text-foreground/70 shadow-xs">
               <Terminal className="size-3.5 text-brand" />
               voix-ai · piloté par API · conçu en France
             </span>
             <h1 className="mt-6 text-display-xl font-semibold tracking-tight text-foreground text-balance">
               Déployez des agents vocaux IA en{" "}
-              <span className="relative whitespace-nowrap text-brand">
+              <span className="relative text-brand">
                 quelques lignes
                 <Underline />
               </span>{" "}
@@ -184,7 +184,7 @@ export default function LandingPage() {
           </div>
 
           {/* Colonne visuel : fenêtre de code (signature) */}
-          <div className="relative">
+          <div className="relative min-w-0">
             <div
               className="pointer-events-none absolute -inset-6 rounded-[2rem] opacity-70"
               style={{ background: "radial-gradient(closest-side, hsl(14 81% 54% / 0.12), transparent)" }}
@@ -257,7 +257,7 @@ export default function LandingPage() {
             </Link>
           </div>
 
-          <div className="space-y-4">
+          <div className="space-y-4 min-w-0">
             <CodeTabs samples={CREATE_SAMPLES} />
             <div className="grid gap-2">
               <p className="font-mono text-xs uppercase tracking-wider text-white/40">
@@ -505,7 +505,7 @@ function Underline() {
 /** Fenêtre de terminal (chrome sombre + pastilles + onde). */
 function TerminalWindow({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="relative overflow-hidden rounded-xl border border-[hsl(24_10%_20%)] bg-[hsl(24_14%_9%)] shadow-2xl">
+    <div className="relative min-w-0 overflow-hidden rounded-xl border border-[hsl(24_10%_20%)] bg-[hsl(24_14%_9%)] shadow-2xl">
       <div className="flex items-center gap-2 border-b border-white/[0.08] px-4 py-2.5">
         <span className="size-3 rounded-full bg-[#ff5f57]" />
         <span className="size-3 rounded-full bg-[#febc2e]" />

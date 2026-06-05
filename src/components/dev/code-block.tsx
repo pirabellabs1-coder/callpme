@@ -25,7 +25,7 @@ export function CodeBlock({
   return (
     <div
       className={cn(
-        "relative overflow-hidden rounded-lg border border-[hsl(24_10%_22%)] bg-[hsl(24_14%_9%)]",
+        "relative min-w-0 overflow-hidden rounded-lg border border-[hsl(24_10%_22%)] bg-[hsl(24_14%_9%)]",
         className,
       )}
     >
@@ -64,7 +64,7 @@ export function CodeTabs({
   const [active, setActive] = useState(0);
   const current = samples[active];
   return (
-    <div>
+    <div className="min-w-0">
       <div className="mb-2 flex items-center gap-1">
         {samples.map((s, i) => (
           <button

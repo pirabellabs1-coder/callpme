@@ -87,6 +87,9 @@
     -webkit-text-size-adjust: 100%;
     text-rendering: optimizeLegibility;
     scroll-behavior: smooth;
+    /* Filet de sécurité : jamais de débordement/décalage horizontal (mobile).
+       `clip` (et non `hidden`) ne casse pas position: sticky. */
+    overflow-x: clip;
   }
   body {
     @apply bg-background text-foreground antialiased;

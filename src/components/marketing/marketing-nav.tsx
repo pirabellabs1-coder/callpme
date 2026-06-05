@@ -5,7 +5,7 @@ import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 const LINKS = [
-  { href: "#fonctionnalites", label: "Fonctionnalités" },
+  { href: "#developpeurs", label: "Développeurs" },
   { href: "#roles", label: "Rôles" },
   { href: "#tarifs", label: "Tarifs" },
   { href: "#faq", label: "FAQ" },

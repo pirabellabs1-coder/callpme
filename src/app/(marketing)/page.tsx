@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import {
   ArrowRight,
   Check,
@@ -183,15 +184,35 @@ export default function LandingPage() {
             </div>
           </div>
 
-          {/* Colonne visuel : fenêtre de code (signature) */}
+          {/* Colonne visuel : vraie image (agent vocal en situation) */}
           <div className="relative min-w-0">
             <div
-              className="pointer-events-none absolute -inset-6 rounded-[2rem] opacity-70"
-              style={{ background: "radial-gradient(closest-side, hsl(14 81% 54% / 0.12), transparent)" }}
+              className="pointer-events-none absolute -inset-6 rounded-[3rem] opacity-70"
+              style={{ background: "radial-gradient(closest-side, hsl(14 81% 54% / 0.16), transparent)" }}
             />
-            <TerminalWindow title="POST /api/v1/agents">
-              <CodeBlock code={HERO_CURL} language="bash" className="border-0 bg-transparent" />
-            </TerminalWindow>
+            <div className="relative overflow-hidden rounded-2xl border border-border shadow-2xl">
+              <Image
+                src="/hero-agent.jpg"
+                alt="Agent vocal Callpme en ligne, prêt à répondre aux appels"
+                width={896}
+                height={1200}
+                priority
+                sizes="(max-width: 1024px) 100vw, 540px"
+                className="h-auto w-full object-cover"
+              />
+              {/* Badge produit superposé (ancre la photo au produit) */}
+              <div className="absolute inset-x-3 bottom-3 flex items-center gap-3 rounded-xl border border-white/10 bg-foreground/75 px-3.5 py-2.5 backdrop-blur-md">
+                <span className="relative flex size-2.5 shrink-0">
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-60" />
+                  <span className="relative inline-flex size-2.5 rounded-full bg-emerald-400" />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-xs font-semibold text-white">Camille · Agent d'accueil</p>
+                  <p className="truncate text-[0.7rem] text-white/60">En ligne · répond en moins d'une seconde</p>
+                </div>
+                <Waveform tone="light" />
+              </div>
+            </div>
           </div>
         </div>
 
@@ -499,22 +520,6 @@ function Underline() {
     <svg className="absolute -bottom-1.5 left-0 h-2.5 w-full text-brand/40" viewBox="0 0 100 8" preserveAspectRatio="none" aria-hidden>
       <path d="M1 5.5C20 2 45 1.5 99 4" stroke="currentColor" strokeWidth="2.5" fill="none" strokeLinecap="round" />
     </svg>
-  );
-}
-
-/** Fenêtre de terminal (chrome sombre + pastilles + onde). */
-function TerminalWindow({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <div className="relative min-w-0 overflow-hidden rounded-xl border border-[hsl(24_10%_20%)] bg-[hsl(24_14%_9%)] shadow-2xl">
-      <div className="flex items-center gap-2 border-b border-white/[0.08] px-4 py-2.5">
-        <span className="size-3 rounded-full bg-[#ff5f57]" />
-        <span className="size-3 rounded-full bg-[#febc2e]" />
-        <span className="size-3 rounded-full bg-[#28c840]" />
-        <span className="ml-2 truncate font-mono text-xs text-white/40">{title}</span>
-        <Waveform tone="light" className="ml-auto" />
-      </div>
-      <div className="p-2">{children}</div>
-    </div>
   );
 }
 

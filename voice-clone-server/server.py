@@ -87,6 +87,15 @@ def _load_model():
 threading.Thread(target=_load_model, daemon=True).start()
 
 
+def _ffmpeg() -> str:
+    """ffmpeg EMBARQUÉ (imageio-ffmpeg) — pas besoin de l'installer ; sinon système."""
+    try:
+        import imageio_ffmpeg
+        return imageio_ffmpeg.get_ffmpeg_exe()
+    except Exception:
+        return "ffmpeg"
+
+
 def _decode_sample(sample: str) -> str:
     """Décode l'échantillon (webm/ogg/wav…) et le convertit en WAV mono 22 kHz."""
     if sample.startswith("data:") and "," in sample:
@@ -101,11 +110,11 @@ def _decode_sample(sample: str) -> str:
         f.write(raw)
     try:
         subprocess.run(
-            ["ffmpeg", "-y", "-i", src_path, "-ar", "22050", "-ac", "1", wav_path],
+            [_ffmpeg(), "-y", "-i", src_path, "-ar", "22050", "-ac", "1", wav_path],
             check=True, capture_output=True,
         )
     except FileNotFoundError:
-        raise HTTPException(500, "ffmpeg introuvable — installez-le (voir README.md).")
+        raise HTTPException(500, "ffmpeg introuvable (imageio-ffmpeg non installé).")
     except subprocess.CalledProcessError as e:
         raise HTTPException(400, f"Échantillon illisible : {e.stderr.decode()[:200]}")
     finally:

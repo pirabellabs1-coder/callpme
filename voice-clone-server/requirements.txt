@@ -11,6 +11,8 @@ coqui-tts
 fastapi
 uvicorn[standard]
 pydantic
+# ffmpeg EMBARQUÉ (binaire fourni par ce paquet) — plus besoin de l'installer.
+imageio-ffmpeg
 # torch est tiré automatiquement. Pour le GPU NVIDIA (fortement recommandé),
 # installe-le AVANT, via :
 #   pip install torch --index-url https://download.pytorch.org/whl/cu121

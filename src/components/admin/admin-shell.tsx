@@ -18,9 +18,11 @@ import {
   Menu,
   X,
   LogOut,
+  Lock,
 } from "lucide-react";
 import { cn, initials } from "@/lib/utils";
 import { logout } from "@/app/actions/auth";
+import { lockAdmin } from "@/app/actions/admin-auth";
 
 const NAV = [
   { href: "/admin", label: "Revenus & métriques", icon: LayoutDashboard, exact: true },
@@ -85,11 +87,20 @@ function SidebarContent({
         <Link
           href="/overview"
           onClick={onNavigate}
-          className="mb-2 flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-background/60 transition-colors hover:bg-white/5 hover:text-background"
+          className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-background/60 transition-colors hover:bg-white/5 hover:text-background"
         >
           <ArrowLeft className="size-[1.15rem]" strokeWidth={1.75} />
           Retour à mon espace
         </Link>
+        <form action={lockAdmin} className="mb-2">
+          <button
+            type="submit"
+            className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-background/60 transition-colors hover:bg-white/5 hover:text-background"
+          >
+            <Lock className="size-[1.15rem]" strokeWidth={1.75} />
+            Verrouiller l&apos;admin
+          </button>
+        </form>
         <div className="flex items-center gap-2.5 rounded-lg px-2.5 py-2">
           <span className="inline-flex size-8 items-center justify-center rounded-full bg-white/10 text-xs font-semibold">
             {initials(userName)}

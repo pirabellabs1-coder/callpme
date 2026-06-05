@@ -51,7 +51,6 @@ export default async function DashboardLayout({
       orgPlan={session.org.plan}
       userName={session.user.name ?? "Utilisateur"}
       userEmail={session.user.email}
-      isAdmin={session.user.isAdmin}
       clients={clients.map((c) => ({
         id: c.id,
         name: c.name,

@@ -5,9 +5,10 @@
  */
 import { cache } from "react";
 import { cookies } from "next/headers";
-import { redirect } from "next/navigation";
+import { redirect, notFound } from "next/navigation";
 import { randomBytes } from "crypto";
 import { prisma } from "@/lib/db/client";
+import { hasAdminUnlock } from "@/lib/auth/admin-gate";
 
 export const SESSION_COOKIE = "cpme_session";
 const MAX_AGE_SECONDS = 60 * 60 * 24 * 30; // 30 jours
@@ -71,11 +72,18 @@ export async function requireSession(): Promise<SessionContext> {
   return s;
 }
 
-/** Garde-fou super-admin : exige un compte administrateur plateforme. */
+/**
+ * Garde-fou super-admin. Exige (1) une session, (2) un compte administrateur
+ * plateforme ET (3) le déverrouillage via la porte secrète (cookie élevé).
+ * Sans déverrouillage, on renvoie 404 : l'espace admin est invisible et /admin
+ * n'est plus une porte d'entrée. La connexion admin se fait uniquement via
+ * l'URL secrète (ADMIN_GATE_SLUG).
+ */
 export async function requireAdmin(): Promise<SessionContext> {
   const s = await getSession();
   if (!s) redirect("/login");
-  if (!s.user.isAdmin) redirect("/overview");
+  if (!s.user.isAdmin) notFound();
+  if (!hasAdminUnlock(s.user.id)) notFound();
   return s;
 }
 

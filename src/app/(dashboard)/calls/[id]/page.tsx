@@ -8,6 +8,8 @@ import {
   ExternalLink,
 } from "lucide-react";
 import { getCallById } from "@/lib/db/calls";
+import { getAgentById } from "@/lib/db/agents";
+import { getPresetVoice } from "@/lib/voices/catalog";
 import { prisma } from "@/lib/db/client";
 import { ROLE_META } from "@/lib/agents/roles";
 import { getTool } from "@/lib/tools/registry";
@@ -16,6 +18,7 @@ import { Card } from "@/components/ui/card";
 import { RoleIcon, RoleBadge } from "@/components/role-badge";
 import { CallStatusBadge, DirectionBadge } from "@/components/status-badges";
 import { TranscriptView } from "@/components/calls/transcript-view";
+import { CallAudio } from "@/components/calls/call-audio";
 import { DeleteCallButton } from "@/components/calls/delete-call-button";
 import { DynamicIcon } from "@/components/icon";
 
@@ -45,11 +48,18 @@ export default async function CallTranscriptPage({
   const call = await getCallById(params.id);
   if (!call) notFound();
 
-  const evaluation = await prisma.evaluation.findUnique({
-    where: { callId: call.id },
-  });
+  const [evaluation, agent] = await Promise.all([
+    prisma.evaluation.findUnique({ where: { callId: call.id } }),
+    getAgentById(call.agentId),
+  ]);
   const role = call.agentRole ?? "support";
   const toolTurns = call.transcript.filter((t) => t.speaker === "tool");
+
+  // Voix de l'agent (pour reconstituer l'audio) : genre + langue.
+  const voice = agent?.config.voice;
+  const presetGender = voice?.voiceId ? getPresetVoice(voice.voiceId)?.gender : undefined;
+  const audioGender = (presetGender ?? null) as "feminine" | "masculine" | "neutral" | null;
+  const audioLang = voice?.language || "fr-FR";
 
   return (
     <div className="space-y-6">
@@ -91,6 +101,12 @@ export default async function CallTranscriptPage({
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
         {/* Colonne principale */}
         <div className="space-y-5 lg:col-span-2">
+          <CallAudio
+            callId={call.id}
+            turns={call.transcript}
+            agentGender={audioGender}
+            language={audioLang}
+          />
           <Card className="p-5">
             <h2 className="mb-4 text-[0.95rem] font-semibold tracking-tight">
               Transcription

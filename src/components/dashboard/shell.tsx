@@ -18,7 +18,6 @@ export function DashboardShell({
   orgPlan,
   userName,
   userEmail,
-  isAdmin,
   clients,
   activeClientId,
   activeClientName,
@@ -29,7 +28,6 @@ export function DashboardShell({
   orgPlan: string;
   userName: string;
   userEmail: string;
-  isAdmin: boolean;
   clients: ClientLite[];
   activeClientId: string | null;
   activeClientName?: string | null;
@@ -52,7 +50,6 @@ export function DashboardShell({
     orgPlan,
     userName,
     userEmail,
-    isAdmin,
     clients,
     activeClientId,
   };

@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ChevronsUpDown, ChevronDown, LogOut, ShieldCheck } from "lucide-react";
+import { ChevronsUpDown, ChevronDown, LogOut } from "lucide-react";
 import { cn, initials } from "@/lib/utils";
 import { getPlan } from "@/lib/billing/plans";
 import { logout } from "@/app/actions/auth";
@@ -94,7 +94,6 @@ export function Sidebar({
   orgPlan,
   userName,
   userEmail,
-  isAdmin,
   clients,
   activeClientId,
   onNavigate,
@@ -103,7 +102,6 @@ export function Sidebar({
   orgPlan: string;
   userName: string;
   userEmail: string;
-  isAdmin: boolean;
   clients: { id: string; name: string; brandColor?: string | null }[];
   activeClientId: string | null;
   onNavigate?: () => void;
@@ -160,16 +158,6 @@ export function Sidebar({
 
       {/* Profil */}
       <div className="border-t border-border p-3">
-        {isAdmin && (
-          <Link
-            href="/admin"
-            onClick={onNavigate}
-            className="mb-2 flex items-center gap-3 rounded-lg bg-foreground px-3 py-2 text-sm font-medium text-background transition-colors hover:bg-foreground/90"
-          >
-            <ShieldCheck className="size-[1.15rem]" strokeWidth={1.75} />
-            Administration
-          </Link>
-        )}
         <div className="flex items-center gap-2.5 rounded-lg px-2.5 py-2">
           <span className="inline-flex size-8 items-center justify-center rounded-full bg-brand/10 text-xs font-semibold text-brand-700 ring-1 ring-inset ring-brand/20">
             {initials(userName)}

@@ -16,10 +16,10 @@ call ".venv\Scripts\activate.bat"
 echo [Callpme] Mise a jour de pip...
 python -m pip install --upgrade pip --quiet
 
-python -c "import torch" 2>nul
+python -c "import torch, torchaudio" 2>nul
 if not errorlevel 1 goto AFTER_TORCH
-echo [Callpme] Installation de PyTorch CPU - leger et fiable, ~200 Mo...
-pip install --timeout 180 --retries 10 --prefer-binary torch --index-url https://download.pytorch.org/whl/cpu
+echo [Callpme] Installation de PyTorch + torchaudio CPU - leger et fiable...
+pip install --timeout 180 --retries 10 --prefer-binary torch torchaudio --index-url https://download.pytorch.org/whl/cpu
 :AFTER_TORCH
 
 echo [Callpme] Installation des dependances Callpme - coqui-tts, fastapi, ffmpeg embarque...

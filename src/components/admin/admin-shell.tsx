@@ -12,6 +12,7 @@ import {
   PhoneCall,
   AudioLines,
   Ticket,
+  Inbox,
   Mail,
   ArrowLeft,
   Menu,
@@ -29,6 +30,7 @@ const NAV = [
   { href: "/admin/calls", label: "Appels", icon: PhoneCall },
   { href: "/admin/voices", label: "Voix", icon: AudioLines },
   { href: "/admin/promos", label: "Codes promo", icon: Ticket },
+  { href: "/admin/demandes", label: "Demandes Agence", icon: Inbox },
   { href: "/admin/email", label: "E-mails", icon: Mail },
 ];
 

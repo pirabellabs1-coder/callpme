@@ -25,6 +25,45 @@ export interface AdminResult {
   info?: string;
 }
 
+/* --------------------------- Demandes Agence ----------------------------- */
+
+/** L'admin valide une demande Agence et fixe le montant (€) à payer. */
+export async function quoteAgencyRequest(formData: FormData): Promise<AdminResult> {
+  await requireAdmin();
+  const id = String(formData.get("id") || "");
+  const amount = Math.max(0, parseInt(String(formData.get("amount") || "0"), 10) || 0);
+  const note = String(formData.get("note") || "").trim();
+  if (!id || amount <= 0) return { error: "Montant invalide." };
+  const reqRow = await prisma.agencyRequest.findUnique({ where: { id } });
+  if (!reqRow) return { error: "Demande introuvable." };
+  await prisma.agencyRequest.update({
+    where: { id },
+    data: { quotedAmountEur: amount, adminNote: note || null, status: "quoted" },
+  });
+  const base = process.env.PUBLIC_URL || "https://www.callpme.com";
+  void sendEmail({
+    to: reqRow.contactEmail,
+    subject: "Votre offre Agence Callpme — montant proposé",
+    html:
+      `<p>Bonjour ${reqRow.contactName},</p>` +
+      `<p>Votre demande d'offre Agence a été validée. Montant proposé : <b>${amount} €</b>.</p>` +
+      (note ? `<p>${note.replace(/</g, "&lt;")}</p>` : "") +
+      `<p>Connectez-vous à votre espace Facturation pour régler : <a href="${base}/billing">${base}/billing</a></p>`,
+    text: `Votre offre Agence : ${amount} €. Réglez sur ${base}/billing`,
+  }).catch(() => {});
+  revalidatePath("/admin/demandes");
+  return { ok: true, info: "Devis envoyé au client." };
+}
+
+/** L'admin refuse une demande Agence. */
+export async function rejectAgencyRequest(id: string): Promise<AdminResult> {
+  await requireAdmin();
+  if (!id) return { error: "Demande invalide." };
+  await prisma.agencyRequest.update({ where: { id }, data: { status: "rejected" } });
+  revalidatePath("/admin/demandes");
+  return { ok: true };
+}
+
 /* ----------------------------- Abonnements ------------------------------- */
 
 export async function setOrgPlan(

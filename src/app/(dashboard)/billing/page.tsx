@@ -6,7 +6,8 @@ import { getPlan, limitLabel, UNLIMITED } from "@/lib/billing/plans";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { PlanCards } from "@/components/billing/plan-cards";
+import { BillingPlans } from "@/components/billing/billing-plans";
+import { EUR_TO_XOF } from "@/lib/payments/geniuspay";
 import { cn } from "@/lib/utils";
 
 export const metadata = { title: "Facturation" };
@@ -57,12 +58,24 @@ export default async function BillingPage() {
   const session = await requireSession();
   const plan = getPlan(session.org.plan);
 
-  const [agents, numbers] = await Promise.all([
+  const [agents, numbers, agencyRow] = await Promise.all([
     countAgents(session.org.id),
     prisma.agent.count({
       where: { organizationId: session.org.id, phoneNumber: { not: null } },
     }),
+    prisma.agencyRequest.findFirst({
+      where: { organizationId: session.org.id },
+      orderBy: { createdAt: "desc" },
+    }),
   ]);
+  const agency = agencyRow
+    ? {
+        id: agencyRow.id,
+        status: agencyRow.status,
+        quotedAmountEur: agencyRow.quotedAmountEur,
+        adminNote: agencyRow.adminNote,
+      }
+    : null;
 
   return (
     <div className="space-y-7">
@@ -97,16 +110,22 @@ export default async function BillingPage() {
           Changer d'offre
         </h2>
         <p className="mb-5 text-sm text-muted-foreground">
-          Le changement est immédiat et applique aussitôt les nouvelles limites.
+          Starter et Pro se règlent en ligne. L'offre Agence se fait sur devis :
+          envoyez une demande, l'équipe fixe le montant, puis vous réglez.
         </p>
-        <PlanCards currentPlan={session.org.plan} />
+        <BillingPlans
+          currentPlan={session.org.plan}
+          agency={agency}
+          xofRate={EUR_TO_XOF}
+        />
       </div>
 
       <div className="flex items-start gap-3 rounded-xl border border-border bg-secondary/30 p-4">
         <Info className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
         <p className="text-xs text-muted-foreground">
-          Le changement d'offre est immédiat et appliqué à votre compte. Vos
-          paiements sont sécurisés par carte bancaire et prélèvement SEPA.
+          Paiements sécurisés via GeniusPay (mobile money & carte). Les prix sont
+          affichés en euros ; le montant est débité en FCFA à l'équivalent, avec
+          aperçu avant paiement.
         </p>
       </div>
     </div>

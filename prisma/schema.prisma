@@ -32,6 +32,8 @@ model Organization {
   voices         Voice[]
   notifications  Notification[]
   integrations   Integration[]
+  payments       Payment[]
+  agencyRequests AgencyRequest[]
   createdAt      DateTime             @default(now())
 }
 
@@ -337,4 +339,39 @@ model PromoCode {
   active         Boolean   @default(true)
   expiresAt      DateTime?
   createdAt      DateTime  @default(now())
+}
+
+// ----- Paiements (GeniusPay) -----
+model Payment {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  reference      String? // référence GeniusPay
+  kind           String // subscription | agency
+  plan           String? // starter | pro | agency
+  amountEur      Int // montant affiché en euros
+  amountXof      Int // montant réellement facturé en FCFA
+  status         String       @default("pending") // pending | completed | failed
+  createdAt      DateTime     @default(now())
+
+  @@index([organizationId])
+  @@index([reference])
+}
+
+// ----- Demandes d'offre Agence (devis sur-mesure) -----
+model AgencyRequest {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  contactName    String
+  contactEmail   String
+  objectives     String // objectifs du client
+  budgetEur      Int // budget annoncé par le client (€)
+  status         String       @default("pending") // pending | quoted | paid | rejected
+  quotedAmountEur Int? // montant fixé par l'admin (€)
+  adminNote      String? // message de l'admin
+  createdAt      DateTime     @default(now())
+
+  @@index([organizationId])
+  @@index([status])
 }

@@ -93,6 +93,8 @@ export async function placeOutboundCall(opts: {
   organizationName: string;
   toNumber: string;
   phoneNumberId?: string;
+  /** Métadonnées propagées au webhook (ex. contactId, campaignId). */
+  metadata?: Record<string, string>;
 }): Promise<PlaceCallResult> {
   if (!vapiConfigured()) return { ok: false, error: "Téléphonie non connectée." };
   const phoneNumberId = opts.phoneNumberId || defaultPhoneNumberId();
@@ -108,7 +110,11 @@ export async function placeOutboundCall(opts: {
         phoneNumberId,
         customer: { number },
         assistant: buildAssistant(opts.agent, opts.organizationName),
-        metadata: { agentId: opts.agent.id, source: "callpme" },
+        metadata: {
+          agentId: opts.agent.id,
+          source: "callpme",
+          ...(opts.metadata ?? {}),
+        },
       }),
     });
     const data = await res.json().catch(() => ({}));

@@ -62,6 +62,9 @@ export async function POST(req: NextRequest) {
     );
     const toNumber = call?.customer?.number ?? "—";
     const isInbound = call?.type === "inboundPhoneCall";
+    const outcome =
+      (typeof analysis.summary === "string" && analysis.summary.trim()) ||
+      (typeof msg.endedReason === "string" ? msg.endedReason : "Appel réel");
 
     await prisma.call.create({
       data: {
@@ -74,9 +77,52 @@ export async function POST(req: NextRequest) {
         transcript: JSON.stringify(turns),
         audioUrl: typeof artifact.recordingUrl === "string" ? artifact.recordingUrl : null,
         summary: typeof analysis.summary === "string" ? analysis.summary : "Appel téléphonique réel.",
-        outcome: typeof msg.endedReason === "string" ? msg.endedReason : "Appel réel",
+        outcome,
       },
     });
+
+    /* ------------------- Mise à jour campagne / contact ------------------- */
+    const contactId = call?.metadata?.contactId as string | undefined;
+    const campaignId = call?.metadata?.campaignId as string | undefined;
+    const vapiCallId = call?.id as string | undefined;
+
+    // Bascule du contact (par contactId, ou par vapiCallId en repli).
+    let contact = null;
+    if (contactId) {
+      contact = await prisma.contact.findUnique({ where: { id: contactId } });
+    }
+    if (!contact && vapiCallId) {
+      contact = await prisma.contact.findUnique({ where: { vapiCallId } });
+    }
+    if (contact) {
+      const endedReason = typeof msg.endedReason === "string" ? msg.endedReason : "";
+      // Reasons Vapi : customer-did-not-answer, customer-busy, voicemail, pipeline-error…
+      const noAnswer = /no.?answer|did.?not.?answer|voicemail|busy|machine|unreachable/i.test(endedReason);
+      const failed = /error|failed|rejected|invalid/i.test(endedReason);
+      const status = failed ? "failed" : noAnswer ? "no_answer" : "completed";
+      await prisma.contact.update({
+        where: { id: contact.id },
+        data: {
+          status,
+          outcome: outcome.slice(0, 240),
+          calledAt: new Date(),
+        },
+      });
+
+      // Cloture la campagne si plus aucun contact n'est en attente / en cours.
+      const cid = campaignId ?? contact.campaignId;
+      if (cid) {
+        const remaining = await prisma.contact.count({
+          where: { campaignId: cid, status: { in: ["pending", "calling"] } },
+        });
+        if (remaining === 0) {
+          await prisma.campaign.update({
+            where: { id: cid },
+            data: { status: "completed" },
+          });
+        }
+      }
+    }
 
     return NextResponse.json({ ok: true });
   } catch {

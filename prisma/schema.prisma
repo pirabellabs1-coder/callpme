@@ -107,6 +107,7 @@ model Agent {
   status          String         @default("draft") // active | paused | draft
   config          String // JSON: AgentConfig (voice, model, prompt, tools, guardrails)
   phoneNumber     String?        @unique
+  vapiAssistantId String? // assistant Vapi miroir (déployé sur un vrai numéro)
   calls           Call[]
   campaigns       Campaign[]
   createdAt        DateTime      @default(now())
@@ -226,16 +227,17 @@ model Campaign {
 }
 
 model Contact {
-  id         String    @id @default(cuid())
-  campaignId String
-  campaign   Campaign  @relation(fields: [campaignId], references: [id], onDelete: Cascade)
-  name       String
-  phone      String
-  status     String    @default("pending") // pending | calling | completed | failed | no_answer | opted_out
-  outcome    String?
-  data       String? // JSON champs additionnels
-  calledAt   DateTime?
-  createdAt  DateTime  @default(now())
+  id          String    @id @default(cuid())
+  campaignId  String
+  campaign    Campaign  @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  name        String
+  phone       String
+  status      String    @default("pending") // pending | calling | completed | failed | no_answer | opted_out
+  outcome     String?
+  data        String? // JSON champs additionnels
+  calledAt    DateTime?
+  vapiCallId  String?   @unique // identifiant Vapi pour relier le webhook au contact
+  createdAt   DateTime  @default(now())
 
   @@index([campaignId])
   @@index([status])

@@ -24,6 +24,11 @@ import { buttonVariants } from "@/components/ui/button";
 import { DynamicIcon } from "@/components/icon";
 import { CallPreview } from "@/components/agents/wizard/call-preview";
 import { CodeBlock, CodeTabs } from "@/components/dev/code-block";
+import { BlurFade } from "@/components/magicui/blur-fade";
+import { NumberTicker } from "@/components/magicui/number-ticker";
+import { Marquee } from "@/components/magicui/marquee";
+import { AnimatedShinyText } from "@/components/magicui/animated-shiny-text";
+import { BorderBeam } from "@/components/magicui/border-beam";
 
 const API_BASE = "https://www.callpme.com/api/v1";
 
@@ -99,11 +104,16 @@ const DEV_POINTS = [
   { icon: PlugZap, title: "Fonctions sur-mesure", text: "Branchez vos propres endpoints : l'agent appelle vos outils en direct." },
 ];
 
-const STATS = [
-  { value: "6", label: "rôles prêts à l'emploi" },
-  { value: "17", label: "voix françaises" },
-  { value: "<1s", label: "latence cible" },
-  { value: "100%", label: "conforme RGPD" },
+const STATS: {
+  value: number;
+  prefix?: string;
+  suffix?: string;
+  label: string;
+}[] = [
+  { value: 6, label: "rôles prêts à l'emploi" },
+  { value: 17, label: "voix françaises" },
+  { prefix: "<", value: 1, suffix: "s", label: "latence cible" },
+  { value: 100, suffix: "%", label: "conforme RGPD" },
 ];
 
 const PIPELINE = [
@@ -146,7 +156,7 @@ export default function LandingPage() {
           <div className="min-w-0">
             <span className="inline-flex items-center gap-2 rounded-full border border-border bg-card px-3 py-1 font-mono text-xs font-medium text-foreground/70 shadow-xs">
               <Terminal className="size-3.5 text-brand" />
-              voix-ai · piloté par API · conçu en France
+              <AnimatedShinyText>voix-ai · piloté par API · conçu en France</AnimatedShinyText>
             </span>
             <h1 className="mt-6 text-display-xl font-semibold tracking-tight text-foreground text-balance">
               Déployez des agents vocaux IA en{" "}
@@ -219,11 +229,13 @@ export default function LandingPage() {
         {/* Bandeau stats */}
         <div className="container-marketing relative pb-14">
           <div className="grid grid-cols-2 gap-px overflow-hidden rounded-2xl border border-border bg-border md:grid-cols-4">
-            {STATS.map((s) => (
-              <div key={s.label} className="bg-card px-6 py-7 text-center">
-                <p className="tabular text-display-sm font-semibold tracking-tight text-foreground">{s.value}</p>
+            {STATS.map((s, i) => (
+              <BlurFade key={s.label} delay={i * 0.08} className="bg-card px-6 py-7 text-center">
+                <p className="text-display-sm font-semibold tracking-tight text-foreground">
+                  <NumberTicker value={s.value} prefix={s.prefix ?? ""} suffix={s.suffix ?? ""} />
+                </p>
                 <p className="mt-1 text-sm text-muted-foreground">{s.label}</p>
-              </div>
+              </BlurFade>
             ))}
           </div>
         </div>
@@ -235,11 +247,13 @@ export default function LandingPage() {
           <p className="text-center font-mono text-xs uppercase tracking-wider text-muted-foreground/70">
             Branché à votre stack
           </p>
-          <div className="mt-6 flex flex-wrap items-center justify-center gap-x-8 gap-y-3">
-            {["Twilio", "Zadarma", "OpenAI", "Anthropic", "Mistral", "ElevenLabs", "Deepgram", "Google Agenda", "HubSpot", "Slack", "Zapier"].map((n) => (
-              <span key={n} className="text-sm font-semibold text-foreground/35">{n}</span>
+          <Marquee className="mt-6 [--duration:38s] [mask-image:linear-gradient(to_right,transparent,black_10%,black_90%,transparent)]">
+            {["Twilio", "Zadarma", "OpenAI", "Anthropic", "Mistral", "ElevenLabs", "Deepgram", "Vapi", "Google Agenda", "HubSpot", "Slack", "Zapier"].map((n) => (
+              <span key={n} className="whitespace-nowrap text-sm font-semibold text-foreground/35 transition-colors hover:text-foreground/60">
+                {n}
+              </span>
             ))}
-          </div>
+          </Marquee>
         </div>
       </section>
 
@@ -335,19 +349,21 @@ export default function LandingPage() {
             subtitle="Chaque rôle arrive avec son prompt, ses outils et son premier message — prêt en quelques secondes."
           />
           <div className="mt-12 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {ALL_ROLE_META.map((meta) => (
-              <div key={meta.key} className="group rounded-2xl border border-border bg-card p-6 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md">
-                <span className={cn("inline-flex size-12 items-center justify-center rounded-xl [&_svg]:size-6", meta.iconWrapClass)}>
-                  <DynamicIcon name={meta.icon} />
-                </span>
-                <h3 className="mt-4 font-semibold tracking-tight text-foreground">{meta.label}</h3>
-                <p className="mt-1.5 text-sm text-muted-foreground text-pretty">{meta.tagline}</p>
-                <div className="mt-4 flex flex-wrap gap-1.5">
-                  {meta.defaultTools.slice(0, 3).map((tool) => (
-                    <span key={tool} className="rounded-md bg-secondary px-2 py-0.5 font-mono text-[0.7rem] text-muted-foreground">{tool}</span>
-                  ))}
+            {ALL_ROLE_META.map((meta, i) => (
+              <BlurFade key={meta.key} delay={0.05 + i * 0.07}>
+                <div className="group h-full rounded-2xl border border-border bg-card p-6 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md">
+                  <span className={cn("inline-flex size-12 items-center justify-center rounded-xl [&_svg]:size-6", meta.iconWrapClass)}>
+                    <DynamicIcon name={meta.icon} />
+                  </span>
+                  <h3 className="mt-4 font-semibold tracking-tight text-foreground">{meta.label}</h3>
+                  <p className="mt-1.5 text-sm text-muted-foreground text-pretty">{meta.tagline}</p>
+                  <div className="mt-4 flex flex-wrap gap-1.5">
+                    {meta.defaultTools.slice(0, 3).map((tool) => (
+                      <span key={tool} className="rounded-md bg-secondary px-2 py-0.5 font-mono text-[0.7rem] text-muted-foreground">{tool}</span>
+                    ))}
+                  </div>
                 </div>
-              </div>
+              </BlurFade>
             ))}
           </div>
         </div>
@@ -363,7 +379,7 @@ export default function LandingPage() {
           />
           <div className="mt-12 grid grid-cols-1 gap-5 md:grid-cols-4">
             {PIPELINE.map((step, i) => (
-              <div key={step.title} className="relative">
+              <BlurFade key={step.title} delay={0.1 + i * 0.08} className="relative">
                 <div className="h-full rounded-2xl border border-border bg-card p-6 shadow-sm">
                   <div className="flex items-center justify-between">
                     <span className="inline-flex size-10 items-center justify-center rounded-lg bg-foreground text-white [&_svg]:size-5">
@@ -377,7 +393,7 @@ export default function LandingPage() {
                 {i < PIPELINE.length - 1 && (
                   <ArrowRight className="absolute -right-3.5 top-1/2 hidden size-5 -translate-y-1/2 text-muted-foreground/40 md:block" />
                 )}
-              </div>
+              </BlurFade>
             ))}
           </div>
         </div>
@@ -393,19 +409,19 @@ export default function LandingPage() {
           />
           <div className="mt-12 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {CAPABILITIES.map((c, i) => (
-              <div
+              <BlurFade
                 key={c.title}
-                className={cn(
-                  "rounded-2xl border border-border bg-card p-6 shadow-sm transition-shadow hover:shadow-md",
-                  i === 0 && "sm:col-span-2 lg:col-span-1",
-                )}
+                delay={0.05 + i * 0.07}
+                className={cn(i === 0 && "sm:col-span-2 lg:col-span-1")}
               >
-                <span className="inline-flex size-11 items-center justify-center rounded-xl bg-brand-50 text-brand-600 ring-1 ring-inset ring-brand-600/15 [&_svg]:size-5">
-                  <c.icon strokeWidth={1.75} />
-                </span>
-                <h3 className="mt-4 font-semibold tracking-tight text-foreground">{c.title}</h3>
-                <p className="mt-1.5 text-sm text-muted-foreground text-pretty">{c.text}</p>
-              </div>
+                <div className="h-full rounded-2xl border border-border bg-card p-6 shadow-sm transition-shadow hover:shadow-md">
+                  <span className="inline-flex size-11 items-center justify-center rounded-xl bg-brand-50 text-brand-600 ring-1 ring-inset ring-brand-600/15 [&_svg]:size-5">
+                    <c.icon strokeWidth={1.75} />
+                  </span>
+                  <h3 className="mt-4 font-semibold tracking-tight text-foreground">{c.title}</h3>
+                  <p className="mt-1.5 text-sm text-muted-foreground text-pretty">{c.text}</p>
+                </div>
+              </BlurFade>
             ))}
           </div>
         </div>
@@ -417,7 +433,8 @@ export default function LandingPage() {
           <SectionHeading eyebrow="Tarifs" title="Une offre par maturité" subtitle="Commencez petit, passez à l'échelle quand vous êtes prêt." />
           <div className="mt-12 grid grid-cols-1 gap-5 lg:grid-cols-3">
             {PRICING.map((tier) => (
-              <div key={tier.name} className={cn("relative flex flex-col rounded-2xl border bg-card p-7 shadow-sm", tier.highlight ? "border-brand/40 ring-2 ring-brand/15" : "border-border")}>
+              <div key={tier.name} className={cn("relative flex flex-col overflow-hidden rounded-2xl border bg-card p-7 shadow-sm", tier.highlight ? "border-brand/40 ring-2 ring-brand/15" : "border-border")}>
+                {tier.highlight && <BorderBeam size={140} duration={9} borderWidth={1.5} />}
                 {tier.highlight && (
                   <span className="absolute -top-3 left-7 inline-flex items-center rounded-full bg-brand px-3 py-1 text-xs font-semibold text-white shadow-brand">Populaire</span>
                 )}
@@ -506,11 +523,11 @@ export default function LandingPage() {
 
 function SectionHeading({ eyebrow, title, subtitle }: { eyebrow: string; title: string; subtitle: string }) {
   return (
-    <div className="mx-auto max-w-2xl text-center">
+    <BlurFade className="mx-auto max-w-2xl text-center">
       <p className="font-mono text-sm font-semibold uppercase tracking-wider text-brand">{eyebrow}</p>
       <h2 className="mt-2 text-display-md font-semibold tracking-tight text-foreground text-balance">{title}</h2>
       {subtitle && <p className="mt-3 text-lg text-muted-foreground text-pretty">{subtitle}</p>}
-    </div>
+    </BlurFade>
   );
 }
 

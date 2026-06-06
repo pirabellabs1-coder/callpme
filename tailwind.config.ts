@@ -132,6 +132,17 @@ const config: Config = {
           "70%": { boxShadow: "0 0 0 6px rgb(232 87 42 / 0)" },
           "100%": { boxShadow: "0 0 0 0 rgb(232 87 42 / 0)" },
         },
+        marquee: {
+          from: { transform: "translateX(0)" },
+          to: { transform: "translateX(calc(-100% - var(--gap)))" },
+        },
+        "shiny-text": {
+          "0%, 90%, 100%": { "background-position": "calc(-100% - var(--shiny-width)) 0" },
+          "30%, 60%": { "background-position": "calc(100% + var(--shiny-width)) 0" },
+        },
+        "border-beam": {
+          "100%": { "offset-distance": "100%" },
+        },
       },
       animation: {
         "fade-in": "fade-in 0.4s ease-out both",
@@ -139,6 +150,9 @@ const config: Config = {
         "scale-in": "scale-in 0.2s ease-out both",
         shimmer: "shimmer 2s infinite",
         "pulse-ring": "pulse-ring 2s cubic-bezier(0.4, 0, 0.6, 1) infinite",
+        marquee: "marquee var(--duration, 32s) linear infinite",
+        "shiny-text": "shiny-text 5s ease-in-out infinite",
+        "border-beam": "border-beam var(--duration, 8s) linear infinite",
       },
       transitionTimingFunction: {
         "out-expo": "cubic-bezier(0.16, 1, 0.3, 1)",

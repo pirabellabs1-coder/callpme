@@ -396,6 +396,10 @@ export function TestCallPanel({
     const ctx = recCtxRef.current;
     const dest = recDestRef.current;
     if (!ctx || !dest) return;
+    // SÉCURITÉ : si le contexte n'est pas actif, on NE touche PAS à la lecture
+    // (sinon l'audio passerait par un contexte muet → agent inaudible). On laisse
+    // l'élément jouer normalement ; il ne sera simplement pas enregistré.
+    if (ctx.state !== "running") return;
     const src = audio.src || "";
     // On ne route que les sources sûres (blob:/data:) pour ne pas « teinter »
     // l'élément cross-origin (ce qui couperait le son pour l'utilisateur).

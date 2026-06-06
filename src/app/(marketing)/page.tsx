@@ -29,6 +29,11 @@ import { NumberTicker } from "@/components/magicui/number-ticker";
 import { Marquee } from "@/components/magicui/marquee";
 import { AnimatedShinyText } from "@/components/magicui/animated-shiny-text";
 import { BorderBeam } from "@/components/magicui/border-beam";
+import { AuroraText } from "@/components/magicui/aurora-text";
+import { Particles } from "@/components/magicui/particles";
+import { OrbitingCircles } from "@/components/magicui/orbiting-circles";
+import { ShineBorder } from "@/components/magicui/shine-border";
+import { Phone, Headphones, MessageSquare, Mic, Bot, Sparkles } from "lucide-react";
 
 const API_BASE = "https://www.callpme.com/api/v1";
 
@@ -151,20 +156,25 @@ export default function LandingPage() {
       {/* ───────────────────────── HERO ───────────────────────── */}
       <section className="relative overflow-hidden border-b border-border">
         <div className="absolute inset-0 bg-grid [mask-image:radial-gradient(60%_50%_at_50%_0%,black,transparent)]" />
+        {/* Particules orange de marque flottant en fond du hero. */}
+        <Particles
+          className="absolute inset-0 -z-0"
+          quantity={90}
+          color="#E8572A"
+          size={0.5}
+          staticity={40}
+        />
         <div className="container-marketing relative grid items-center gap-12 py-16 lg:grid-cols-[1fr_1.05fr] lg:py-24">
           {/* Colonne texte */}
-          <div className="min-w-0">
+          <div className="relative z-10 min-w-0">
             <span className="inline-flex items-center gap-2 rounded-full border border-border bg-card px-3 py-1 font-mono text-xs font-medium text-foreground/70 shadow-xs">
               <Terminal className="size-3.5 text-brand" />
               <AnimatedShinyText>voix-ai · piloté par API · conçu en France</AnimatedShinyText>
             </span>
             <h1 className="mt-6 text-display-xl font-semibold tracking-tight text-foreground text-balance">
-              Déployez des agents vocaux IA en{" "}
-              <span className="relative text-brand">
-                quelques lignes
-                <Underline />
-              </span>{" "}
-              de code.
+              Déployez des{" "}
+              <AuroraText className="font-semibold">agents vocaux IA</AuroraText>{" "}
+              en quelques lignes de code.
             </h1>
             <p className="mt-5 max-w-xl text-lg text-muted-foreground text-pretty">
               Support, rendez-vous, qualification, vente… Créez des agents
@@ -194,35 +204,9 @@ export default function LandingPage() {
             </div>
           </div>
 
-          {/* Colonne visuel : vraie image (agent vocal en situation) */}
-          <div className="relative min-w-0">
-            <div
-              className="pointer-events-none absolute -inset-6 rounded-[3rem] opacity-70"
-              style={{ background: "radial-gradient(closest-side, hsl(14 81% 54% / 0.16), transparent)" }}
-            />
-            <div className="relative overflow-hidden rounded-2xl border border-border shadow-2xl">
-              <Image
-                src="/hero-agent.jpg"
-                alt="Agent vocal Callpme en ligne, prêt à répondre aux appels"
-                width={896}
-                height={1200}
-                priority
-                sizes="(max-width: 1024px) 100vw, 540px"
-                className="h-auto w-full object-cover"
-              />
-              {/* Badge produit superposé (ancre la photo au produit) */}
-              <div className="absolute inset-x-3 bottom-3 flex items-center gap-3 rounded-xl border border-white/10 bg-foreground/75 px-3.5 py-2.5 backdrop-blur-md">
-                <span className="relative flex size-2.5 shrink-0">
-                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-60" />
-                  <span className="relative inline-flex size-2.5 rounded-full bg-emerald-400" />
-                </span>
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-xs font-semibold text-white">Camille · Agent d'accueil</p>
-                  <p className="truncate text-[0.7rem] text-white/60">En ligne · répond en moins d'une seconde</p>
-                </div>
-                <Waveform tone="light" />
-              </div>
-            </div>
+          {/* Colonne visuel : cercles en orbite autour de l'agent (Magic UI). */}
+          <div className="relative z-10 min-w-0">
+            <HeroOrbit />
           </div>
         </div>
 
@@ -434,9 +418,15 @@ export default function LandingPage() {
           <div className="mt-12 grid grid-cols-1 gap-5 lg:grid-cols-3">
             {PRICING.map((tier) => (
               <div key={tier.name} className={cn("relative flex flex-col overflow-hidden rounded-2xl border bg-card p-7 shadow-sm", tier.highlight ? "border-brand/40 ring-2 ring-brand/15" : "border-border")}>
-                {tier.highlight && <BorderBeam size={140} duration={9} borderWidth={1.5} />}
                 {tier.highlight && (
-                  <span className="absolute -top-3 left-7 inline-flex items-center rounded-full bg-brand px-3 py-1 text-xs font-semibold text-white shadow-brand">Populaire</span>
+                  <ShineBorder
+                    borderWidth={2}
+                    duration={9}
+                    shineColor={["#E8572A", "#F7944C", "#C73E1D", "#E8572A"]}
+                  />
+                )}
+                {tier.highlight && (
+                  <span className="absolute -top-3 left-7 z-10 inline-flex items-center rounded-full bg-brand px-3 py-1 text-xs font-semibold text-white shadow-brand">Populaire</span>
                 )}
                 <h3 className="font-semibold tracking-tight text-foreground">{tier.name}</h3>
                 <p className="mt-1 text-sm text-muted-foreground">{tier.desc}</p>
@@ -528,6 +518,80 @@ function SectionHeading({ eyebrow, title, subtitle }: { eyebrow: string; title: 
       <h2 className="mt-2 text-display-md font-semibold tracking-tight text-foreground text-balance">{title}</h2>
       {subtitle && <p className="mt-3 text-lg text-muted-foreground text-pretty">{subtitle}</p>}
     </BlurFade>
+  );
+}
+
+/**
+ * Visuel du hero : deux orbites de capacités tournent autour d'un agent
+ * lumineux. Beaucoup plus vivant que l'ancienne photo statique.
+ */
+function HeroOrbit() {
+  const inner = [
+    { Icon: Phone, label: "Appels" },
+    { Icon: Mic, label: "Voix" },
+    { Icon: MessageSquare, label: "Conversation" },
+    { Icon: Headphones, label: "Écoute" },
+  ];
+  const outer = [
+    { Icon: Bot, label: "Agent" },
+    { Icon: Code2, label: "API" },
+    { Icon: Webhook, label: "Webhooks" },
+    { Icon: ShieldCheck, label: "RGPD" },
+    { Icon: PhoneIncoming, label: "Entrants" },
+    { Icon: Sparkles, label: "IA" },
+  ];
+  return (
+    <div className="relative mx-auto flex aspect-square w-full max-w-[520px] items-center justify-center overflow-hidden">
+      {/* halo doux derrière les orbites */}
+      <div
+        className="pointer-events-none absolute inset-0 -z-10"
+        style={{
+          background:
+            "radial-gradient(closest-side, hsl(14 81% 54% / 0.20), hsl(14 81% 54% / 0.05) 60%, transparent 80%)",
+        }}
+      />
+      {/* Centre : badge agent + onde pulsante */}
+      <div className="relative z-10 flex flex-col items-center justify-center">
+        <span className="relative inline-flex size-24 items-center justify-center rounded-2xl bg-foreground text-white shadow-2xl">
+          <Headphones className="size-10" strokeWidth={1.5} />
+          <span className="pointer-events-none absolute inset-0 rounded-2xl ring-1 ring-inset ring-white/10" />
+          <span className="pointer-events-none absolute -inset-1 animate-pulse-ring rounded-2xl" />
+        </span>
+        <p className="mt-3 inline-flex items-center gap-1.5 text-xs font-semibold text-foreground">
+          <span className="relative flex size-2">
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-60" />
+            <span className="relative inline-flex size-2 rounded-full bg-emerald-400" />
+          </span>
+          Agent en ligne
+        </p>
+      </div>
+
+      {/* Orbite intérieure (rapide) */}
+      <OrbitingCircles radius={130} duration={22} iconSize={44} path>
+        {inner.map(({ Icon, label }) => (
+          <span
+            key={label}
+            title={label}
+            className="inline-flex size-11 items-center justify-center rounded-xl border border-border bg-card text-brand shadow-md [&_svg]:size-5"
+          >
+            <Icon strokeWidth={1.75} />
+          </span>
+        ))}
+      </OrbitingCircles>
+
+      {/* Orbite extérieure (lente, sens inverse) */}
+      <OrbitingCircles radius={210} duration={36} iconSize={44} reverse path>
+        {outer.map(({ Icon, label }) => (
+          <span
+            key={label}
+            title={label}
+            className="inline-flex size-11 items-center justify-center rounded-xl border border-border bg-card text-foreground/70 shadow-md [&_svg]:size-5"
+          >
+            <Icon strokeWidth={1.75} />
+          </span>
+        ))}
+      </OrbitingCircles>
+    </div>
   );
 }
 

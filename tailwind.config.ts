@@ -143,6 +143,28 @@ const config: Config = {
         "border-beam": {
           "100%": { "offset-distance": "100%" },
         },
+        aurora: {
+          "0%": { "background-position": "0% 50%", transform: "rotate(-5deg) scale(0.9)" },
+          "25%": { "background-position": "50% 100%", transform: "rotate(5deg) scale(1.1)" },
+          "50%": { "background-position": "100% 50%", transform: "rotate(-3deg) scale(0.95)" },
+          "75%": { "background-position": "50% 0%", transform: "rotate(3deg) scale(1.05)" },
+          "100%": { "background-position": "0% 50%", transform: "rotate(-5deg) scale(0.9)" },
+        },
+        orbit: {
+          "0%": {
+            transform:
+              "rotate(calc(var(--angle) * 1deg)) translateY(calc(var(--radius) * 1px)) rotate(calc(var(--angle) * -1deg))",
+          },
+          "100%": {
+            transform:
+              "rotate(calc(var(--angle) * 1deg + 360deg)) translateY(calc(var(--radius) * 1px)) rotate(calc((var(--angle) * -1deg) - 360deg))",
+          },
+        },
+        shine: {
+          "0%": { "background-position": "0% 0%" },
+          "50%": { "background-position": "100% 100%" },
+          "100%": { "background-position": "0% 0%" },
+        },
       },
       animation: {
         "fade-in": "fade-in 0.4s ease-out both",
@@ -153,6 +175,9 @@ const config: Config = {
         marquee: "marquee var(--duration, 32s) linear infinite",
         "shiny-text": "shiny-text 5s ease-in-out infinite",
         "border-beam": "border-beam var(--duration, 8s) linear infinite",
+        aurora: "aurora 8s ease-in-out infinite alternate",
+        orbit: "orbit calc(var(--duration)) linear infinite",
+        shine: "shine var(--duration) infinite linear",
       },
       transitionTimingFunction: {
         "out-expo": "cubic-bezier(0.16, 1, 0.3, 1)",

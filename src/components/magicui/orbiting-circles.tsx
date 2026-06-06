@@ -51,6 +51,7 @@ export function OrbitingCircles({
       )}
       {React.Children.map(children, (child, index) => {
         const angle = (360 / count) * index;
+        const half = iconSize / 2;
         return (
           <div
             style={
@@ -59,10 +60,15 @@ export function OrbitingCircles({
                 "--radius": `${radius}px`,
                 "--angle": `${angle}deg`,
                 "--icon-size": `${iconSize}px`,
+                position: "absolute",
+                left: `calc(50% - ${half}px)`,
+                top: `calc(50% - ${half}px)`,
+                width: `${iconSize}px`,
+                height: `${iconSize}px`,
               } as React.CSSProperties
             }
             className={cn(
-              "animate-orbit absolute left-1/2 top-1/2 -ml-[calc(var(--icon-size)/2)] -mt-[calc(var(--icon-size)/2)] flex size-[var(--icon-size)] transform-gpu items-center justify-center rounded-full",
+              "animate-orbit flex transform-gpu items-center justify-center rounded-full",
               { "[animation-direction:reverse]": reverse },
               className,
             )}

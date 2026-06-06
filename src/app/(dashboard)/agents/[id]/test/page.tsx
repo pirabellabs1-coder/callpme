@@ -11,6 +11,8 @@ import { MODELS } from "@/lib/agents/catalog";
 import { Card } from "@/components/ui/card";
 import { TestCallPanel } from "@/components/agents/test-call-panel";
 import { CloneServerConfig } from "@/components/agents/clone-server-config";
+import { RealCallCard } from "@/components/agents/real-call-card";
+import { vapiConfigured } from "@/lib/telephony/vapi";
 
 export const metadata = { title: "Test d'appel" };
 export const dynamic = "force-dynamic";
@@ -122,6 +124,7 @@ export default async function TestAgentPage({
         </div>
 
         <div className="space-y-5 lg:col-span-2">
+          {vapiConfigured() && <RealCallCard agentId={agent.id} />}
           {studioVoice?.sampleUrl && <CloneServerConfig />}
           <Card className="p-5">
             <h2 className="text-[0.95rem] font-semibold tracking-tight">

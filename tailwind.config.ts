@@ -176,7 +176,7 @@ const config: Config = {
         "shiny-text": "shiny-text 5s ease-in-out infinite",
         "border-beam": "border-beam var(--duration, 8s) linear infinite",
         aurora: "aurora 8s ease-in-out infinite alternate",
-        orbit: "orbit calc(var(--duration)) linear infinite",
+        orbit: "orbit calc(var(--duration) * 1s) linear infinite",
         shine: "shine var(--duration) infinite linear",
       },
       transitionTimingFunction: {

@@ -56,9 +56,9 @@ export function OrbitingCircles({
           <div
             style={
               {
-                "--duration": `${calc}s`,
-                "--radius": `${radius}px`,
-                "--angle": `${angle}deg`,
+                "--duration": String(calc),
+                "--radius": String(radius),
+                "--angle": String(angle),
                 "--icon-size": `${iconSize}px`,
                 position: "absolute",
                 left: `calc(50% - ${half}px)`,

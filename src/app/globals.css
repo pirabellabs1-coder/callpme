@@ -25,6 +25,7 @@
     /* Marque */
     --brand: 14 84% 57%; /* #E8572A, légèrement relevé pour le fond sombre */
     --brand-foreground: 0 0% 100%;
+    --brand-soft: 18 92% 70%; /* orange clair pour du texte sur fond sombre */
 
     /* Primaire = encre claire (bouton blanc type Linear sur fond noir) */
     --primary: 36 20% 96%;
@@ -65,6 +66,7 @@
     --popover-foreground: 24 12% 12%;
     --brand: 14 81% 54%;
     --brand-foreground: 0 0% 100%;
+    --brand-soft: 14 74% 40%;
     --primary: 24 14% 13%;
     --primary-foreground: 40 33% 98%;
     --secondary: 36 22% 96%;

@@ -56,7 +56,7 @@ export function DashboardShell({
 
   // Couleur du client actif appliquée à TOUT le tableau de bord (anti-mélange).
   const themeStyle = activeClientColor
-    ? ({ "--brand": activeClientColor } as React.CSSProperties)
+    ? ({ "--brand": activeClientColor, "--brand-soft": activeClientColor } as React.CSSProperties)
     : undefined;
 
   return (

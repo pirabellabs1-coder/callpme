@@ -12,11 +12,11 @@ const buttonVariants = cva(
           "bg-primary text-primary-foreground shadow-sm hover:bg-primary/90",
         // Conversion forte — orange de marque
         brand:
-          "bg-brand text-brand-foreground shadow-sm hover:bg-brand-600 shadow-brand/0 hover:shadow-brand",
+          "bg-brand text-brand-foreground shadow-sm hover:bg-brand/90 hover:shadow-brand",
         secondary:
           "bg-secondary text-secondary-foreground border border-border/70 hover:bg-accent",
         outline:
-          "border border-input bg-card text-foreground shadow-xs hover:bg-accent hover:text-accent-foreground",
+          "border border-input bg-foreground/[0.02] text-foreground hover:bg-accent hover:text-accent-foreground",
         ghost: "text-foreground/80 hover:bg-accent hover:text-foreground",
         destructive:
           "bg-destructive text-destructive-foreground shadow-sm hover:bg-destructive/90",

@@ -1,6 +1,7 @@
 import {
   LayoutDashboard,
   Bot,
+  LayoutTemplate,
   Megaphone,
   PhoneCall,
   BarChart3,
@@ -26,6 +27,7 @@ export interface NavItem {
 export const PRIMARY_NAV: NavItem[] = [
   { href: "/overview", label: "Vue d'ensemble", icon: LayoutDashboard },
   { href: "/agents", label: "Agents", icon: Bot, match: "/agents" },
+  { href: "/templates", label: "Modèles", icon: LayoutTemplate },
   { href: "/campaigns", label: "Campagnes", icon: Megaphone, match: "/campaigns" },
   { href: "/calls", label: "Appels", icon: PhoneCall, match: "/calls" },
   { href: "/analytics", label: "Statistiques", icon: BarChart3 },

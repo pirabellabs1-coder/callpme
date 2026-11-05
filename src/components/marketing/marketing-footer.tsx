@@ -15,14 +15,13 @@ const COLUMNS = [
     title: "Développeurs",
     links: [
       { label: "Vue d'ensemble", href: "/developpeurs" },
-      { label: "Documentation", href: "/documentation" },
+      { label: "Documentation", href: "/developpeurs#reference" },
       { label: "Statut", href: "/statut" },
     ],
   },
   {
     title: "Entreprise",
     links: [
-      { label: "À propos", href: "/a-propos" },
       { label: "Partenaires", href: "/partenaires" },
       { label: "Contact", href: "/contact" },
       { label: "Confidentialité", href: "/confidentialite" },

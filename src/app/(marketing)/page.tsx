@@ -4,16 +4,13 @@ import { BlurFade } from "@/components/magicui/blur-fade";
 import { Marquee } from "@/components/magicui/marquee";
 import { HeroCallScene } from "@/components/marketing/hero-call-scene";
 import { CallJourney } from "@/components/marketing/call-journey";
-import { TradesShowcase } from "@/components/marketing/trades-showcase";
 import { DashboardPreview } from "@/components/marketing/dashboard-preview";
 import { MARKETS } from "@/components/marketing/content";
+import { DevTeaser, PricingTeaser, TradesTeaser } from "@/components/marketing/teasers";
 import {
   AudienceCards,
-  Bullet,
-  CodeShowcase,
   CtaBand,
   FaqList,
-  PricingCards,
   PrimaryCta,
   ProductBento,
   Section,
@@ -109,7 +106,7 @@ export default function LandingPage() {
           <ProductBento />
         </div>
         <div className="mt-10 flex justify-center">
-          <PrimaryCta href="/produit" variant="ghost">Voir toutes les fonctionnalités</PrimaryCta>
+          <PrimaryCta href="/produit" variant="ghost">Voir le produit en détail</PrimaryCta>
         </div>
       </Section>
 
@@ -117,10 +114,13 @@ export default function LandingPage() {
         <SectionHeading
           eyebrow="Métiers"
           title="Des modèles adaptés à votre secteur."
-          subtitle="Chaque modèle connaît le vocabulaire et les questions courantes de son secteur. Choisissez-en un pour voir un exemple."
+          subtitle="Chaque modèle connaît le vocabulaire et les questions courantes de son secteur."
         />
         <div className="mt-14">
-          <TradesShowcase />
+          <TradesTeaser />
+        </div>
+        <div className="mt-10 flex justify-center">
+          <PrimaryCta href="/metiers" variant="ghost">Voir les exemples par métier</PrimaryCta>
         </div>
       </Section>
 
@@ -151,27 +151,11 @@ export default function LandingPage() {
         </div>
       </Section>
 
-      <Section id="developpeurs">
-        <div className="grid items-start gap-12 lg:grid-cols-[0.8fr_1.2fr]">
-          <div className="lg:sticky lg:top-32">
-            <SectionHeading
-              align="left"
-              eyebrow="Développeurs"
-              title="Créez un agent en une requête."
-              subtitle="Une API REST, des clés révocables et un webhook pour chaque événement d'appel."
-            />
-            <ul className="mt-8 space-y-3">
-              <Bullet>Authentification par clé (Bearer)</Bullet>
-              <Bullet>Webhooks signés : call.completed, call.transferred, agent.updated</Bullet>
-              <Bullet>Les mêmes données que dans le tableau de bord</Bullet>
-            </ul>
-            <div className="mt-10">
-              <PrimaryCta href="/developpeurs" variant="ghost">Découvrir l'API</PrimaryCta>
-            </div>
-          </div>
-          <CodeShowcase />
+      <section id="developpeurs" className="border-t border-border py-24 sm:py-32">
+        <div className="container-marketing">
+          <DevTeaser />
         </div>
-      </Section>
+      </section>
 
       <Section>
         <div className="grid gap-16 lg:grid-cols-[0.8fr_1.2fr]">
@@ -193,8 +177,8 @@ export default function LandingPage() {
           title="Des forfaits simples, sans engagement."
           subtitle="Les minutes incluses couvrent la voix, la transcription et la téléphonie. Aucun frais caché."
         />
-        <div className="mt-16">
-          <PricingCards />
+        <div className="mt-14">
+          <PricingTeaser />
         </div>
       </Section>
 

@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
 import { BlurFade } from "@/components/magicui/blur-fade";
-import { API_PRICE } from "@/components/marketing/content";
+import { CodeBlock, CodeTabs } from "@/components/dev/code-block";
+import { DocsPanel } from "@/components/dev/docs-panel";
+import { API_PRICE, CODE_SAMPLES } from "@/components/marketing/content";
 import {
-  Bullet,
-  CodeShowcase,
   CtaBand,
   PageHero,
   PrimaryCta,
@@ -17,16 +17,6 @@ export const metadata: Metadata = {
     "API REST et webhooks pour créer des agents vocaux, lire les appels et recevoir les événements en temps réel.",
 };
 
-const ENDPOINTS = [
-  { method: "GET", path: "/api/v1/agents", body: "Lister les agents de l'organisation" },
-  { method: "POST", path: "/api/v1/agents", body: "Créer un agent" },
-  { method: "GET", path: "/api/v1/agents/{id}", body: "Lire un agent" },
-  { method: "PATCH", path: "/api/v1/agents/{id}", body: "Modifier un agent" },
-  { method: "DELETE", path: "/api/v1/agents/{id}", body: "Supprimer un agent" },
-  { method: "GET", path: "/api/v1/calls", body: "Lister les appels" },
-  { method: "GET", path: "/api/v1/calls/{id}", body: "Lire un appel et sa transcription" },
-];
-
 const EVENTS = [
   { id: "call.completed", body: "Un appel est terminé" },
   { id: "call.transferred", body: "Un appel a été transféré à un humain" },
@@ -35,12 +25,52 @@ const EVENTS = [
   { id: "agent.deleted", body: "Un agent a été supprimé" },
 ];
 
-const METHOD_COLOR: Record<string, string> = {
-  GET: "text-success",
-  POST: "text-brand",
-  PATCH: "text-warning",
-  DELETE: "text-destructive",
-};
+const LIST_CALLS = [
+  {
+    label: "cURL",
+    language: "bash",
+    code: `curl "https://callpme.com/api/v1/calls" \\
+  -H "Authorization: Bearer $CALLPME_KEY"`,
+  },
+  {
+    label: "JavaScript",
+    language: "typescript",
+    code: `const res = await fetch("https://callpme.com/api/v1/calls", {
+  headers: { Authorization: \`Bearer \${process.env.CALLPME_KEY}\` },
+});
+const { data: calls } = await res.json();`,
+  },
+];
+
+const VERIFY_WEBHOOK = `import { createHmac, timingSafeEqual } from "node:crypto";
+
+// rawBody : le corps brut de la requête, avant tout JSON.parse
+export function verifyCallpmeSignature(rawBody: string, header: string, secret: string) {
+  const expected = "sha256=" + createHmac("sha256", secret).update(rawBody).digest("hex");
+  const a = Buffer.from(expected);
+  const b = Buffer.from(header ?? "");
+  return a.length === b.length && timingSafeEqual(a, b);
+}`;
+
+const QUICKSTART = [
+  {
+    n: "01",
+    title: "Créez une clé d'API",
+    body: "Dans le tableau de bord, ouvrez l'espace Développeurs et générez une clé. Conservez-la côté serveur, jamais dans le navigateur.",
+  },
+  {
+    n: "02",
+    title: "Créez votre premier agent",
+    body: "Un seul appel POST suffit. Le rôle détermine les consignes et les actions par défaut.",
+    code: "create",
+  },
+  {
+    n: "03",
+    title: "Lisez les appels",
+    body: "Récupérez la liste des appels, puis le détail et la transcription de chacun.",
+    code: "list",
+  },
+] as const;
 
 export default function DeveloppeursPage() {
   return (
@@ -51,59 +81,46 @@ export default function DeveloppeursPage() {
         subtitle={`Créez des agents, lisez les appels et recevez les événements par webhook. ${API_PRICE} la minute, voix, transcription et téléphonie comprises.`}
       >
         <PrimaryCta href="/register">Obtenir une clé d'API</PrimaryCta>
-        <PrimaryCta href="/documentation" variant="ghost">Documentation</PrimaryCta>
+        <PrimaryCta href="#reference" variant="ghost">Documentation</PrimaryCta>
       </PageHero>
 
       <Section>
-        <div className="grid items-start gap-12 lg:grid-cols-[0.8fr_1.2fr]">
-          <div className="lg:sticky lg:top-32">
-            <SectionHeading
-              align="left"
-              eyebrow="Démarrage"
-              title="Créez un agent en une requête."
-              subtitle="Authentifiez-vous avec votre clé, envoyez un JSON, recevez l'agent créé."
-            />
-            <ul className="mt-8 space-y-3">
-              <Bullet>Authentification par clé (en-tête Authorization: Bearer)</Bullet>
-              <Bullet>Clés révocables à tout moment depuis le tableau de bord</Bullet>
-              <Bullet>Réponses JSON, codes HTTP standards</Bullet>
-            </ul>
-          </div>
-          <CodeShowcase />
-        </div>
+        <SectionHeading
+          eyebrow="Démarrage rapide"
+          title="Votre premier agent en trois étapes."
+          subtitle="Toutes les requêtes utilisent l'en-tête Authorization: Bearer avec votre clé."
+        />
+        <ol className="mx-auto mt-16 max-w-4xl space-y-12">
+          {QUICKSTART.map((s, i) => (
+            <BlurFade key={s.n} as="li" delay={i * 0.06} className="grid gap-6 md:grid-cols-[180px_1fr]">
+              <div>
+                <span className="mono text-sm text-brand">{s.n}</span>
+                <h3 className="mt-2 text-lg font-semibold tracking-tight text-foreground">{s.title}</h3>
+              </div>
+              <div className="min-w-0 space-y-4">
+                <p className="text-sm leading-relaxed text-muted-foreground">{s.body}</p>
+                {"code" in s && (
+                  <div className="bezel">
+                    <div className="bezel-core p-4">
+                      <CodeTabs samples={s.code === "create" ? CODE_SAMPLES : LIST_CALLS} />
+                    </div>
+                  </div>
+                )}
+              </div>
+            </BlurFade>
+          ))}
+        </ol>
       </Section>
 
-      <Section>
+      <Section id="reference">
         <SectionHeading
           eyebrow="Référence"
-          title="Les points d'accès de l'API v1."
-          subtitle="Toutes les requêtes sont limitées à l'organisation de la clé utilisée."
+          title="Documentation complète de l'API v1."
+          subtitle="Chaque point d'accès avec ses paramètres et un exemple de réponse. Toutes les requêtes sont limitées à l'organisation de la clé utilisée."
         />
-        <BlurFade delay={0.1} className="mx-auto mt-14 max-w-3xl">
-          <div className="bezel">
-            <div className="bezel-core overflow-x-auto">
-              <table className="w-full min-w-[520px] text-left text-sm">
-                <caption className="sr-only">Points d'accès de l'API Callpme v1</caption>
-                <thead>
-                  <tr className="border-b border-border text-xs uppercase tracking-wider text-muted-foreground">
-                    <th scope="col" className="px-5 py-3 font-medium">Méthode</th>
-                    <th scope="col" className="px-5 py-3 font-medium">Chemin</th>
-                    <th scope="col" className="px-5 py-3 font-medium">Description</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border">
-                  {ENDPOINTS.map((e) => (
-                    <tr key={e.method + e.path}>
-                      <td className={`mono px-5 py-3.5 text-xs font-semibold ${METHOD_COLOR[e.method]}`}>{e.method}</td>
-                      <td className="mono px-5 py-3.5 text-xs text-foreground">{e.path}</td>
-                      <td className="px-5 py-3.5 text-muted-foreground">{e.body}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </BlurFade>
+        <div className="mx-auto mt-14 max-w-4xl">
+          <DocsPanel apiBaseUrl="https://www.callpme.com" />
+        </div>
       </Section>
 
       <Section>
@@ -114,6 +131,7 @@ export default function DeveloppeursPage() {
             title="Recevez chaque événement en temps réel."
             subtitle="Chaque envoi est signé avec le secret de votre webhook. Vérifiez la signature avant de traiter le contenu."
           />
+          <div className="min-w-0 space-y-8">
           <ul className="divide-y divide-border border-y border-border">
             {EVENTS.map((e) => (
               <li key={e.id} className="flex items-center justify-between gap-6 py-5">
@@ -122,6 +140,13 @@ export default function DeveloppeursPage() {
               </li>
             ))}
           </ul>
+          <div>
+            <p className="mb-3 text-sm text-muted-foreground">
+              Vérifiez l'en-tête <code className="mono text-foreground">X-Callpme-Signature</code> avant de traiter un événement :
+            </p>
+            <CodeBlock code={VERIFY_WEBHOOK} language="typescript" />
+          </div>
+          </div>
         </div>
       </Section>
 

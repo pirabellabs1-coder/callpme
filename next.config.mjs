@@ -1,7 +1,14 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
-  // Photos métiers de la landing (Unsplash, licence libre) — optimisées par next/image.
+  // Pages fusionnées : les anciennes adresses restent valides.
+  async redirects() {
+    return [
+      { source: "/documentation", destination: "/developpeurs#reference", permanent: true },
+      { source: "/a-propos", destination: "/contact", permanent: true },
+    ];
+  },
+  // Photos métiers (Unsplash, licence libre) — optimisées par next/image.
   images: {
     remotePatterns: [{ protocol: "https", hostname: "images.unsplash.com" }],
   },

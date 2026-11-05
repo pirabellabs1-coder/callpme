@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Clock, LifeBuoy, Mail } from "lucide-react";
+import { Clock, ExternalLink, LifeBuoy, Mail } from "lucide-react";
 import { BlurFade } from "@/components/magicui/blur-fade";
 import { LeadForm, type Field } from "@/components/marketing/lead-form";
 import { PageHero } from "@/components/marketing/sections";
@@ -82,6 +82,34 @@ export default function ContactPage() {
                 </li>
               ))}
             </ul>
+          </BlurFade>
+        </div>
+      </section>
+
+      <section className="border-t border-border py-24 sm:py-28">
+        <div className="container-marketing grid items-center gap-10 lg:grid-cols-2">
+          <BlurFade>
+            <span className="eyebrow">Qui sommes-nous</span>
+            <h2 className="mt-5 text-display-md font-semibold tracking-tight text-foreground text-balance">
+              Callpme est conçu et opéré par Pirabel Labs.
+            </h2>
+          </BlurFade>
+          <BlurFade delay={0.1}>
+            <p className="text-base leading-relaxed text-muted-foreground">
+              Pirabel Labs conçoit et exploite des produits numériques sur mesure. L'équipe développe Callpme pour
+              rendre les agents vocaux IA accessibles aux entreprises d'Europe et d'Afrique francophone, et accompagne
+              celles qui souhaitent l'intégrer à leurs outils.
+            </p>
+            <a
+              href="https://pirabellabs.com"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mt-6 inline-flex items-center gap-1.5 text-sm font-medium text-foreground underline-offset-4 hover:underline"
+            >
+              Découvrir Pirabel Labs
+              <ExternalLink className="size-4" strokeWidth={1.5} aria-hidden />
+              <span className="sr-only">(nouvel onglet)</span>
+            </a>
           </BlurFade>
         </div>
       </section>

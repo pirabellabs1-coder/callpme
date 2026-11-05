@@ -1,40 +1,29 @@
-import Link from "next/link";
-import { ArrowRight } from "lucide-react";
-import { cn } from "@/lib/utils";
-import { buttonVariants } from "@/components/ui/button";
+import type { Metadata } from "next";
 import { DocsPanel } from "@/components/dev/docs-panel";
+import { PageHero, PrimaryCta } from "@/components/marketing/sections";
 
-export const metadata = { title: "Documentation API · Callpme" };
+export const metadata: Metadata = {
+  title: "Documentation de l'API",
+  description: "Référence de l'API REST Callpme : agents, appels, transcriptions et webhooks signés.",
+};
 
 export default function DocumentationPage() {
   return (
-    <div className="container-marketing py-14 sm:py-20">
-      <div className="mx-auto max-w-4xl">
-        <p className="font-mono text-sm font-semibold uppercase tracking-wider text-brand">
-          Développeurs
-        </p>
-        <h1 className="mt-2 text-display-md font-semibold tracking-tight text-foreground text-balance">
-          Documentation API
-        </h1>
-        <p className="mt-3 max-w-2xl text-lg text-muted-foreground text-pretty">
-          L'API REST Callpme — créez des agents, lisez les appels et leurs
-          transcripts, recevez des webhooks signés. Authentifiez-vous avec une
-          clé générée dans votre espace Développeurs.
-        </p>
-        <div className="mt-6 flex flex-col gap-3 sm:flex-row">
-          <Link href="/register" className={cn(buttonVariants({ variant: "brand" }), "gap-1.5")}>
-            Obtenir une clé API
-            <ArrowRight className="size-4" />
-          </Link>
-          <Link href="/developers" className={cn(buttonVariants({ variant: "outline" }))}>
-            Espace Développeurs
-          </Link>
-        </div>
+    <>
+      <PageHero
+        eyebrow="Documentation"
+        title="Documentation de l'API"
+        subtitle="Créez des agents, lisez les appels et leurs transcriptions, recevez des webhooks signés. Authentifiez-vous avec une clé générée dans votre espace."
+      >
+        <PrimaryCta href="/register">Obtenir une clé d'API</PrimaryCta>
+        <PrimaryCta href="/developpeurs" variant="ghost">Vue d'ensemble</PrimaryCta>
+      </PageHero>
 
-        <div className="mt-12">
+      <section className="pb-24 sm:pb-32">
+        <div className="container-marketing mx-auto max-w-4xl">
           <DocsPanel apiBaseUrl="https://www.callpme.com" />
         </div>
-      </div>
-    </div>
+      </section>
+    </>
   );
 }

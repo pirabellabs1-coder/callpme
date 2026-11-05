@@ -1,17 +1,19 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { ArrowUpRight } from "lucide-react";
 import { Logo } from "@/components/brand/logo";
 import { cn } from "@/lib/utils";
 
 const LINKS = [
-  { href: "/#produit", label: "Produit" },
-  { href: "/#metiers", label: "Métiers" },
-  { href: "/#developpeurs", label: "Développeurs" },
-  { href: "/#tarifs", label: "Tarifs" },
-  { href: "/#faq", label: "FAQ" },
+  { href: "/produit", label: "Produit" },
+  { href: "/metiers", label: "Métiers" },
+  { href: "/developpeurs", label: "Développeurs" },
+  { href: "/tarifs", label: "Tarifs" },
+  { href: "/partenaires", label: "Partenaires" },
+  { href: "/contact", label: "Contact" },
 ];
 
 /**
@@ -21,6 +23,7 @@ const LINKS = [
  */
 export function MarketingNav() {
   const [open, setOpen] = useState(false);
+  const pathname = usePathname();
   const toggleRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLElement>(null);
   const wasOpen = useRef(false);
@@ -64,17 +67,21 @@ export function MarketingNav() {
 
   return (
     <header className="pointer-events-none fixed inset-x-0 top-0 z-40 flex justify-center px-4 pt-4 sm:pt-6">
-      <div className="pointer-events-auto flex w-full max-w-[880px] items-center justify-between gap-4 rounded-full border border-foreground/10 bg-background/70 py-2 pl-5 pr-2 shadow-lg backdrop-blur-xl">
+      <div className="pointer-events-auto flex w-full max-w-[1040px] items-center justify-between gap-4 rounded-full border border-foreground/10 bg-background/70 py-2 pl-5 pr-2 shadow-lg backdrop-blur-xl">
         <Link href="/" aria-label="Callpme, accueil" onClick={() => setOpen(false)}>
           <Logo markSize={24} />
         </Link>
 
-        <nav aria-label="Navigation principale" className="hidden items-center gap-1 md:flex">
+        <nav aria-label="Navigation principale" className="hidden items-center gap-0.5 lg:flex">
           {LINKS.map((l) => (
             <Link
               key={l.href}
               href={l.href}
-              className="rounded-full px-3 py-1.5 text-sm text-muted-foreground transition-colors duration-300 ease-spring hover:bg-foreground/5 hover:text-foreground"
+              aria-current={pathname === l.href ? "page" : undefined}
+              className={cn(
+                "rounded-full px-3 py-1.5 text-sm transition-colors duration-300 ease-spring hover:bg-foreground/5 hover:text-foreground",
+                pathname === l.href ? "bg-foreground/[0.06] text-foreground" : "text-muted-foreground",
+              )}
             >
               {l.label}
             </Link>
@@ -105,7 +112,7 @@ export function MarketingNav() {
             aria-expanded={open}
             aria-controls="menu-mobile"
             aria-label={open ? "Fermer le menu" : "Ouvrir le menu"}
-            className="relative inline-flex size-10 items-center justify-center rounded-full md:hidden"
+            className="relative inline-flex size-10 items-center justify-center rounded-full lg:hidden"
           >
             <span
               className={cn(
@@ -129,7 +136,7 @@ export function MarketingNav() {
         role="dialog"
         aria-modal="true"
         aria-label="Menu"
-        className="pointer-events-auto fixed inset-0 -z-10 bg-background/90 backdrop-blur-3xl md:hidden"
+        className="pointer-events-auto fixed inset-0 -z-10 bg-background/90 backdrop-blur-3xl lg:hidden"
       >
         <nav ref={panelRef} aria-label="Menu mobile" className="flex h-full flex-col justify-center gap-2 px-8">
           {[...LINKS, { href: "/login", label: "Connexion" }, { href: "/register", label: "Essai gratuit" }].map(

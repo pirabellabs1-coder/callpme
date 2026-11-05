@@ -1,4 +1,6 @@
-export const metadata = { title: "CGU · Callpme" };
+import { LegalPage } from "@/components/marketing/sections";
+
+export const metadata = { title: "Conditions générales d'utilisation" };
 
 const SECTIONS = [
   {
@@ -37,26 +39,10 @@ const SECTIONS = [
 
 export default function CguPage() {
   return (
-    <div className="container-marketing py-14 sm:py-20">
-      <div className="mx-auto max-w-3xl">
-        <p className="font-mono text-sm font-semibold uppercase tracking-wider text-brand">
-          Légal
-        </p>
-        <h1 className="mt-2 text-display-md font-semibold tracking-tight text-foreground">
-          Conditions générales d'utilisation
-        </h1>
-        <p className="mt-3 text-sm text-muted-foreground">
-          Dernière mise à jour : juin 2026 · Éditeur : Pirabel Labs
-        </p>
-        <div className="mt-10 space-y-8">
-          {SECTIONS.map((s) => (
-            <section key={s.h}>
-              <h2 className="font-semibold tracking-tight text-foreground">{s.h}</h2>
-              <p className="mt-2 leading-relaxed text-muted-foreground text-pretty">{s.p}</p>
-            </section>
-          ))}
-        </div>
-      </div>
-    </div>
+    <LegalPage
+      title="Conditions générales d'utilisation"
+      updated="Dernière mise à jour : novembre 2026 · Éditeur : Pirabel Labs"
+      sections={SECTIONS}
+    ></LegalPage>
   );
 }

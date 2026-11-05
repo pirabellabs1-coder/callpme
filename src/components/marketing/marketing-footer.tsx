@@ -5,18 +5,17 @@ const COLUMNS = [
   {
     title: "Produit",
     links: [
-      { label: "Produit", href: "/#produit" },
-      { label: "Métiers", href: "/#metiers" },
-      { label: "Tarifs", href: "/#tarifs" },
-      { label: "Tableau de bord", href: "/overview" },
+      { label: "Fonctionnalités", href: "/produit" },
+      { label: "Métiers", href: "/metiers" },
+      { label: "Tarifs", href: "/tarifs" },
+      { label: "Connexion", href: "/login" },
     ],
   },
   {
-    title: "Ressources",
+    title: "Développeurs",
     links: [
+      { label: "Vue d'ensemble", href: "/developpeurs" },
       { label: "Documentation", href: "/documentation" },
-      { label: "Guide de démarrage", href: "/register" },
-      { label: "Référence API", href: "/documentation" },
       { label: "Statut", href: "/statut" },
     ],
   },
@@ -24,6 +23,7 @@ const COLUMNS = [
     title: "Entreprise",
     links: [
       { label: "À propos", href: "/a-propos" },
+      { label: "Partenaires", href: "/partenaires" },
       { label: "Contact", href: "/contact" },
       { label: "Confidentialité", href: "/confidentialite" },
       { label: "CGU", href: "/cgu" },
@@ -33,7 +33,7 @@ const COLUMNS = [
 
 export function MarketingFooter() {
   return (
-    <footer className="border-t border-border bg-card">
+    <footer className="border-t border-border bg-background">
       <div className="container-marketing py-14">
         <div className="grid grid-cols-2 gap-8 md:grid-cols-5">
           <div className="col-span-2">
@@ -43,7 +43,7 @@ export function MarketingFooter() {
               rendez-vous et résument chaque conversation.
             </p>
             <p className="mt-4 inline-flex items-center gap-2 text-xs text-muted-foreground">
-              <span className="size-2 rounded-full bg-emerald-500" />
+              <span className="size-2 rounded-full bg-success" />
               Données hébergées dans l'UE · Conforme au RGPD
             </p>
             <p className="mt-3 text-xs text-muted-foreground">

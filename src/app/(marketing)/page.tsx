@@ -41,26 +41,26 @@ const AUDIENCES = [
   {
     key: "pme",
     tag: "PME",
-    title: "Un standard qui ne rate plus d'appel",
-    body: "Cabinets, garages, agences immobilières, cliniques. Votre agent répond la nuit, le week-end et pendant les rushs, prend les rendez-vous et vous envoie un résumé de chaque appel.",
-    points: ["Mise en ligne en 15 minutes", "Votre numéro actuel conservé", "Payable en Mobile Money"],
+    title: "Ne manquez plus un appel",
+    body: "Cabinets, garages, agences immobilières, cliniques. L'agent répond le soir, le week-end et aux heures chargées. Il prend les rendez-vous et vous envoie un résumé de chaque appel.",
+    points: ["En ligne en 15 minutes", "Vous gardez votre numéro", "Paiement par Mobile Money"],
     href: "/register",
-    cta: "Créer mon agent",
+    cta: "Créer un agent",
   },
   {
     key: "agence",
     tag: "Agences",
-    title: "Vendez des agents vocaux sous votre marque",
-    body: "Un espace par client, vos couleurs, votre domaine. Vous fixez le prix de revente, Callpme facture uniquement l'usage.",
-    points: ["Marque blanche complète", "Clients illimités", "Tableau de bord multi-clients"],
+    title: "Proposez des agents vocaux sous votre marque",
+    body: "Un espace par client, à vos couleurs et sur votre domaine. Vous fixez vos prix. Callpme ne facture que l'usage.",
+    points: ["Marque blanche", "Clients illimités", "Vue multi-clients"],
     href: "/register?offre=agence",
     cta: "Ouvrir un compte agence",
   },
   {
     key: "dev",
     tag: "Développeurs",
-    title: "Une API vocale, facturée sans surprise",
-    body: "Créez des agents par API, branchez vos outils par webhooks, choisissez votre LLM. Un prix à la minute qui inclut voix, transcription et téléphonie.",
+    title: "Une API vocale au prix à la minute",
+    body: "Créez des agents par API, connectez vos outils par webhooks et choisissez votre LLM. Le prix à la minute inclut la voix, la transcription et la téléphonie.",
     points: ["API REST et webhooks", "LLM au choix", "Événements d'appel en temps réel"],
     href: "/developers",
     cta: "Lire la documentation",
@@ -133,10 +133,10 @@ const WEBHOOK_SAMPLE = [
 ];
 
 const STEPS = [
-  { n: "01", title: "Décrivez votre activité", body: "Collez l'adresse de votre site. Callpme en tire vos horaires, vos services et vos réponses fréquentes." },
-  { n: "02", title: "Choisissez une voix", body: "Une voix française naturelle, avec l'accent de votre marché. Testez-la tout de suite dans le navigateur." },
-  { n: "03", title: "Branchez vos outils", body: "Agenda Google ou Outlook, CRM, SMS. L'agent agit pendant l'appel au lieu de prendre un simple message." },
-  { n: "04", title: "Mettez en ligne", body: "Prenez un numéro local ou renvoyez votre ligne actuelle. Chaque appel arrive transcrit et résumé." },
+  { n: "01", title: "Décrivez votre activité", body: "Indiquez l'adresse de votre site. Callpme en extrait vos horaires, vos services et vos questions fréquentes." },
+  { n: "02", title: "Choisissez une voix", body: "Choisissez une voix et un accent adaptés à votre marché, puis testez-la dans le navigateur." },
+  { n: "03", title: "Connectez vos outils", body: "Google Agenda ou Outlook, CRM, SMS. L'agent peut agir pendant l'appel, pas seulement prendre un message." },
+  { n: "04", title: "Mettez en ligne", body: "Prenez un numéro local ou renvoyez votre ligne actuelle. Chaque appel est transcrit et résumé." },
 ];
 
 // Tarifs de lancement — hypothèses du cahier des charges, à valider avant publication.
@@ -147,11 +147,11 @@ const PLANS = [
 ];
 
 const FAQ = [
-  { q: "Mes clients sauront-ils qu'ils parlent à une IA ?", a: "Oui. L'agent l'annonce en début d'appel, comme l'exige l'AI Act européen. Dans la pratique, les appelants retiennent surtout qu'on leur a répondu tout de suite." },
+  { q: "Mes clients sauront-ils qu'ils parlent à une IA ?", a: "Oui. L'agent se présente comme un assistant IA en début d'appel, comme l'exige l'AI Act européen." },
   { q: "Puis-je garder mon numéro actuel ?", a: "Oui. Vous activez un renvoi d'appel vers Callpme, sur toutes vos lignes ou seulement en dehors des heures d'ouverture." },
-  { q: "Comment se passe le paiement en Afrique ?", a: "Par Orange Money, MTN, Wave, Moov ou carte bancaire, en FCFA. Pas besoin de carte internationale." },
-  { q: "Où sont stockées les données ?", a: "En Union européenne. Les enregistrements sont conservés selon la durée que vous choisissez, puis supprimés." },
-  { q: "Que se passe-t-il si l'agent ne sait pas répondre ?", a: "Il transfère l'appel à la personne de votre choix ou prend un message détaillé, selon les règles que vous fixez." },
+  { q: "Comment payer depuis l'Afrique ?", a: "Par Orange Money, MTN, Wave, Moov ou carte bancaire, en FCFA. Aucune carte internationale n'est nécessaire." },
+  { q: "Où sont stockées les données ?", a: "Dans l'Union européenne. Vous choisissez la durée de conservation des enregistrements, puis ils sont supprimés." },
+  { q: "Que se passe-t-il si l'agent ne sait pas répondre ?", a: "Il transfère l'appel à la personne de votre choix ou prend un message détaillé, selon vos règles." },
 ];
 
 /* ------------------------------------------------------------------ */
@@ -178,28 +178,28 @@ export default function LandingPage() {
             </BlurFade>
             <BlurFade delay={0.08}>
               <h1 className="mt-6 text-display-2xl font-semibold tracking-tight text-foreground text-balance">
-                Votre entreprise décroche à chaque appel.
+                Répondez à chaque appel, à toute heure.
               </h1>
             </BlurFade>
             <BlurFade delay={0.16}>
               <p className="mt-6 max-w-xl text-lg leading-relaxed text-muted-foreground text-pretty">
-                Callpme répond au téléphone à votre place, en français naturel. Il prend les
-                rendez-vous, qualifie les demandes et transfère les urgences. Vous retrouvez
-                chaque appel transcrit et résumé.
+                Callpme répond au téléphone pour votre entreprise. L'agent prend les
+                rendez-vous, qualifie les demandes et transfère les urgences. Chaque appel
+                est transcrit et résumé dans votre tableau de bord.
               </p>
             </BlurFade>
             <BlurFade delay={0.24}>
               <div className="mt-10 flex flex-wrap items-center gap-3">
-                <PrimaryCta href="/register">Créer mon agent gratuitement</PrimaryCta>
+                <PrimaryCta href="/register">Essayer gratuitement</PrimaryCta>
                 <Link
                   href="#produit"
                   className="inline-flex items-center rounded-full px-5 py-3 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
                 >
-                  Voir comment ça marche
+                  Découvrir le produit
                 </Link>
               </div>
               <p className="mt-5 text-xs text-muted-foreground">
-                Sans carte bancaire · Mobile Money accepté · Données hébergées en UE
+                Sans carte bancaire · Paiement par Mobile Money · Données hébergées dans l'UE
               </p>
             </BlurFade>
           </div>
@@ -226,9 +226,9 @@ export default function LandingPage() {
       <section id="demo" className="py-24 sm:py-32">
         <div className="container-marketing">
           <SectionHeading
-            eyebrow="En action"
+            eyebrow="Démo"
             title="Un appel, de la sonnerie au résumé."
-            subtitle="Voici ce qui se passe quand un client appelle votre garage à 2 h du matin."
+            subtitle="Un client appelle un garage à 2 h du matin. Voici ce que fait l'agent."
           />
           <div className="mt-16">
             <CallJourney />
@@ -241,12 +241,12 @@ export default function LandingPage() {
         <div className="container-marketing">
           <SectionHeading
             eyebrow="Produit"
-            title="Tout ce qu'un bon standard fait, sans pause."
-            subtitle="Un seul outil pour répondre, agir et suivre. Pensé pour les marchés francophones, là où les plateformes américaines s'arrêtent."
+            title="Répondre, agir, suivre. Dans un seul outil."
+            subtitle="L'agent gère l'appel du début à la fin, puis vous en donne le compte rendu. Paiement, numéros et voix sont adaptés aux marchés francophones."
           />
 
           <div className="mt-16 grid gap-4 md:grid-cols-6">
-            <BentoCard className="md:col-span-4" icon={<Workflow className="size-5" strokeWidth={1.5} />} title="Un agent par métier" body="Six rôles prêts à l'emploi : standard, rendez-vous, support, qualification, vente, enquête. Chaque rôle arrive avec ses consignes et ses actions.">
+            <BentoCard className="md:col-span-4" icon={<Workflow className="size-5" strokeWidth={1.5} />} title="Six rôles prêts à l'emploi" body="Standard, rendez-vous, support, qualification, vente, enquête. Chaque rôle a ses propres consignes et actions.">
               <div className="mt-8 flex flex-wrap gap-2">
                 {ALL_ROLE_META.map((r) => (
                   <span key={r.key} className="inline-flex items-center gap-2 rounded-full border border-border bg-foreground/[0.03] px-3 py-1.5 text-xs text-foreground">
@@ -256,12 +256,12 @@ export default function LandingPage() {
                 ))}
               </div>
             </BentoCard>
-            <BentoCard className="md:col-span-2" icon={<Smartphone className="size-5" strokeWidth={1.5} />} title="Mobile Money" body="Payez en FCFA avec Orange Money, MTN, Wave ou Moov. Aucune carte internationale demandée." />
-            <BentoCard className="md:col-span-2" icon={<Globe2 className="size-5" strokeWidth={1.5} />} title="Numéros locaux" body="France, Belgique, Suisse, Canada. Les numéros ouest-africains arrivent ensuite." />
-            <BentoCard className="md:col-span-2" icon={<CalendarCheck className="size-5" strokeWidth={1.5} />} title="Il agit pendant l'appel" body="Il réserve dans votre agenda, crée la fiche dans le CRM et envoie la confirmation par SMS." />
-            <BentoCard className="md:col-span-2" icon={<BookOpen className="size-5" strokeWidth={1.5} />} title="Il connaît votre maison" body="Importez vos PDF, votre FAQ ou votre site. Il répond à partir de vos documents, pas d'Internet." />
-            <BentoCard className="md:col-span-3" icon={<ChartNoAxesColumn className="size-5" strokeWidth={1.5} />} title="Chaque appel, lisible en dix secondes" body="Transcription, enregistrement, résumé et issue de l'appel. Les statistiques montrent ce que vos clients demandent vraiment." />
-            <BentoCard className="md:col-span-3" icon={<Code2 className="size-5" strokeWidth={1.5} />} title="Ouvert aux développeurs" body="API REST, clés, webhooks signés. Tout ce que fait le tableau de bord se pilote aussi par code." />
+            <BentoCard className="md:col-span-2" icon={<Smartphone className="size-5" strokeWidth={1.5} />} title="Mobile Money" body="Payez en FCFA avec Orange Money, MTN, Wave ou Moov, sans carte internationale." />
+            <BentoCard className="md:col-span-2" icon={<Globe2 className="size-5" strokeWidth={1.5} />} title="Numéros locaux" body="Numéros en France, en Belgique, en Suisse et au Canada. L'Afrique de l'Ouest suivra." />
+            <BentoCard className="md:col-span-2" icon={<CalendarCheck className="size-5" strokeWidth={1.5} />} title="Des actions pendant l'appel" body="L'agent réserve dans votre agenda, crée la fiche dans votre CRM et envoie la confirmation par SMS." />
+            <BentoCard className="md:col-span-2" icon={<BookOpen className="size-5" strokeWidth={1.5} />} title="Il connaît votre entreprise" body="Importez vos PDF, votre FAQ ou votre site. L'agent répond à partir de vos documents." />
+            <BentoCard className="md:col-span-3" icon={<ChartNoAxesColumn className="size-5" strokeWidth={1.5} />} title="Un résumé pour chaque appel" body="Transcription, enregistrement, résumé et issue de l'appel. Les statistiques montrent ce que vos clients demandent." />
+            <BentoCard className="md:col-span-3" icon={<Code2 className="size-5" strokeWidth={1.5} />} title="Une API complète" body="API REST, clés d'API et webhooks signés. Tout ce que fait le tableau de bord est aussi disponible par API." />
           </div>
         </div>
       </section>
@@ -271,8 +271,8 @@ export default function LandingPage() {
         <div className="container-marketing">
           <SectionHeading
             eyebrow="Métiers"
-            title="Un agent qui parle comme votre métier."
-            subtitle="Chaque modèle connaît le vocabulaire, les questions et les règles de son secteur. Choisissez le vôtre et écoutez."
+            title="Des modèles adaptés à votre secteur."
+            subtitle="Chaque modèle connaît le vocabulaire et les questions courantes de son secteur. Choisissez-en un pour voir un exemple."
           />
           <div className="mt-14">
             <TradesShowcase />
@@ -286,8 +286,8 @@ export default function LandingPage() {
         <div className="container-marketing relative">
           <SectionHeading
             eyebrow="Tableau de bord"
-            title="Tout ce que vos clients ont dit, sur un seul écran."
-            subtitle="Appels, rendez-vous, taux de résolution. Vous voyez d'un coup d'œil ce qui marche et ce qu'il faut ajuster."
+            title="Tous vos appels sur un seul écran."
+            subtitle="Appels, rendez-vous, taux de résolution. Vous voyez ce qui fonctionne et ce qu'il faut ajuster."
           />
           <BlurFade delay={0.1} className="mt-16">
             <DashboardPreview />
@@ -301,8 +301,8 @@ export default function LandingPage() {
         <div className="container-marketing">
           <SectionHeading
             eyebrow="Pour qui"
-            title="Une plateforme, trois façons de l'utiliser."
-            subtitle="Le même moteur vocal sert la PME qui veut un standard, l'agence qui revend et le développeur qui intègre."
+            title="Une plateforme, trois usages."
+            subtitle="La même technologie sert la PME qui veut un standard, l'agence qui revend et le développeur qui intègre."
           />
           <div className="mt-16 grid gap-4 lg:grid-cols-3">
             {AUDIENCES.map((a, i) => (
@@ -342,11 +342,11 @@ export default function LandingPage() {
             <SectionHeading
               align="left"
               eyebrow="Développeurs"
-              title="Trois lignes pour créer un agent."
-              subtitle="Une API REST simple, des clés révocables et des webhooks pour chaque événement d'appel. Copiez, collez, appelez."
+              title="Créez un agent en une requête."
+              subtitle="Une API REST, des clés révocables et un webhook pour chaque événement d'appel."
             />
             <ul className="mt-8 space-y-3 text-sm text-foreground">
-              {["Authentification par clé Bearer", "Webhooks signés : call.completed, call.transferred, agent.updated", "Même modèle de données que le tableau de bord"].map((p) => (
+              {["Authentification par clé (Bearer)", "Webhooks signés : call.completed, call.transferred, agent.updated", "Les mêmes données que dans le tableau de bord"].map((p) => (
                 <li key={p} className="flex items-center gap-2.5">
                   <span className="size-1 rounded-full bg-brand" aria-hidden />
                   {p}
@@ -379,8 +379,8 @@ export default function LandingPage() {
             <SectionHeading
               align="left"
               eyebrow="Mise en route"
-              title="Quinze minutes entre l'inscription et le premier appel."
-              subtitle="Pas d'intégrateur, pas de frais de mise en place."
+              title="Du compte au premier appel en quinze minutes."
+              subtitle="Sans intégrateur ni frais de mise en service."
             />
           </div>
           <ol className="divide-y divide-border border-y border-border">
@@ -402,8 +402,8 @@ export default function LandingPage() {
         <div className="container-marketing">
           <SectionHeading
             eyebrow="Tarifs"
-            title="Un forfait clair, sans engagement."
-            subtitle="Les minutes incluses couvrent la voix, la transcription et la téléphonie. Rien ne s'ajoute en bas de facture."
+            title="Des forfaits simples, sans engagement."
+            subtitle="Les minutes incluses couvrent la voix, la transcription et la téléphonie. Aucun frais caché."
           />
           <div className="mt-16 grid gap-4 lg:grid-cols-3">
             {PLANS.map((p, i) => (
@@ -412,7 +412,7 @@ export default function LandingPage() {
                   <div className="bezel-core flex h-full flex-col p-7">
                     <div className="flex items-center justify-between">
                       <h3 className="text-base font-semibold text-foreground">{p.name}</h3>
-                      {p.highlight && <span className="rounded-full bg-brand/15 px-2.5 py-1 text-[11px] font-medium text-brand">Le plus choisi</span>}
+                      {p.highlight && <span className="rounded-full bg-brand/15 px-2.5 py-1 text-[11px] font-medium text-brand">Recommandé</span>}
                     </div>
                     <p className="mt-6 flex items-baseline gap-1.5">
                       <span className="text-5xl font-semibold tracking-tight text-foreground tabular">{p.price} €</span>
@@ -440,7 +440,7 @@ export default function LandingPage() {
             ))}
           </div>
           <p className="mt-8 text-center text-sm text-muted-foreground">
-            Développeurs : 0,09 € la minute tout compris, à l'usage.{" "}
+            Développeurs : 0,09 € la minute tout compris, facturé à l'usage.{" "}
             <Link href="/developers" className="text-foreground underline underline-offset-4">Voir l'API</Link>
           </p>
         </div>
@@ -449,7 +449,7 @@ export default function LandingPage() {
       {/* FAQ */}
       <section id="faq" className="border-t border-border py-24 sm:py-32">
         <div className="container-marketing grid gap-16 lg:grid-cols-[0.8fr_1.2fr]">
-          <SectionHeading align="left" eyebrow="Questions" title="Ce qu'on nous demande le plus." subtitle="Une autre question ? Écrivez-nous depuis la page contact." />
+          <SectionHeading align="left" eyebrow="Questions" title="Questions fréquentes" subtitle="Vous ne trouvez pas votre réponse ? Écrivez-nous depuis la page contact." />
           <div className="divide-y divide-border border-y border-border">
             {FAQ.map((f) => (
               <details key={f.q} className="group py-6">
@@ -474,13 +474,13 @@ export default function LandingPage() {
             <div className="bezel-core relative overflow-hidden px-6 py-20 text-center sm:px-16">
               <div aria-hidden className="glow-brand pointer-events-none absolute left-1/2 top-1/2 size-[640px] -translate-x-1/2 -translate-y-1/2" />
               <h2 className="relative mx-auto max-w-2xl text-display-lg font-semibold tracking-tight text-foreground text-balance">
-                Le prochain appel manqué peut être le dernier.
+                Ne laissez plus un appel sans réponse.
               </h2>
               <p className="relative mx-auto mt-5 max-w-lg text-muted-foreground">
-                Créez votre agent maintenant et testez-le avant de payer quoi que ce soit.
+                Créez votre agent et testez-le gratuitement avant de choisir un forfait.
               </p>
               <div className="relative mt-10 flex justify-center">
-                <PrimaryCta href="/register">Créer mon agent gratuitement</PrimaryCta>
+                <PrimaryCta href="/register">Essayer gratuitement</PrimaryCta>
               </div>
             </div>
           </div>

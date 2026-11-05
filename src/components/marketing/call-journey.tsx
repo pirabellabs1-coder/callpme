@@ -11,9 +11,9 @@ import { cn } from "@/lib/utils";
  */
 const STEPS = [
   { key: "ring", label: "Ça sonne", hint: "2 h 14 du matin, le garage est fermé." },
-  { key: "pickup", label: "L'agent décroche", hint: "En moins d'une seconde, avec votre accueil." },
-  { key: "act", label: "Il agit", hint: "Agenda, fiche client, SMS : pendant l'appel." },
-  { key: "summary", label: "Vous lisez le résumé", hint: "À votre réveil, tout est déjà rangé." },
+  { key: "pickup", label: "L'agent décroche", hint: "Dès la première sonnerie, avec votre message d'accueil." },
+  { key: "act", label: "L'agent agit", hint: "Rendez-vous, fiche client et SMS, pendant l'appel." },
+  { key: "summary", label: "Vous lisez le résumé", hint: "Le matin, le résumé de l'appel vous attend." },
 ] as const;
 
 const DURATION = 4200;
@@ -135,10 +135,10 @@ function Pickup() {
         ))}
       </div>
       <p className="rounded-2xl bg-foreground/[0.06] px-4 py-3 text-sm leading-relaxed text-foreground">
-        « Garage Mensah, bonsoir. Le garage est fermé, mais je peux vous donner un rendez-vous tout de suite. C'est pour quel véhicule ? »
+        « Garage Mensah, bonsoir. Le garage est fermé, mais je peux vous proposer un rendez-vous. Pour quel véhicule ? »
       </p>
       <p className="ml-auto w-fit rounded-2xl bg-brand/15 px-4 py-3 text-sm text-foreground">
-        « Une Corolla, pour la révision. »
+        « Une Corolla, pour une révision. »
       </p>
     </div>
   );

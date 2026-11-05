@@ -11,11 +11,11 @@ import { cn } from "@/lib/utils";
  * Purement illustratif. prefers-reduced-motion : scène figée, texte complet.
  */
 const TURNS: { who: "caller" | "agent"; text: string }[] = [
-  { who: "agent", text: "Cabinet Diallo, bonjour. Que puis-je faire pour vous ?" },
-  { who: "caller", text: "Je voudrais un rendez-vous jeudi, si possible." },
-  { who: "agent", text: "Jeudi, j'ai 10 h 30 ou 16 h. Lequel vous convient ?" },
-  { who: "caller", text: "16 h, c'est parfait." },
-  { who: "agent", text: "C'est noté. Vous recevez la confirmation par SMS." },
+  { who: "agent", text: "Cabinet Diallo, bonjour. Comment puis-je vous aider ?" },
+  { who: "caller", text: "Bonjour, je voudrais un rendez-vous jeudi." },
+  { who: "agent", text: "Jeudi, j'ai 10 h 30 ou 16 h. Qu'est-ce qui vous convient ?" },
+  { who: "caller", text: "16 h, s'il vous plaît." },
+  { who: "agent", text: "C'est noté. Vous allez recevoir une confirmation par SMS." },
 ];
 
 const BARS = [0.3, 0.55, 0.85, 0.5, 0.95, 0.65, 0.4, 0.8, 1, 0.6, 0.45, 0.75, 0.9, 0.5, 0.35, 0.7, 0.55, 0.85, 0.4, 0.6];

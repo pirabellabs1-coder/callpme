@@ -205,7 +205,7 @@ export default function LandingPage() {
           </div>
 
           <BlurFade delay={0.2} className="flex justify-center lg:justify-end">
-            <HeroCallScene callerSrc="/hero/caller.png" />
+            <HeroCallScene callerSrc="/hero/caller-square.webp" />
           </BlurFade>
         </div>
       </section>

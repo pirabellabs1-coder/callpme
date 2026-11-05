@@ -243,10 +243,12 @@
 }
 
 /* Respect des préférences de réduction de mouvement */
+/* Les éléments `.motion-ok` (animations douces et essentielles : clignement,
+   onde sonore, texte qui s'écrit) restent animés ; tout le reste est coupé. */
 @media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
+  *:not(.motion-ok),
+  *:not(.motion-ok)::before,
+  *:not(.motion-ok)::after {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
@@ -254,8 +256,22 @@
   }
 }
 
-/* Clignement des yeux du robot (hero) */
+/* Clignement des yeux du robot (hero) : toutes les ~3,5 s */
 @keyframes blink {
-  0%, 92%, 100% { transform: scaleY(1); }
-  95% { transform: scaleY(0.1); }
+  0%, 88%, 100% { transform: scaleY(1); }
+  92% { transform: scaleY(0.08); }
+  96% { transform: scaleY(1); }
+}
+.robot-eyes {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: blink 3.5s ease-in-out infinite;
+}
+/* Curseur de la machine à écrire */
+@keyframes caret {
+  0%, 49% { opacity: 1; }
+  50%, 100% { opacity: 0; }
+}
+.animate-caret {
+  animation: caret 1s steps(1) infinite;
 }

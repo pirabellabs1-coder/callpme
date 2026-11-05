@@ -8,7 +8,13 @@ import { cn } from "@/lib/utils";
  * Scène du hero : une cliente appelle, l'agent IA décroche et lui répond.
  * Entre les deux avatars, des ondes vocales circulent dans le sens de celui
  * qui parle ; l'interlocuteur actif « pulse ». En dessous, la transcription.
- * Purement illustratif. prefers-reduced-motion : scène figée, texte complet.
+ * La transcription s'écrit lettre par lettre.
+ *
+ * Accessibilité : les animations douces et essentielles à la compréhension
+ * (yeux qui clignent, onde sonore, signal entre les deux, texte qui s'écrit)
+ * portent la classe `motion-ok` et restent actives même avec
+ * prefers-reduced-motion ; les mouvements amples (pulsations, zoom) sont coupés.
+ * Le texte complet est toujours disponible pour les lecteurs d'écran.
  */
 const TURNS: { who: "caller" | "agent"; text: string }[] = [
   { who: "agent", text: "Cabinet Diallo, bonjour. Comment puis-je vous aider ?" },
@@ -28,17 +34,27 @@ export function HeroCallScene({
   agentSrc?: string;
 }) {
   const [turn, setTurn] = useState(0);
+  const [typed, setTyped] = useState(0);
   const [reduced, setReduced] = useState(false);
 
   useEffect(() => {
-    const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
-    if (mq.matches) {
-      setReduced(true);
-      return;
-    }
-    const id = window.setInterval(() => setTurn((t) => (t + 1) % TURNS.length), 2800);
-    return () => window.clearInterval(id);
+    setReduced(window.matchMedia("(prefers-reduced-motion: reduce)").matches);
   }, []);
+
+  // Machine à écrire : une lettre toutes les 32 ms, pause de 1,6 s à la fin
+  // de la réplique, puis passage à la suivante.
+  useEffect(() => {
+    const full = TURNS[turn].text.length;
+    if (typed < full) {
+      const id = window.setTimeout(() => setTyped((n) => n + 1), 32);
+      return () => window.clearTimeout(id);
+    }
+    const id = window.setTimeout(() => {
+      setTurn((t) => (t + 1) % TURNS.length);
+      setTyped(0);
+    }, 1600);
+    return () => window.clearTimeout(id);
+  }, [typed, turn]);
 
   const speaker = TURNS[turn].who;
 
@@ -68,7 +84,7 @@ export function HeroCallScene({
             reduced={reduced}
           />
 
-          <VoiceBridge direction={speaker === "caller" ? "right" : "left"} reduced={reduced} />
+          <VoiceBridge direction={speaker === "caller" ? "right" : "left"} />
 
           <Avatar
             src={agentSrc}
@@ -87,9 +103,8 @@ export function HeroCallScene({
             <span
               key={i}
               className={cn(
-                "w-1 rounded-full transition-colors duration-500",
+                "motion-ok w-1 animate-wave rounded-full transition-colors duration-500",
                 speaker === "agent" ? "bg-brand" : "bg-foreground/70",
-                !reduced && "animate-wave",
               )}
               style={{ height: `${h * 48}px`, animationDelay: `${i * 60}ms` }}
             />
@@ -103,17 +118,17 @@ export function HeroCallScene({
             {TURNS.map((t) => `${t.who === "agent" ? "Agent" : "Cliente"} : ${t.text}`).join(" ")}
           </p>
           <p
-            key={turn}
             aria-hidden
             className={cn(
-              "mx-auto w-fit max-w-full animate-fade-up rounded-2xl px-5 py-3 text-center text-[15px] leading-relaxed text-foreground",
+              "mx-auto w-fit max-w-full rounded-2xl px-5 py-3 text-center text-[15px] leading-relaxed text-foreground",
               speaker === "agent" ? "bg-brand/[0.12]" : "bg-foreground/[0.06]",
             )}
           >
             <span className="mr-1.5 text-xs text-muted-foreground">
               {speaker === "agent" ? "Agent" : "Cliente"}
             </span>
-            {TURNS[turn].text}
+            {TURNS[turn].text.slice(0, typed)}
+            <span className="motion-ok ml-0.5 inline-block h-[1.05em] w-[2px] translate-y-[3px] animate-caret bg-brand" />
           </p>
         </div>
       </div>
@@ -155,7 +170,7 @@ function Avatar({
           )}
         >
           {src ? (
-            <Image src={src} alt={alt} fill sizes="(min-width: 1280px) 176px, 144px" className="object-cover object-[54%_40%] scale-[1.35]" priority />
+            <Image src={src} alt={alt} fill sizes="(min-width: 1280px) 176px, 144px" className="object-cover" priority />
           ) : (
             fallback
           )}
@@ -167,7 +182,7 @@ function Avatar({
 }
 
 /** Ondes vocales animées entre les deux avatars, dans le sens de la parole. */
-function VoiceBridge({ direction, reduced }: { direction: "left" | "right"; reduced: boolean }) {
+function VoiceBridge({ direction }: { direction: "left" | "right" }) {
   const toRight = direction === "right";
   return (
     <svg viewBox="0 0 120 60" className="h-12 w-14 sm:h-16 sm:w-20" fill="none">
@@ -184,14 +199,11 @@ function VoiceBridge({ direction, reduced }: { direction: "left" | "right"; redu
           strokeWidth={l.w}
           strokeLinecap="round"
           strokeDasharray="6 10"
-          style={
-            reduced
-              ? undefined
-              : {
-                  animation: `${toRight ? "dash-right" : "dash-left"} ${0.9 + i * 0.3}s linear infinite`,
-                  transition: "stroke 500ms",
-                }
-          }
+          className="motion-ok"
+          style={{
+            animation: `${toRight ? "dash-right" : "dash-left"} ${0.9 + i * 0.3}s linear infinite`,
+            transition: "stroke 500ms",
+          }}
         />
       ))}
       <style>{`
@@ -290,7 +302,7 @@ function RobotFallback() {
       <path d="M54 52c10-4 34-5 48-1" stroke="url(#rb-gloss)" strokeWidth="6" strokeLinecap="round" fill="none" />
 
       {/* Yeux lumineux qui clignent */}
-      <g className="origin-center animate-[blink_4.5s_ease-in-out_infinite]" style={{ transformBox: "fill-box" }} filter="url(#rb-glow)">
+      <g className="motion-ok robot-eyes" filter="url(#rb-glow)">
         <ellipse cx="66" cy="64" rx="6.5" ry="7.5" fill="#ff7a45" />
         <ellipse cx="94" cy="64" rx="6.5" ry="7.5" fill="#ff7a45" />
         <ellipse cx="64" cy="61" rx="2" ry="2.4" fill="#fff" opacity=".9" />

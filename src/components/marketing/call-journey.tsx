@@ -11,9 +11,9 @@ import { cn } from "@/lib/utils";
  */
 const STEPS = [
   { key: "ring", label: "Ça sonne", hint: "2 h 14 du matin, le garage est fermé." },
-  { key: "pickup", label: "L'agent décroche", hint: "Dès la première sonnerie, avec votre message d'accueil." },
-  { key: "act", label: "L'agent agit", hint: "Rendez-vous, fiche client et SMS, pendant l'appel." },
-  { key: "summary", label: "Vous lisez le résumé", hint: "Le matin, le résumé de l'appel vous attend." },
+  { key: "pickup", label: "Votre agent décroche", hint: "Dès la première sonnerie, avec votre message d'accueil." },
+  { key: "act", label: "Il agit pour vous", hint: "Rendez-vous, fiche client et SMS, pendant l'appel." },
+  { key: "summary", label: "Vous lisez le résumé", hint: "Le matin, vous trouvez le résumé de l'appel." },
 ] as const;
 
 const DURATION = 4200;

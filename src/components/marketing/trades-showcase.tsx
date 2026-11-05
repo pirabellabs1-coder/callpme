@@ -28,7 +28,7 @@ const TRADES: Trade[] = [
   {
     key: "coiffure",
     label: "Coiffure et beauté",
-    title: "Le salon prend les rendez-vous pendant que vous travaillez.",
+    title: "Vos rendez-vous sont pris pendant que vous coiffez.",
     photo: u("photo-1695527081848-1e46c06e6458"),
     alt: "Une coiffeuse s'occupe d'une cliente dans un salon",
     credit: { name: "Daniel", url: "https://unsplash.com/@unsplashbydan" },
@@ -43,7 +43,7 @@ const TRADES: Trade[] = [
   {
     key: "sante",
     label: "Médecins et cliniques",
-    title: "Le cabinet répond à chaque appel.",
+    title: "Votre cabinet répond à chaque patient.",
     photo: u("photo-1638202993928-7267aad84c31"),
     alt: "Une médecin en blouse blanche tient un stéthoscope",
     credit: { name: "Alexandr Podvalny", url: "https://unsplash.com/@freestockpro" },
@@ -57,7 +57,7 @@ const TRADES: Trade[] = [
   {
     key: "avocat",
     label: "Avocats et notaires",
-    title: "Chaque nouveau client est qualifié avant le premier rendez-vous.",
+    title: "Vous recevez chaque nouveau client avec son dossier déjà préparé.",
     photo: u("photo-1605602517229-cdbfc3dfb70c"),
     alt: "Un avocat en chemise blanche assis dans un fauteuil de bureau",
     credit: { name: "Steward Masweneng", url: "https://unsplash.com/@stewardesign" },
@@ -71,7 +71,7 @@ const TRADES: Trade[] = [
   {
     key: "garage",
     label: "Garages",
-    title: "Les demandes arrivent déjà triées.",
+    title: "Vous restez à l'atelier, votre agent répond.",
     photo: u("photo-1723099971299-3789db53604c"),
     alt: "Une voiture surélevée sur un pont dans un atelier mécanique",
     credit: { name: "KC Shum", url: "https://unsplash.com/@kcshum" },
@@ -85,7 +85,7 @@ const TRADES: Trade[] = [
   {
     key: "immobilier",
     label: "Immobilier",
-    title: "Les visites se planifient pendant que vous êtes sur le terrain.",
+    title: "Vos visites se planifient pendant que vous êtes sur le terrain.",
     photo: u("photo-1770199105692-9e52ff137cad"),
     alt: "Une agente immobilière tient des clés et un porte-documents",
     credit: { name: "Aleksandra Sapozhnikova", url: "https://unsplash.com/@rruprrup" },
@@ -99,7 +99,7 @@ const TRADES: Trade[] = [
   {
     key: "restaurant",
     label: "Restaurants",
-    title: "Les réservations sont prises, même pendant le service.",
+    title: "Vos réservations sont prises, même pendant le service.",
     photo: u("photo-1577219492769-b63a779fac28"),
     alt: "Un chef prépare des assiettes en cuisine",
     credit: { name: "Louis Hansel", url: "https://unsplash.com/@louishansel" },

@@ -43,7 +43,7 @@ export function HeroCallScene({
   const speaker = TURNS[turn].who;
 
   return (
-    <div className="w-full max-w-[640px]">
+    <div className="w-full max-w-[520px]">
       <div className="relative">
 
         {/* En-tête d'appel */}
@@ -82,7 +82,7 @@ export function HeroCallScene({
         </div>
 
         {/* Onde vocale en bas */}
-        <div aria-hidden className="relative mt-10 flex h-16 items-center justify-center gap-1">
+        <div aria-hidden className="relative mt-8 flex h-14 items-center justify-center gap-1">
           {BARS.map((h, i) => (
             <span
               key={i}
@@ -91,7 +91,7 @@ export function HeroCallScene({
                 speaker === "agent" ? "bg-brand" : "bg-foreground/70",
                 !reduced && "animate-wave",
               )}
-              style={{ height: `${h * 60}px`, animationDelay: `${i * 60}ms` }}
+              style={{ height: `${h * 48}px`, animationDelay: `${i * 60}ms` }}
             />
           ))}
         </div>
@@ -150,12 +150,12 @@ function Avatar({
         )}
         <div
           className={cn(
-            "relative size-32 overflow-hidden rounded-full ring-1 transition-all duration-500 ease-spring sm:size-48 xl:size-56",
+            "relative size-28 overflow-hidden rounded-full ring-1 transition-all duration-500 ease-spring sm:size-36 xl:size-44",
             active ? (brand ? "scale-105 ring-2 ring-brand shadow-brand" : "scale-105 ring-2 ring-foreground/60") : "scale-95 opacity-75 ring-border",
           )}
         >
           {src ? (
-            <Image src={src} alt={alt} fill sizes="(min-width: 1280px) 224px, 192px" className="object-cover object-[54%_40%] scale-[1.35]" priority />
+            <Image src={src} alt={alt} fill sizes="(min-width: 1280px) 176px, 144px" className="object-cover object-[54%_40%] scale-[1.35]" priority />
           ) : (
             fallback
           )}
@@ -170,7 +170,7 @@ function Avatar({
 function VoiceBridge({ direction, reduced }: { direction: "left" | "right"; reduced: boolean }) {
   const toRight = direction === "right";
   return (
-    <svg viewBox="0 0 120 60" className="h-14 w-16 sm:h-20 sm:w-28" fill="none">
+    <svg viewBox="0 0 120 60" className="h-12 w-14 sm:h-16 sm:w-20" fill="none">
       {[
         { amp: 16, op: 1, w: 2 },
         { amp: 10, op: 0.55, w: 1.5 },

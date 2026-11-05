@@ -43,12 +43,11 @@ export function HeroCallScene({
   const speaker = TURNS[turn].who;
 
   return (
-    <div className="bezel w-full max-w-[560px]">
-      <div className="bezel-core relative overflow-hidden px-5 pb-6 pt-5 sm:px-7">
-        <div aria-hidden className="bg-grid pointer-events-none absolute inset-0 opacity-40" />
+    <div className="w-full max-w-[640px]">
+      <div className="relative">
 
         {/* En-tête d'appel */}
-        <div className="relative flex items-center justify-between text-xs">
+        <div className="relative mx-auto flex w-fit items-center gap-4 rounded-full border border-foreground/10 bg-foreground/[0.03] px-4 py-1.5 text-xs">
           <span className="flex items-center gap-2 text-foreground">
             <span className="relative flex size-2">
               <span className="absolute inline-flex size-full animate-ping rounded-full bg-success/60 motion-reduce:hidden" />
@@ -60,7 +59,7 @@ export function HeroCallScene({
         </div>
 
         {/* Les deux interlocuteurs et les ondes entre eux */}
-        <div className="relative mt-6 grid grid-cols-[1fr_auto_1fr] items-center gap-2" aria-hidden>
+        <div className="relative mt-10 grid grid-cols-[1fr_auto_1fr] items-center gap-1" aria-hidden>
           <Avatar
             src={callerSrc}
             alt=""
@@ -83,22 +82,22 @@ export function HeroCallScene({
         </div>
 
         {/* Onde vocale en bas */}
-        <div aria-hidden className="relative mt-6 flex h-12 items-center justify-center gap-[3px]">
+        <div aria-hidden className="relative mt-10 flex h-16 items-center justify-center gap-1">
           {BARS.map((h, i) => (
             <span
               key={i}
               className={cn(
-                "w-[3px] rounded-full transition-colors duration-500",
+                "w-1 rounded-full transition-colors duration-500",
                 speaker === "agent" ? "bg-brand" : "bg-foreground/70",
                 !reduced && "animate-wave",
               )}
-              style={{ height: `${h * 44}px`, animationDelay: `${i * 60}ms` }}
+              style={{ height: `${h * 60}px`, animationDelay: `${i * 60}ms` }}
             />
           ))}
         </div>
 
         {/* Transcription (lisible par les lecteurs d'écran) */}
-        <div className="relative mt-4 min-h-[56px]" aria-live="off">
+        <div className="relative mt-6 min-h-[64px]" aria-live="off">
           <p className="sr-only">
             Exemple de conversation entre une cliente et l'agent vocal Callpme :{" "}
             {TURNS.map((t) => `${t.who === "agent" ? "Agent" : "Cliente"} : ${t.text}`).join(" ")}
@@ -107,7 +106,7 @@ export function HeroCallScene({
             key={turn}
             aria-hidden
             className={cn(
-              "animate-fade-up rounded-2xl px-4 py-2.5 text-center text-sm leading-relaxed text-foreground",
+              "mx-auto w-fit max-w-full animate-fade-up rounded-2xl px-5 py-3 text-center text-[15px] leading-relaxed text-foreground",
               speaker === "agent" ? "bg-brand/[0.12]" : "bg-foreground/[0.06]",
             )}
           >
@@ -151,18 +150,18 @@ function Avatar({
         )}
         <div
           className={cn(
-            "relative size-28 overflow-hidden rounded-full ring-1 transition-all duration-500 ease-spring sm:size-40",
+            "relative size-32 overflow-hidden rounded-full ring-1 transition-all duration-500 ease-spring sm:size-48 xl:size-56",
             active ? (brand ? "scale-105 ring-2 ring-brand shadow-brand" : "scale-105 ring-2 ring-foreground/60") : "scale-95 opacity-75 ring-border",
           )}
         >
           {src ? (
-            <Image src={src} alt={alt} fill sizes="160px" className="object-cover object-[54%_40%] scale-[1.35]" priority />
+            <Image src={src} alt={alt} fill sizes="(min-width: 1280px) 224px, 192px" className="object-cover object-[54%_40%] scale-[1.35]" priority />
           ) : (
             fallback
           )}
         </div>
       </div>
-      <span className={cn("mt-3 text-xs transition-colors", active ? "text-foreground" : "text-muted-foreground")}>{label}</span>
+      <span className={cn("mt-4 text-sm transition-colors", active ? "text-foreground" : "text-muted-foreground")}>{label}</span>
     </div>
   );
 }
@@ -171,7 +170,7 @@ function Avatar({
 function VoiceBridge({ direction, reduced }: { direction: "left" | "right"; reduced: boolean }) {
   const toRight = direction === "right";
   return (
-    <svg viewBox="0 0 120 60" className="h-12 w-14 sm:h-16 sm:w-24" fill="none">
+    <svg viewBox="0 0 120 60" className="h-14 w-16 sm:h-20 sm:w-28" fill="none">
       {[
         { amp: 16, op: 1, w: 2 },
         { amp: 10, op: 0.55, w: 1.5 },

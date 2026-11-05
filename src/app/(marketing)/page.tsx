@@ -168,7 +168,7 @@ export default function LandingPage() {
         <div aria-hidden className="glow-brand pointer-events-none absolute -right-40 top-10 size-[720px] opacity-70" />
         <div aria-hidden className="bg-grid mask-fade-b pointer-events-none absolute inset-0 opacity-60" />
 
-        <div className="container-marketing relative grid items-center gap-16 pb-24 lg:grid-cols-[1.1fr_0.9fr] lg:pb-32">
+        <div className="container-marketing relative grid items-center gap-16 pb-24 lg:grid-cols-[1fr_1.05fr] lg:gap-8 lg:pb-32">
           <div>
             <BlurFade>
               <span className="eyebrow">

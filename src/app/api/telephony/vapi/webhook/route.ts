@@ -1,3 +1,4 @@
+import { safeEqual } from "@/lib/auth/admin-gate";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import type { TranscriptTurn } from "@/lib/shared/types";
@@ -32,8 +33,14 @@ function toTurns(messages: unknown): TranscriptTurn[] {
  */
 export async function POST(req: NextRequest) {
   try {
+    // Secret obligatoire en production : sans lui, n'importe qui pourrait
+    // injecter de faux appels. En dev, on l'accepte absent (tests locaux).
     const secret = process.env.VAPI_WEBHOOK_SECRET;
-    if (secret && req.headers.get("x-vapi-secret") !== secret) {
+    if (!secret && process.env.NODE_ENV === "production") {
+      console.error("[vapi] VAPI_WEBHOOK_SECRET manquant : webhook refusé.");
+      return NextResponse.json({ ok: false }, { status: 503 });
+    }
+    if (secret && !safeEqual(req.headers.get("x-vapi-secret") ?? "", secret)) {
       return NextResponse.json({ ok: false }, { status: 401 });
     }
     const body = await req.json().catch(() => null);

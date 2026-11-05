@@ -2,8 +2,8 @@ import type { Config } from "tailwindcss";
 
 /**
  * Thème Callpme — identité sur-mesure.
- * Palette : blanc cassé chaud dominant, orange de marque #E8572A, encre noire chaude.
- * Bordures fines, ombres douces teintées chaud, rayons mesurés. Aucun dégradé « IA ».
+ * Callpme 2.0 : sombre premium par défaut (noir chaud, hairlines), orange de marque
+ * #E8572A en accent rare. Ombres profondes et diffuses. Aucun dégradé multicolore.
  */
 const config: Config = {
   darkMode: ["class"],
@@ -97,15 +97,16 @@ const config: Config = {
         "2xl": "calc(var(--radius) + 8px)",
       },
       boxShadow: {
-        xs: "0 1px 2px 0 rgb(28 22 16 / 0.05)",
-        sm: "0 1px 3px 0 rgb(28 22 16 / 0.06), 0 1px 2px -1px rgb(28 22 16 / 0.05)",
-        DEFAULT: "0 2px 4px -1px rgb(28 22 16 / 0.06), 0 1px 3px -1px rgb(28 22 16 / 0.04)",
-        md: "0 4px 12px -2px rgb(28 22 16 / 0.08), 0 2px 6px -2px rgb(28 22 16 / 0.05)",
-        lg: "0 12px 28px -6px rgb(28 22 16 / 0.10), 0 6px 12px -6px rgb(28 22 16 / 0.06)",
-        xl: "0 24px 48px -12px rgb(28 22 16 / 0.14), 0 8px 20px -8px rgb(28 22 16 / 0.08)",
-        // Lueur de marque très discrète, pour les éléments actifs
-        brand: "0 1px 2px 0 rgb(232 87 42 / 0.20), 0 8px 24px -8px rgb(232 87 42 / 0.28)",
-        "inner-top": "inset 0 1px 0 0 rgb(255 255 255 / 0.6)",
+        // Ombres pensées pour le fond sombre : profondes, diffuses, jamais dures.
+        xs: "0 1px 2px 0 rgb(0 0 0 / 0.4)",
+        sm: "0 1px 2px 0 rgb(0 0 0 / 0.45), inset 0 1px 0 0 rgb(255 255 255 / 0.04)",
+        DEFAULT: "0 2px 6px -1px rgb(0 0 0 / 0.5), inset 0 1px 0 0 rgb(255 255 255 / 0.04)",
+        md: "0 8px 24px -6px rgb(0 0 0 / 0.55), inset 0 1px 0 0 rgb(255 255 255 / 0.05)",
+        lg: "0 20px 48px -12px rgb(0 0 0 / 0.6), inset 0 1px 0 0 rgb(255 255 255 / 0.05)",
+        xl: "0 32px 80px -16px rgb(0 0 0 / 0.7), inset 0 1px 0 0 rgb(255 255 255 / 0.06)",
+        // Lueur de marque, pour les éléments actifs / CTA principaux
+        brand: "0 0 0 1px rgb(232 87 42 / 0.35), 0 8px 32px -8px rgb(232 87 42 / 0.45)",
+        "inner-top": "inset 0 1px 0 0 rgb(255 255 255 / 0.08)",
       },
       keyframes: {
         "fade-in": {
@@ -113,7 +114,7 @@ const config: Config = {
           to: { opacity: "1" },
         },
         "fade-up": {
-          from: { opacity: "0", transform: "translateY(8px)" },
+          from: { opacity: "0", transform: "translateY(16px)" },
           to: { opacity: "1", transform: "translateY(0)" },
         },
         "scale-in": {
@@ -160,6 +161,14 @@ const config: Config = {
               "rotate(calc(var(--angle) * 1deg + 360deg)) translateY(calc(var(--radius) * 1px)) rotate(calc((var(--angle) * -1deg) - 360deg))",
           },
         },
+        progress: {
+          from: { transform: "scaleX(0)" },
+          to: { transform: "scaleX(1)" },
+        },
+        wave: {
+          "0%, 100%": { transform: "scaleY(0.35)" },
+          "50%": { transform: "scaleY(1)" },
+        },
         shine: {
           "0%": { "background-position": "0% 0%" },
           "50%": { "background-position": "100% 100%" },
@@ -178,9 +187,13 @@ const config: Config = {
         aurora: "aurora 8s ease-in-out infinite alternate",
         orbit: "orbit calc(var(--duration) * 1s) linear infinite",
         shine: "shine var(--duration) infinite linear",
+        progress: "progress var(--progress-duration, 4s) linear forwards",
+        wave: "wave 1.1s cubic-bezier(0.32, 0.72, 0, 1) infinite",
       },
       transitionTimingFunction: {
         "out-expo": "cubic-bezier(0.16, 1, 0.3, 1)",
+        // Courbe « masse et ressort » des transitions premium
+        spring: "cubic-bezier(0.32, 0.72, 0, 1)",
       },
     },
   },

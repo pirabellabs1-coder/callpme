@@ -37,7 +37,8 @@ export async function adminGateLogin(formData: FormData): Promise<GateResult> {
   const fail: GateResult = { error: "Accès refusé. Vérifiez vos informations." };
 
   // L'URL secrète doit correspondre (re-vérification côté serveur).
-  if (!safeEqual(gate, adminGateSlug())) {
+  const slug = adminGateSlug();
+  if (!slug || !safeEqual(gate, slug)) {
     await sleep(600);
     return fail;
   }

@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
+import { requireOwnedAgent } from "@/lib/api/agent-access";
+import { ForeignReferenceError } from "@/lib/db/agents";
 import {
-  getAgentById,
   updateAgent,
   deleteAgent,
 } from "@/lib/db/agents";
@@ -21,8 +22,9 @@ type Ctx = { params: { id: string } };
 /** GET /api/agents/:id */
 export async function GET(_req: NextRequest, { params }: Ctx) {
   try {
-    const agent = await getAgentById(params.id);
-    return agent ? ok({ agent }) : notFound("Agent introuvable");
+    const access = await requireOwnedAgent(params.id);
+    if (!access.ok) return access.response;
+    return ok({ agent: access.agent });
   } catch {
     return serverError();
   }
@@ -31,6 +33,8 @@ export async function GET(_req: NextRequest, { params }: Ctx) {
 /** PATCH /api/agents/:id — modifie config, statut, rôle, nom… */
 export async function PATCH(req: NextRequest, { params }: Ctx) {
   try {
+    const access = await requireOwnedAgent(params.id);
+    if (!access.ok) return access.response;
     const body = await req.json().catch(() => null);
     const parsed = updateAgentSchema.safeParse(body);
     if (!parsed.success) {
@@ -62,7 +66,8 @@ export async function PATCH(req: NextRequest, { params }: Ctx) {
       });
     }
     return agent ? ok({ agent }) : notFound("Agent introuvable");
-  } catch {
+  } catch (e) {
+    if (e instanceof ForeignReferenceError) return badRequest(e.message);
     return serverError("Impossible de mettre à jour l'agent");
   }
 }
@@ -70,8 +75,9 @@ export async function PATCH(req: NextRequest, { params }: Ctx) {
 /** DELETE /api/agents/:id */
 export async function DELETE(_req: NextRequest, { params }: Ctx) {
   try {
-    const agent = await getAgentById(params.id);
-    if (!agent) return notFound("Agent introuvable");
+    const access = await requireOwnedAgent(params.id);
+    if (!access.ok) return access.response;
+    const agent = access.agent;
     await deleteAgent(params.id);
     await dispatchEvent(agent.organizationId, "agent.deleted", {
       id: agent.id,

@@ -3,11 +3,11 @@
  * Évite une table dédiée : le jeton encode userId + expiration + signature.
  */
 import { createHmac, timingSafeEqual } from "crypto";
+import { getAuthSecret } from "./secret";
 
-const SECRET = process.env.NEXTAUTH_SECRET || "callpme-reset-secret-fallback";
 
 function sign(payload: string): string {
-  return createHmac("sha256", SECRET).update(payload).digest("hex").slice(0, 40);
+  return createHmac("sha256", getAuthSecret()).update(payload).digest("hex").slice(0, 40);
 }
 
 /** Crée un jeton valable `ttlMs` (1h par défaut). */

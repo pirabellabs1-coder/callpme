@@ -1,506 +1,487 @@
 import Link from "next/link";
-import Image from "next/image";
 import {
-  ArrowRight,
-  Check,
-  Terminal,
-  Webhook,
-  Code2,
-  PlugZap,
-  ShieldCheck,
-  BarChart3,
-  PhoneIncoming,
-  AudioLines,
-  BrainCircuit,
-  Volume2,
-  ChevronDown,
-  Building2,
+  ArrowUpRight,
   BookOpen,
-  Megaphone,
+  CalendarCheck,
+  ChartNoAxesColumn,
+  Code2,
+  Globe2,
+  Smartphone,
+  Workflow,
 } from "lucide-react";
-import { ALL_ROLE_META, ROLE_META } from "@/lib/agents/roles";
-import { cn } from "@/lib/utils";
-import { buttonVariants } from "@/components/ui/button";
+import { ALL_ROLE_META } from "@/lib/agents/roles";
 import { DynamicIcon } from "@/components/icon";
-import { CallPreview } from "@/components/agents/wizard/call-preview";
-import { CodeBlock, CodeTabs } from "@/components/dev/code-block";
 import { BlurFade } from "@/components/magicui/blur-fade";
-import { NumberTicker } from "@/components/magicui/number-ticker";
 import { Marquee } from "@/components/magicui/marquee";
-import { AnimatedShinyText } from "@/components/magicui/animated-shiny-text";
-import { BorderBeam } from "@/components/magicui/border-beam";
-import { AuroraText } from "@/components/magicui/aurora-text";
-import { Particles } from "@/components/magicui/particles";
-import { OrbitingCircles } from "@/components/magicui/orbiting-circles";
-import { ShineBorder } from "@/components/magicui/shine-border";
-import { Phone, Headphones, MessageSquare, Mic, Bot, Sparkles } from "lucide-react";
+import { LiveCallCard } from "@/components/marketing/live-call-card";
+import { CallJourney } from "@/components/marketing/call-journey";
+import { TradesShowcase } from "@/components/marketing/trades-showcase";
+import { DashboardPreview } from "@/components/marketing/dashboard-preview";
+import { CodeTabs } from "@/components/dev/code-block";
+import { cn } from "@/lib/utils";
 
-const API_BASE = "https://www.callpme.com/api/v1";
+/* ------------------------------------------------------------------ */
+/* Données de la page                                                  */
+/* ------------------------------------------------------------------ */
 
-/* --- Code copiable : création d'un agent (curl, JS, Python) --- */
-const HERO_CURL = [
-  `curl -X POST ${API_BASE}/agents \\`,
-  `  -H "Authorization: Bearer cpk_live_..." \\`,
-  `  -H "Content-Type: application/json" \\`,
-  `  -d '{`,
-  `    "name": "Standard Accueil",`,
-  `    "role": "receptionist",`,
-  `    "firstMessage": "Bonjour, bienvenue chez Acme !"`,
-  `  }'`,
-].join("\n");
+const MARKETS = [
+  "France",
+  "Belgique",
+  "Suisse",
+  "Québec",
+  "Côte d'Ivoire",
+  "Sénégal",
+  "Cameroun",
+  "Bénin",
+  "Togo",
+  "Mali",
+];
 
-const CREATE_SAMPLES = [
-  { label: "cURL", language: "bash", code: HERO_CURL },
+const AUDIENCES = [
+  {
+    key: "pme",
+    tag: "PME",
+    title: "Un standard qui ne rate plus d'appel",
+    body: "Cabinets, garages, agences immobilières, cliniques. Votre agent répond la nuit, le week-end et pendant les rushs, prend les rendez-vous et vous envoie un résumé de chaque appel.",
+    points: ["Mise en ligne en 15 minutes", "Votre numéro actuel conservé", "Payable en Mobile Money"],
+    href: "/register",
+    cta: "Créer mon agent",
+  },
+  {
+    key: "agence",
+    tag: "Agences",
+    title: "Vendez des agents vocaux sous votre marque",
+    body: "Un espace par client, vos couleurs, votre domaine. Vous fixez le prix de revente, Callpme facture uniquement l'usage.",
+    points: ["Marque blanche complète", "Clients illimités", "Tableau de bord multi-clients"],
+    href: "/register?offre=agence",
+    cta: "Ouvrir un compte agence",
+  },
+  {
+    key: "dev",
+    tag: "Développeurs",
+    title: "Une API vocale, facturée sans surprise",
+    body: "Créez des agents par API, branchez vos outils par webhooks, choisissez votre LLM. Un prix à la minute qui inclut voix, transcription et téléphonie.",
+    points: ["API REST et webhooks", "LLM au choix", "Événements d'appel en temps réel"],
+    href: "/developers",
+    cta: "Lire la documentation",
+  },
+];
+
+const CODE_SAMPLES = [
+  {
+    label: "cURL",
+    language: "bash",
+    code: `curl https://callpme.com/api/v1/agents \\
+  -H "Authorization: Bearer $CALLPME_KEY" \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "name": "Accueil Cabinet Diallo",
+    "role": "appointment",
+    "voice": { "language": "fr-FR" }
+  }'`,
+  },
   {
     label: "JavaScript",
-    language: "javascript",
-    code: [
-      `const res = await fetch("${API_BASE}/agents", {`,
-      '  method: "POST",',
-      "  headers: {",
-      "    Authorization: `Bearer ${process.env.CALLPME_KEY}`,",
-      '    "Content-Type": "application/json",',
-      "  },",
-      "  body: JSON.stringify({",
-      '    name: "Standard Accueil",',
-      '    role: "receptionist",',
-      '    firstMessage: "Bonjour, bienvenue chez Acme !",',
-      "  }),",
-      "});",
-      "const { data } = await res.json();",
-    ].join("\n"),
+    language: "typescript",
+    code: `const res = await fetch("https://callpme.com/api/v1/agents", {
+  method: "POST",
+  headers: {
+    Authorization: \`Bearer \${process.env.CALLPME_KEY}\`,
+    "Content-Type": "application/json",
+  },
+  body: JSON.stringify({
+    name: "Accueil Cabinet Diallo",
+    role: "appointment",
+    voice: { language: "fr-FR" },
+  }),
+});
+const { data: agent } = await res.json();`,
   },
   {
     label: "Python",
     language: "python",
-    code: [
-      "import requests",
-      "",
-      "res = requests.post(",
-      `    "${API_BASE}/agents",`,
-      '    headers={"Authorization": f"Bearer {CALLPME_KEY}"},',
-      "    json={",
-      '        "name": "Standard Accueil",',
-      '        "role": "receptionist",',
-      '        "firstMessage": "Bonjour, bienvenue chez Acme !",',
-      "    },",
-      ")",
-      'print(res.json()["data"]["id"])',
-    ].join("\n"),
+    code: `import os, requests
+
+agent = requests.post(
+    "https://callpme.com/api/v1/agents",
+    headers={"Authorization": f"Bearer {os.environ['CALLPME_KEY']}"},
+    json={
+        "name": "Accueil Cabinet Diallo",
+        "role": "appointment",
+        "voice": {"language": "fr-FR"},
+    },
+).json()["data"]`,
   },
 ];
 
-const WEBHOOK_CODE = [
-  "{",
-  '  "event": "call.completed",',
-  '  "data": {',
-  '    "id": "call_3a9…",',
-  '    "agentId": "agt_8f2c…",',
-  '    "durationSec": 132,',
-  '    "outcome": "Rendez-vous pris",',
-  '    "satisfaction": 5',
-  "  },",
-  '  "timestamp": "2026-06-05T10:00:00.000Z"',
-].join("\n") + "\n}";
-
-const DEV_POINTS = [
-  { icon: Code2, title: "API REST claire", text: "Créez, listez et pilotez vos agents et vos appels en quelques requêtes." },
-  { icon: Webhook, title: "Webhooks signés", text: "Recevez chaque événement d'appel, vérifiés par signature HMAC." },
-  { icon: PlugZap, title: "Fonctions sur-mesure", text: "Branchez vos propres endpoints : l'agent appelle vos outils en direct." },
+const WEBHOOK_SAMPLE = [
+  {
+    label: "Webhook reçu",
+    language: "json",
+    code: `{
+  "event": "call.completed",
+  "data": {
+    "id": "call_51a9e0",
+    "agentId": "agt_8f2c1d",
+    "agentName": "Accueil Cabinet Diallo",
+    "durationSec": 112,
+    "goalAchieved": true
+  },
+  "timestamp": "2026-11-05T09:42:11.000Z"
+}`,
+  },
 ];
 
-const STATS: {
-  value: number;
-  prefix?: string;
-  suffix?: string;
-  label: string;
-}[] = [
-  { value: 6, label: "rôles prêts à l'emploi" },
-  { value: 17, label: "voix françaises" },
-  { prefix: "<", value: 1, suffix: "s", label: "latence cible" },
-  { value: 100, suffix: "%", label: "conforme RGPD" },
+const STEPS = [
+  { n: "01", title: "Décrivez votre activité", body: "Collez l'adresse de votre site. Callpme en tire vos horaires, vos services et vos réponses fréquentes." },
+  { n: "02", title: "Choisissez une voix", body: "Une voix française naturelle, avec l'accent de votre marché. Testez-la tout de suite dans le navigateur." },
+  { n: "03", title: "Branchez vos outils", body: "Agenda Google ou Outlook, CRM, SMS. L'agent agit pendant l'appel au lieu de prendre un simple message." },
+  { n: "04", title: "Mettez en ligne", body: "Prenez un numéro local ou renvoyez votre ligne actuelle. Chaque appel arrive transcrit et résumé." },
 ];
 
-const PIPELINE = [
-  { icon: PhoneIncoming, title: "Appel entrant", text: "Le numéro reçoit l'appel et identifie l'agent assigné." },
-  { icon: AudioLines, title: "Transcription", text: "La parole est transcrite en temps réel (STT)." },
-  { icon: BrainCircuit, title: "Compréhension", text: "Le modèle raisonne avec le prompt du rôle et appelle les outils." },
-  { icon: Volume2, title: "Réponse vocale", text: "La réponse est synthétisée et renvoyée à l'appelant (TTS)." },
-];
-
-const CAPABILITIES = [
-  { icon: Megaphone, title: "Campagnes sortantes", text: "Importez vos contacts, l'agent appelle toute la liste et journalise chaque issue." },
-  { icon: AudioLines, title: "Studio Voix", text: "Enregistrez, mixez et clonez des voix sur-mesure pour vos agents." },
-  { icon: Building2, title: "Multi-clients", text: "Un espace isolé par client, en marque blanche, prêt pour la revente." },
-  { icon: BookOpen, title: "Base de connaissances", text: "Vos agents répondent depuis vos documents et vos URLs (RAG)." },
-  { icon: ShieldCheck, title: "Garde-fous", text: "Fixez des limites strictes par agent et gardez le contrôle de ce qui est dit." },
-  { icon: BarChart3, title: "Statistiques", text: "Taux de résolution, durée, transferts, satisfaction — tout est mesuré." },
-];
-
-const PRICING = [
-  { id: "starter", name: "Starter", price: "49 €", period: "/ mois", desc: "Pour démarrer avec un premier agent.", features: ["1 agent vocal", "1 numéro inclus", "500 minutes / mois", "Statistiques de base"], cta: "Commencer", highlight: false },
-  { id: "pro", name: "Pro", price: "149 €", period: "/ mois", desc: "Pour les équipes qui industrialisent.", features: ["10 agents vocaux", "5 numéros inclus", "3 000 minutes / mois", "Statistiques avancées", "Webhooks & API complète"], cta: "Choisir Pro", highlight: true },
-  { id: "agency", name: "Agence", price: "Sur devis", period: "", desc: "Pour gérer plusieurs clients.", features: ["Agents illimités", "Multi-organisations", "Numéros à volume", "Support dédié", "Engagement SLA"], cta: "Nous contacter", highlight: false },
+// Tarifs de lancement — hypothèses du cahier des charges, à valider avant publication.
+const PLANS = [
+  { name: "Starter", price: "29", fcfa: "19 000", minutes: "100 minutes incluses", extra: "0,25 € la minute en plus", features: ["1 agent", "1 numéro local", "Prise de rendez-vous"], highlight: false },
+  { name: "Pro", price: "99", fcfa: "65 000", minutes: "500 minutes incluses", extra: "0,20 € la minute en plus", features: ["5 agents", "Campagnes sortantes", "Intégrations CRM"], highlight: true },
+  { name: "Agence", price: "499", fcfa: "327 000", minutes: "3 000 minutes incluses", extra: "0,14 € la minute en plus", features: ["Marque blanche", "Clients illimités", "Refacturation à marge"], highlight: false },
 ];
 
 const FAQ = [
-  { q: "Qu'est-ce qu'un agent vocal avec un rôle ?", a: "Un agent est une entité configurable (voix, modèle, prompt, outils) à laquelle vous assignez un rôle — support, prise de rendez-vous, qualification, vente… Le rôle pré-remplit automatiquement le prompt et les outils adaptés." },
-  { q: "Puis-je tout piloter par API ?", a: "Oui. Toute la plateforme est accessible via une API REST authentifiée par clé : créer des agents, lancer des campagnes, lire les appels et leurs transcripts, et recevoir des webhooks signés à chaque événement." },
-  { q: "Mes données sont-elles hébergées en France ?", a: "La plateforme est pensée pour la conformité RGPD avec un hébergement en Europe. Vous gardez la maîtrise de vos transcripts et de vos enregistrements." },
-  { q: "Comment fonctionne la facturation des appels ?", a: "Chaque offre inclut un volume de minutes. Au-delà, les minutes sont facturées à l'usage. Les numéros sont facturés séparément, à partir de 2 € par mois." },
+  { q: "Mes clients sauront-ils qu'ils parlent à une IA ?", a: "Oui. L'agent l'annonce en début d'appel, comme l'exige l'AI Act européen. Dans la pratique, les appelants retiennent surtout qu'on leur a répondu tout de suite." },
+  { q: "Puis-je garder mon numéro actuel ?", a: "Oui. Vous activez un renvoi d'appel vers Callpme, sur toutes vos lignes ou seulement en dehors des heures d'ouverture." },
+  { q: "Comment se passe le paiement en Afrique ?", a: "Par Orange Money, MTN, Wave, Moov ou carte bancaire, en FCFA. Pas besoin de carte internationale." },
+  { q: "Où sont stockées les données ?", a: "En Union européenne. Les enregistrements sont conservés selon la durée que vous choisissez, puis supprimés." },
+  { q: "Que se passe-t-il si l'agent ne sait pas répondre ?", a: "Il transfère l'appel à la personne de votre choix ou prend un message détaillé, selon les règles que vous fixez." },
 ];
+
+/* ------------------------------------------------------------------ */
+/* Page                                                                */
+/* ------------------------------------------------------------------ */
 
 export default function LandingPage() {
   return (
     <>
-      {/* ───────────────────────── HERO ───────────────────────── */}
-      <section className="relative overflow-hidden border-b border-border">
-        <div className="absolute inset-0 bg-grid [mask-image:radial-gradient(60%_50%_at_50%_0%,black,transparent)]" />
-        {/* Particules orange de marque flottant en fond du hero. */}
-        <Particles
-          className="absolute inset-0 -z-0"
-          quantity={90}
-          color="#E8572A"
-          size={0.5}
-          staticity={40}
-        />
-        <div className="container-marketing relative grid items-center gap-12 py-16 lg:grid-cols-[1fr_1.05fr] lg:py-24">
-          {/* Colonne texte */}
-          <div className="relative z-10 min-w-0">
-            <span className="inline-flex items-center gap-2 rounded-full border border-border bg-card px-3 py-1 font-mono text-xs font-medium text-foreground/70 shadow-xs">
-              <Terminal className="size-3.5 text-brand" />
-              <AnimatedShinyText>voix-ai · piloté par API · conçu en France</AnimatedShinyText>
-            </span>
-            <h1 className="mt-6 text-display-xl font-semibold tracking-tight text-foreground text-balance">
-              Déployez des{" "}
-              <AuroraText className="font-semibold">agents vocaux IA</AuroraText>{" "}
-              en quelques lignes de code.
-            </h1>
-            <p className="mt-5 max-w-xl text-lg text-muted-foreground text-pretty">
-              Support, rendez-vous, qualification, vente… Créez des agents
-              spécialisés, branchez-les à vos numéros, et pilotez chaque appel
-              par API ou depuis le tableau de bord.
-            </p>
-            <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-              <Link
-                href="/register"
-                className={cn(buttonVariants({ variant: "brand", size: "lg" }), "gap-1.5")}
-              >
-                Créer un agent
-                <ArrowRight className="size-4" />
-              </Link>
-              <a
-                href="#developpeurs"
-                className={cn(buttonVariants({ variant: "outline", size: "lg" }), "gap-1.5")}
-              >
-                <Code2 className="size-4" />
-                Voir l'API
-              </a>
-            </div>
-            <div className="mt-6 flex flex-wrap items-center gap-x-5 gap-y-2 text-sm text-muted-foreground">
-              <span className="inline-flex items-center gap-1.5"><Check className="size-4 text-emerald-600" /> Sans engagement</span>
-              <span className="inline-flex items-center gap-1.5"><Check className="size-4 text-emerald-600" /> Hébergement FR</span>
-              <span className="inline-flex items-center gap-1.5"><Check className="size-4 text-emerald-600" /> Conforme RGPD</span>
-            </div>
-          </div>
+      <div aria-hidden className="noise-overlay" />
 
-          {/* Colonne visuel : cercles en orbite autour de l'agent (Magic UI). */}
-          <div className="relative z-10 min-w-0">
-            <HeroOrbit />
-          </div>
-        </div>
+      {/* HERO — split éditorial : titre à gauche, appel en direct à droite */}
+      <section className="relative overflow-hidden pt-32 sm:pt-40">
+        <div aria-hidden className="glow-brand pointer-events-none absolute -right-40 top-10 size-[720px] opacity-70" />
+        <div aria-hidden className="bg-grid mask-fade-b pointer-events-none absolute inset-0 opacity-60" />
 
-        {/* Bandeau stats */}
-        <div className="container-marketing relative pb-14">
-          <div className="grid grid-cols-2 gap-px overflow-hidden rounded-2xl border border-border bg-border md:grid-cols-4">
-            {STATS.map((s, i) => (
-              <BlurFade key={s.label} delay={i * 0.08} className="bg-card px-6 py-7 text-center">
-                <p className="text-display-sm font-semibold tracking-tight text-foreground">
-                  <NumberTicker value={s.value} prefix={s.prefix ?? ""} suffix={s.suffix ?? ""} />
-                </p>
-                <p className="mt-1 text-sm text-muted-foreground">{s.label}</p>
-              </BlurFade>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* ─────────────────── COMPATIBILITÉS ─────────────────── */}
-      <section className="border-b border-border py-10">
-        <div className="container-marketing">
-          <p className="text-center font-mono text-xs uppercase tracking-wider text-muted-foreground/70">
-            Branché à votre stack
-          </p>
-          <Marquee className="mt-6 [--duration:38s] [mask-image:linear-gradient(to_right,transparent,black_10%,black_90%,transparent)]">
-            {["Twilio", "Zadarma", "OpenAI", "Anthropic", "Mistral", "ElevenLabs", "Deepgram", "Vapi", "Google Agenda", "HubSpot", "Slack", "Zapier"].map((n) => (
-              <span key={n} className="whitespace-nowrap text-sm font-semibold text-foreground/35 transition-colors hover:text-foreground/60">
-                {n}
-              </span>
-            ))}
-          </Marquee>
-        </div>
-      </section>
-
-      {/* ───────────────────── DÉVELOPPEURS ───────────────────── */}
-      <section id="developpeurs" className="border-b border-border bg-foreground py-14 sm:py-20 text-white">
-        <div className="container-marketing grid items-center gap-12 lg:grid-cols-2">
+        <div className="container-marketing relative grid items-center gap-16 pb-24 lg:grid-cols-[1.1fr_0.9fr] lg:pb-32">
           <div>
-            <p className="font-mono text-sm font-semibold uppercase tracking-wider text-brand">Pour les développeurs</p>
-            <h2 className="mt-3 text-display-md font-semibold tracking-tight text-white text-balance">
-              Une API, pas une boîte noire.
-            </h2>
-            <p className="mt-4 max-w-lg text-white/60 text-pretty">
-              Tout ce que vous faites dans l'interface est disponible par API :
-              créez des agents, lancez des campagnes, lisez les transcripts,
-              recevez les événements en webhook. Copiez, collez, déployez.
-            </p>
-            <div className="mt-8 space-y-5">
-              {DEV_POINTS.map((p) => (
-                <div key={p.title} className="flex gap-3.5">
-                  <span className="inline-flex size-9 shrink-0 items-center justify-center rounded-lg bg-white/10 text-brand ring-1 ring-inset ring-white/10 [&_svg]:size-4">
-                    <p.icon strokeWidth={1.75} />
-                  </span>
-                  <div>
-                    <p className="text-sm font-semibold text-white">{p.title}</p>
-                    <p className="text-sm text-white/55 text-pretty">{p.text}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-            <Link
-              href="/register"
-              className="mt-8 inline-flex items-center gap-1.5 rounded-lg bg-white px-4 py-2.5 text-sm font-semibold text-foreground transition-colors hover:bg-white/90"
-            >
-              Obtenir une clé API
-              <ArrowRight className="size-4" />
-            </Link>
-          </div>
-
-          <div className="space-y-4 min-w-0">
-            <CodeTabs samples={CREATE_SAMPLES} />
-            <div className="grid gap-2">
-              <p className="font-mono text-xs uppercase tracking-wider text-white/40">
-                Webhook · call.completed
+            <BlurFade>
+              <span className="eyebrow">
+                <span className="size-1.5 rounded-full bg-brand" />
+                Agents vocaux IA · Europe et Afrique francophone
+              </span>
+            </BlurFade>
+            <BlurFade delay={0.08}>
+              <h1 className="mt-6 text-display-2xl font-semibold tracking-tight text-foreground text-balance">
+                Votre entreprise décroche à chaque appel.
+              </h1>
+            </BlurFade>
+            <BlurFade delay={0.16}>
+              <p className="mt-6 max-w-xl text-lg leading-relaxed text-muted-foreground text-pretty">
+                Callpme répond au téléphone à votre place, en français naturel. Il prend les
+                rendez-vous, qualifie les demandes et transfère les urgences. Vous retrouvez
+                chaque appel transcrit et résumé.
               </p>
-              <CodeBlock code={WEBHOOK_CODE} language="json" />
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* ─────────────────── APERÇU PRODUIT (bento) ─────────────────── */}
-      <section className="border-b border-border py-14 sm:py-20">
-        <div className="container-marketing">
-          <SectionHeading
-            eyebrow="Le produit"
-            title="Un cockpit complet, pas qu'une API"
-            subtitle="Tableau de bord, test au micro dans le navigateur, studio voix — tout est là."
-          />
-          <div className="mt-12 grid gap-5 lg:grid-cols-[1.4fr_1fr]">
-            <DashboardMockup />
-            <div className="grid gap-5">
-              <CallPreview
-                name="Léa — Rendez-vous"
-                role="appointment"
-                firstMessage={ROLE_META.appointment.firstMessage}
-                voiceLabel="Léa"
-                language="fr-FR"
-                modelLabel="Claude"
-                temperature={0.5}
-                toolsCount={3}
-              />
-              <div className="flex items-center gap-4 rounded-2xl border border-border bg-card p-5 shadow-sm">
-                <span className="inline-flex size-11 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-brand-600 ring-1 ring-inset ring-brand-600/15 [&_svg]:size-5">
-                  <AudioLines strokeWidth={1.75} />
-                </span>
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-semibold text-foreground">Studio Voix</p>
-                  <p className="text-xs text-muted-foreground">Enregistrez et clonez votre voix.</p>
-                </div>
-                <Waveform />
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* ───────────────────────── RÔLES ───────────────────────── */}
-      <section id="roles" className="border-b border-border py-14 sm:py-20">
-        <div className="container-marketing">
-          <SectionHeading
-            eyebrow="Rôles"
-            title="Un rôle pour chaque appel"
-            subtitle="Chaque rôle arrive avec son prompt, ses outils et son premier message — prêt en quelques secondes."
-          />
-          <div className="mt-12 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {ALL_ROLE_META.map((meta, i) => (
-              <BlurFade key={meta.key} delay={0.05 + i * 0.07}>
-                <div className="group h-full rounded-2xl border border-border bg-card p-6 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md">
-                  <span className={cn("inline-flex size-12 items-center justify-center rounded-xl [&_svg]:size-6", meta.iconWrapClass)}>
-                    <DynamicIcon name={meta.icon} />
-                  </span>
-                  <h3 className="mt-4 font-semibold tracking-tight text-foreground">{meta.label}</h3>
-                  <p className="mt-1.5 text-sm text-muted-foreground text-pretty">{meta.tagline}</p>
-                  <div className="mt-4 flex flex-wrap gap-1.5">
-                    {meta.defaultTools.slice(0, 3).map((tool) => (
-                      <span key={tool} className="rounded-md bg-secondary px-2 py-0.5 font-mono text-[0.7rem] text-muted-foreground">{tool}</span>
-                    ))}
-                  </div>
-                </div>
-              </BlurFade>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* ───────────────────── PIPELINE ───────────────────── */}
-      <section className="border-b border-border bg-card/40 py-14 sm:py-20">
-        <div className="container-marketing">
-          <SectionHeading
-            eyebrow="Sous le capot"
-            title="Le parcours d'un appel"
-            subtitle="Une boucle voix temps réel, du décroché à la réponse, avec moins d'une seconde de latence cible."
-          />
-          <div className="mt-12 grid grid-cols-1 gap-5 md:grid-cols-4">
-            {PIPELINE.map((step, i) => (
-              <BlurFade key={step.title} delay={0.1 + i * 0.08} className="relative">
-                <div className="h-full rounded-2xl border border-border bg-card p-6 shadow-sm">
-                  <div className="flex items-center justify-between">
-                    <span className="inline-flex size-10 items-center justify-center rounded-lg bg-foreground text-white [&_svg]:size-5">
-                      <step.icon strokeWidth={1.75} />
-                    </span>
-                    <span className="font-mono text-sm font-semibold text-muted-foreground/50">0{i + 1}</span>
-                  </div>
-                  <h3 className="mt-4 font-semibold tracking-tight text-foreground">{step.title}</h3>
-                  <p className="mt-1.5 text-sm text-muted-foreground text-pretty">{step.text}</p>
-                </div>
-                {i < PIPELINE.length - 1 && (
-                  <ArrowRight className="absolute -right-3.5 top-1/2 hidden size-5 -translate-y-1/2 text-muted-foreground/40 md:block" />
-                )}
-              </BlurFade>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* ───────────────────── CAPACITÉS (bento) ───────────────────── */}
-      <section className="border-b border-border py-14 sm:py-20">
-        <div className="container-marketing">
-          <SectionHeading
-            eyebrow="Plateforme complète"
-            title="Tout ce dont une agence a besoin"
-            subtitle="De la création à la facturation, une seule plateforme pour gérer tous vos clients."
-          />
-          <div className="mt-12 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {CAPABILITIES.map((c, i) => (
-              <BlurFade
-                key={c.title}
-                delay={0.05 + i * 0.07}
-                className={cn(i === 0 && "sm:col-span-2 lg:col-span-1")}
-              >
-                <div className="h-full rounded-2xl border border-border bg-card p-6 shadow-sm transition-shadow hover:shadow-md">
-                  <span className="inline-flex size-11 items-center justify-center rounded-xl bg-brand-50 text-brand-600 ring-1 ring-inset ring-brand-600/15 [&_svg]:size-5">
-                    <c.icon strokeWidth={1.75} />
-                  </span>
-                  <h3 className="mt-4 font-semibold tracking-tight text-foreground">{c.title}</h3>
-                  <p className="mt-1.5 text-sm text-muted-foreground text-pretty">{c.text}</p>
-                </div>
-              </BlurFade>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* ───────────────────── TARIFS ───────────────────── */}
-      <section id="tarifs" className="border-b border-border py-14 sm:py-20">
-        <div className="container-marketing">
-          <SectionHeading eyebrow="Tarifs" title="Une offre par maturité" subtitle="Commencez petit, passez à l'échelle quand vous êtes prêt." />
-          <div className="mt-12 grid grid-cols-1 gap-5 lg:grid-cols-3">
-            {PRICING.map((tier) => (
-              <div key={tier.name} className={cn("relative flex flex-col overflow-hidden rounded-2xl border bg-card p-7 shadow-sm", tier.highlight ? "border-brand/40 ring-2 ring-brand/15" : "border-border")}>
-                {tier.highlight && (
-                  <ShineBorder
-                    borderWidth={2}
-                    duration={9}
-                    shineColor={["#E8572A", "#F7944C", "#C73E1D", "#E8572A"]}
-                  />
-                )}
-                {tier.highlight && (
-                  <span className="absolute -top-3 left-7 z-10 inline-flex items-center rounded-full bg-brand px-3 py-1 text-xs font-semibold text-white shadow-brand">Populaire</span>
-                )}
-                <h3 className="font-semibold tracking-tight text-foreground">{tier.name}</h3>
-                <p className="mt-1 text-sm text-muted-foreground">{tier.desc}</p>
-                <div className="mt-5 flex items-baseline gap-1">
-                  <span className="text-display-md font-semibold tracking-tight text-foreground">{tier.price}</span>
-                  <span className="text-sm text-muted-foreground">{tier.period}</span>
-                </div>
-                <ul className="mt-6 flex-1 space-y-3">
-                  {tier.features.map((feat) => (
-                    <li key={feat} className="flex items-start gap-2.5 text-sm">
-                      <Check className="mt-0.5 size-4 shrink-0 text-brand" />
-                      <span className="text-foreground/90">{feat}</span>
-                    </li>
-                  ))}
-                </ul>
-                <Link href={`/register?plan=${tier.id}`} className={cn(buttonVariants({ variant: tier.highlight ? "brand" : "outline" }), "mt-7 w-full")}>
-                  {tier.cta}
+            </BlurFade>
+            <BlurFade delay={0.24}>
+              <div className="mt-10 flex flex-wrap items-center gap-3">
+                <PrimaryCta href="/register">Créer mon agent gratuitement</PrimaryCta>
+                <Link
+                  href="#produit"
+                  className="inline-flex items-center rounded-full px-5 py-3 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
+                >
+                  Voir comment ça marche
                 </Link>
               </div>
+              <p className="mt-5 text-xs text-muted-foreground">
+                Sans carte bancaire · Mobile Money accepté · Données hébergées en UE
+              </p>
+            </BlurFade>
+          </div>
+
+          <BlurFade delay={0.2} className="flex justify-center lg:justify-end">
+            <LiveCallCard />
+          </BlurFade>
+        </div>
+      </section>
+
+      {/* MARCHÉS */}
+      <section aria-label="Pays couverts" className="border-y border-border py-6">
+        <Marquee className="[--duration:40s] [--gap:3rem]">
+          {MARKETS.map((m) => (
+            <span key={m} className="flex items-center gap-3 text-sm text-muted-foreground">
+              <Globe2 className="size-4" strokeWidth={1.5} aria-hidden />
+              {m}
+            </span>
+          ))}
+        </Marquee>
+      </section>
+
+      {/* SCÈNE — un appel de bout en bout */}
+      <section id="demo" className="py-24 sm:py-32">
+        <div className="container-marketing">
+          <SectionHeading
+            eyebrow="En action"
+            title="Un appel, de la sonnerie au résumé."
+            subtitle="Voici ce qui se passe quand un client appelle votre garage à 2 h du matin."
+          />
+          <div className="mt-16">
+            <CallJourney />
+          </div>
+        </div>
+      </section>
+
+      {/* PRODUIT — bento asymétrique */}
+      <section id="produit" className="border-t border-border py-24 sm:py-32">
+        <div className="container-marketing">
+          <SectionHeading
+            eyebrow="Produit"
+            title="Tout ce qu'un bon standard fait, sans pause."
+            subtitle="Un seul outil pour répondre, agir et suivre. Pensé pour les marchés francophones, là où les plateformes américaines s'arrêtent."
+          />
+
+          <div className="mt-16 grid gap-4 md:grid-cols-6">
+            <BentoCard className="md:col-span-4" icon={<Workflow className="size-5" strokeWidth={1.5} />} title="Un agent par métier" body="Six rôles prêts à l'emploi : standard, rendez-vous, support, qualification, vente, enquête. Chaque rôle arrive avec ses consignes et ses actions.">
+              <div className="mt-8 flex flex-wrap gap-2">
+                {ALL_ROLE_META.map((r) => (
+                  <span key={r.key} className="inline-flex items-center gap-2 rounded-full border border-border bg-foreground/[0.03] px-3 py-1.5 text-xs text-foreground">
+                    <DynamicIcon name={r.icon} className="size-3.5 text-brand" strokeWidth={1.5} />
+                    {r.label}
+                  </span>
+                ))}
+              </div>
+            </BentoCard>
+            <BentoCard className="md:col-span-2" icon={<Smartphone className="size-5" strokeWidth={1.5} />} title="Mobile Money" body="Payez en FCFA avec Orange Money, MTN, Wave ou Moov. Aucune carte internationale demandée." />
+            <BentoCard className="md:col-span-2" icon={<Globe2 className="size-5" strokeWidth={1.5} />} title="Numéros locaux" body="France, Belgique, Suisse, Canada. Les numéros ouest-africains arrivent ensuite." />
+            <BentoCard className="md:col-span-2" icon={<CalendarCheck className="size-5" strokeWidth={1.5} />} title="Il agit pendant l'appel" body="Il réserve dans votre agenda, crée la fiche dans le CRM et envoie la confirmation par SMS." />
+            <BentoCard className="md:col-span-2" icon={<BookOpen className="size-5" strokeWidth={1.5} />} title="Il connaît votre maison" body="Importez vos PDF, votre FAQ ou votre site. Il répond à partir de vos documents, pas d'Internet." />
+            <BentoCard className="md:col-span-3" icon={<ChartNoAxesColumn className="size-5" strokeWidth={1.5} />} title="Chaque appel, lisible en dix secondes" body="Transcription, enregistrement, résumé et issue de l'appel. Les statistiques montrent ce que vos clients demandent vraiment." />
+            <BentoCard className="md:col-span-3" icon={<Code2 className="size-5" strokeWidth={1.5} />} title="Ouvert aux développeurs" body="API REST, clés, webhooks signés. Tout ce que fait le tableau de bord se pilote aussi par code." />
+          </div>
+        </div>
+      </section>
+
+      {/* MÉTIERS */}
+      <section id="metiers" className="border-t border-border py-24 sm:py-32">
+        <div className="container-marketing">
+          <SectionHeading
+            eyebrow="Métiers"
+            title="Un agent qui parle comme votre métier."
+            subtitle="Chaque modèle connaît le vocabulaire, les questions et les règles de son secteur. Choisissez le vôtre et écoutez."
+          />
+          <div className="mt-14">
+            <TradesShowcase />
+          </div>
+        </div>
+      </section>
+
+      {/* TABLEAU DE BORD */}
+      <section className="relative overflow-hidden border-t border-border py-24 sm:py-32">
+        <div aria-hidden className="glow-brand pointer-events-none absolute -left-60 top-1/3 size-[640px] opacity-60" />
+        <div className="container-marketing relative">
+          <SectionHeading
+            eyebrow="Tableau de bord"
+            title="Tout ce que vos clients ont dit, sur un seul écran."
+            subtitle="Appels, rendez-vous, taux de résolution. Vous voyez d'un coup d'œil ce qui marche et ce qu'il faut ajuster."
+          />
+          <BlurFade delay={0.1} className="mt-16">
+            <DashboardPreview />
+          </BlurFade>
+          <p className="mt-4 text-center text-xs text-muted-foreground">Aperçu avec des données d'exemple.</p>
+        </div>
+      </section>
+
+      {/* POUR QUI */}
+      <section id="pour-qui" className="border-t border-border py-24 sm:py-32">
+        <div className="container-marketing">
+          <SectionHeading
+            eyebrow="Pour qui"
+            title="Une plateforme, trois façons de l'utiliser."
+            subtitle="Le même moteur vocal sert la PME qui veut un standard, l'agence qui revend et le développeur qui intègre."
+          />
+          <div className="mt-16 grid gap-4 lg:grid-cols-3">
+            {AUDIENCES.map((a, i) => (
+              <BlurFade key={a.key} delay={i * 0.08} className="h-full">
+                <div className="bezel h-full">
+                  <div className="bezel-core flex h-full flex-col p-7">
+                    <span className="eyebrow w-fit">{a.tag}</span>
+                    <h3 className="mt-6 text-xl font-semibold tracking-tight text-foreground">{a.title}</h3>
+                    <p className="mt-3 text-sm leading-relaxed text-muted-foreground">{a.body}</p>
+                    <ul className="mt-6 space-y-2.5">
+                      {a.points.map((p) => (
+                        <li key={p} className="flex items-center gap-2.5 text-sm text-foreground">
+                          <span className="size-1 rounded-full bg-brand" aria-hidden />
+                          {p}
+                        </li>
+                      ))}
+                    </ul>
+                    <Link
+                      href={a.href}
+                      className="group mt-auto inline-flex items-center gap-1.5 pt-8 text-sm font-medium text-foreground"
+                    >
+                      {a.cta}
+                      <ArrowUpRight className="size-4 transition-transform duration-300 ease-spring group-hover:-translate-y-0.5 group-hover:translate-x-0.5" strokeWidth={1.5} />
+                    </Link>
+                  </div>
+                </div>
+              </BlurFade>
             ))}
           </div>
         </div>
       </section>
 
-      {/* ───────────────────── TÉMOIGNAGE ───────────────────── */}
-      <section className="border-b border-border bg-card/40 py-14 sm:py-20">
-        <div className="container-marketing max-w-3xl text-center">
-          <p className="text-display-sm font-medium leading-snug tracking-tight text-foreground text-balance">
-            « Depuis Callpme, nous ne ratons plus un seul appel. Nos agents
-            prennent les rendez-vous et qualifient les leads, jour et nuit. »
-          </p>
-          <div className="mt-6 flex items-center justify-center gap-3">
-            <span className="inline-flex size-10 items-center justify-center rounded-full bg-foreground text-sm font-semibold text-white">AM</span>
-            <div className="text-left">
-              <p className="text-sm font-semibold text-foreground">Aline Mercier</p>
-              <p className="text-xs text-muted-foreground">Fondatrice, Agence Vox</p>
+      {/* DÉVELOPPEURS */}
+      <section id="developpeurs" className="border-t border-border py-24 sm:py-32">
+        <div className="container-marketing grid items-start gap-12 lg:grid-cols-[0.8fr_1.2fr]">
+          <div className="lg:sticky lg:top-32">
+            <SectionHeading
+              align="left"
+              eyebrow="Développeurs"
+              title="Trois lignes pour créer un agent."
+              subtitle="Une API REST simple, des clés révocables et des webhooks pour chaque événement d'appel. Copiez, collez, appelez."
+            />
+            <ul className="mt-8 space-y-3 text-sm text-foreground">
+              {["Authentification par clé Bearer", "Webhooks signés : call.completed, call.transferred, agent.updated", "Même modèle de données que le tableau de bord"].map((p) => (
+                <li key={p} className="flex items-center gap-2.5">
+                  <span className="size-1 rounded-full bg-brand" aria-hidden />
+                  {p}
+                </li>
+              ))}
+            </ul>
+            <div className="mt-10">
+              <PrimaryCta href="/developers" variant="ghost">Documentation de l'API</PrimaryCta>
             </div>
           </div>
+          <BlurFade delay={0.1} className="min-w-0 space-y-4">
+            <div className="bezel">
+              <div className="bezel-core p-4 sm:p-5">
+                <CodeTabs samples={CODE_SAMPLES} />
+              </div>
+            </div>
+            <div className="bezel">
+              <div className="bezel-core p-4 sm:p-5">
+                <CodeTabs samples={WEBHOOK_SAMPLE} />
+              </div>
+            </div>
+          </BlurFade>
         </div>
       </section>
 
-      {/* ───────────────────── FAQ ───────────────────── */}
-      <section id="faq" className="border-b border-border py-14 sm:py-20">
-        <div className="container-marketing max-w-3xl">
-          <SectionHeading eyebrow="FAQ" title="Questions fréquentes" subtitle="" />
-          <div className="mt-10 divide-y divide-border overflow-hidden rounded-2xl border border-border bg-card">
-            {FAQ.map((item) => (
-              <details key={item.q} className="group px-5">
-                <summary className="flex cursor-pointer items-center justify-between gap-4 py-4 text-left text-sm font-medium text-foreground">
-                  {item.q}
-                  <ChevronDown className="faq-chevron size-4 shrink-0 text-muted-foreground" />
+      {/* ÉTAPES */}
+      <section className="border-t border-border py-24 sm:py-32">
+        <div className="container-marketing grid gap-16 lg:grid-cols-[0.8fr_1.2fr]">
+          <div className="lg:sticky lg:top-32 lg:self-start">
+            <SectionHeading
+              align="left"
+              eyebrow="Mise en route"
+              title="Quinze minutes entre l'inscription et le premier appel."
+              subtitle="Pas d'intégrateur, pas de frais de mise en place."
+            />
+          </div>
+          <ol className="divide-y divide-border border-y border-border">
+            {STEPS.map((s, i) => (
+              <BlurFade key={s.n} as="li" delay={i * 0.06} className="grid gap-4 py-8 sm:grid-cols-[80px_1fr]">
+                <span className="mono text-sm text-brand">{s.n}</span>
+                <div>
+                  <h3 className="text-lg font-semibold tracking-tight text-foreground">{s.title}</h3>
+                  <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{s.body}</p>
+                </div>
+              </BlurFade>
+            ))}
+          </ol>
+        </div>
+      </section>
+
+      {/* TARIFS */}
+      <section id="tarifs" className="border-t border-border py-24 sm:py-32">
+        <div className="container-marketing">
+          <SectionHeading
+            eyebrow="Tarifs"
+            title="Un forfait clair, sans engagement."
+            subtitle="Les minutes incluses couvrent la voix, la transcription et la téléphonie. Rien ne s'ajoute en bas de facture."
+          />
+          <div className="mt-16 grid gap-4 lg:grid-cols-3">
+            {PLANS.map((p, i) => (
+              <BlurFade key={p.name} delay={i * 0.08} className="h-full">
+                <div className={cn("bezel h-full", p.highlight && "ring-brand/40")}>
+                  <div className="bezel-core flex h-full flex-col p-7">
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-base font-semibold text-foreground">{p.name}</h3>
+                      {p.highlight && <span className="rounded-full bg-brand/15 px-2.5 py-1 text-[11px] font-medium text-brand">Le plus choisi</span>}
+                    </div>
+                    <p className="mt-6 flex items-baseline gap-1.5">
+                      <span className="text-5xl font-semibold tracking-tight text-foreground tabular">{p.price} €</span>
+                      <span className="text-sm text-muted-foreground">HT / mois</span>
+                    </p>
+                    <p className="mt-1 text-xs text-muted-foreground">soit {p.fcfa} FCFA</p>
+                    <p className="mt-6 text-sm text-foreground">{p.minutes}</p>
+                    <p className="text-sm text-muted-foreground">{p.extra}</p>
+                    <ul className="mt-6 space-y-2.5 border-t border-border pt-6">
+                      {p.features.map((f) => (
+                        <li key={f} className="flex items-center gap-2.5 text-sm text-foreground">
+                          <span className="size-1 rounded-full bg-brand" aria-hidden />
+                          {f}
+                        </li>
+                      ))}
+                    </ul>
+                    <div className="mt-auto pt-8">
+                      <PrimaryCta href="/register" variant={p.highlight ? "brand" : "ghost"} full>
+                        Commencer
+                      </PrimaryCta>
+                    </div>
+                  </div>
+                </div>
+              </BlurFade>
+            ))}
+          </div>
+          <p className="mt-8 text-center text-sm text-muted-foreground">
+            Développeurs : 0,09 € la minute tout compris, à l'usage.{" "}
+            <Link href="/developers" className="text-foreground underline underline-offset-4">Voir l'API</Link>
+          </p>
+        </div>
+      </section>
+
+      {/* FAQ */}
+      <section id="faq" className="border-t border-border py-24 sm:py-32">
+        <div className="container-marketing grid gap-16 lg:grid-cols-[0.8fr_1.2fr]">
+          <SectionHeading align="left" eyebrow="Questions" title="Ce qu'on nous demande le plus." subtitle="Une autre question ? Écrivez-nous depuis la page contact." />
+          <div className="divide-y divide-border border-y border-border">
+            {FAQ.map((f) => (
+              <details key={f.q} className="group py-6">
+                <summary className="flex cursor-pointer items-center justify-between gap-6 text-base font-medium text-foreground">
+                  {f.q}
+                  <span aria-hidden className="relative size-4 shrink-0">
+                    <span className="absolute inset-x-0 top-1/2 h-px bg-foreground" />
+                    <span className="absolute inset-y-0 left-1/2 w-px bg-foreground transition-transform duration-300 ease-spring group-open:rotate-90 group-open:opacity-0" />
+                  </span>
                 </summary>
-                <p className="pb-4 text-sm leading-relaxed text-muted-foreground text-pretty">{item.a}</p>
+                <p className="mt-3 max-w-2xl text-sm leading-relaxed text-muted-foreground">{f.a}</p>
               </details>
             ))}
           </div>
         </div>
       </section>
 
-      {/* ───────────────────── CTA ───────────────────── */}
-      <section className="py-14 sm:py-20">
+      {/* CTA FINAL */}
+      <section className="pb-24 sm:pb-32">
         <div className="container-marketing">
-          <div className="relative overflow-hidden rounded-3xl bg-foreground px-8 py-14 text-center shadow-xl sm:px-16">
-            <div className="pointer-events-none absolute inset-0 opacity-50" style={{ background: "radial-gradient(closest-side at 50% 0%, hsl(14 81% 54% / 0.30), transparent)" }} />
-            <h2 className="relative text-display-md font-semibold tracking-tight text-white text-balance">Prêt à déployer votre premier agent ?</h2>
-            <p className="relative mx-auto mt-3 max-w-xl text-white/65 text-pretty">Configurez un agent vocal complet en quelques minutes. Aucune carte bancaire requise pour commencer.</p>
-            <div className="relative mt-7 flex flex-col justify-center gap-3 sm:flex-row">
-              <Link href="/register" className={cn(buttonVariants({ variant: "brand", size: "lg" }), "gap-1.5")}>
-                Créer mon compte
-                <ArrowRight className="size-4" />
-              </Link>
-              <a href="#developpeurs" className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-white/20 px-5 text-sm font-semibold text-white transition-colors hover:bg-white/10">
-                <Code2 className="size-4" /> Explorer l'API
-              </a>
+          <div className="bezel">
+            <div className="bezel-core relative overflow-hidden px-6 py-20 text-center sm:px-16">
+              <div aria-hidden className="glow-brand pointer-events-none absolute left-1/2 top-1/2 size-[640px] -translate-x-1/2 -translate-y-1/2" />
+              <h2 className="relative mx-auto max-w-2xl text-display-lg font-semibold tracking-tight text-foreground text-balance">
+                Le prochain appel manqué peut être le dernier.
+              </h2>
+              <p className="relative mx-auto mt-5 max-w-lg text-muted-foreground">
+                Créez votre agent maintenant et testez-le avant de payer quoi que ce soit.
+              </p>
+              <div className="relative mt-10 flex justify-center">
+                <PrimaryCta href="/register">Créer mon agent gratuitement</PrimaryCta>
+              </div>
             </div>
           </div>
         </div>
@@ -509,159 +490,91 @@ export default function LandingPage() {
   );
 }
 
-/* ───────────────────────── helpers ───────────────────────── */
+/* ------------------------------------------------------------------ */
+/* Sous-composants                                                     */
+/* ------------------------------------------------------------------ */
 
-function SectionHeading({ eyebrow, title, subtitle }: { eyebrow: string; title: string; subtitle: string }) {
+function SectionHeading({
+  eyebrow,
+  title,
+  subtitle,
+  align = "center",
+}: {
+  eyebrow: string;
+  title: string;
+  subtitle: string;
+  align?: "center" | "left";
+}) {
   return (
-    <BlurFade className="mx-auto max-w-2xl text-center">
-      <p className="font-mono text-sm font-semibold uppercase tracking-wider text-brand">{eyebrow}</p>
-      <h2 className="mt-2 text-display-md font-semibold tracking-tight text-foreground text-balance">{title}</h2>
-      {subtitle && <p className="mt-3 text-lg text-muted-foreground text-pretty">{subtitle}</p>}
+    <BlurFade className={cn("max-w-2xl", align === "center" && "mx-auto text-center")}>
+      <span className="eyebrow">{eyebrow}</span>
+      <h2 className="mt-5 text-display-lg font-semibold tracking-tight text-foreground text-balance">{title}</h2>
+      <p className="mt-4 text-base leading-relaxed text-muted-foreground text-pretty">{subtitle}</p>
     </BlurFade>
   );
 }
 
-/**
- * Visuel du hero : deux orbites de capacités tournent autour d'un agent
- * lumineux. Beaucoup plus vivant que l'ancienne photo statique.
- */
-function HeroOrbit() {
-  const inner = [
-    { Icon: Phone, label: "Appels" },
-    { Icon: Mic, label: "Voix" },
-    { Icon: MessageSquare, label: "Conversation" },
-    { Icon: Headphones, label: "Écoute" },
-  ];
-  const outer = [
-    { Icon: Bot, label: "Agent" },
-    { Icon: Code2, label: "API" },
-    { Icon: Webhook, label: "Webhooks" },
-    { Icon: ShieldCheck, label: "RGPD" },
-    { Icon: PhoneIncoming, label: "Entrants" },
-    { Icon: Sparkles, label: "IA" },
-  ];
+function BentoCard({
+  className,
+  icon,
+  title,
+  body,
+  children,
+}: {
+  className?: string;
+  icon: React.ReactNode;
+  title: string;
+  body: string;
+  children?: React.ReactNode;
+}) {
   return (
-    <div className="relative mx-auto flex aspect-square w-full max-w-[520px] items-center justify-center overflow-hidden">
-      {/* halo doux derrière les orbites */}
-      <div
-        className="pointer-events-none absolute inset-0 -z-10"
-        style={{
-          background:
-            "radial-gradient(closest-side, hsl(14 81% 54% / 0.20), hsl(14 81% 54% / 0.05) 60%, transparent 80%)",
-        }}
-      />
-      {/* Centre : badge agent + onde pulsante */}
-      <div className="relative z-10 flex flex-col items-center justify-center">
-        <span className="relative inline-flex size-24 items-center justify-center rounded-2xl bg-foreground text-white shadow-2xl">
-          <Headphones className="size-10" strokeWidth={1.5} />
-          <span className="pointer-events-none absolute inset-0 rounded-2xl ring-1 ring-inset ring-white/10" />
-          <span className="pointer-events-none absolute -inset-1 animate-pulse-ring rounded-2xl" />
-        </span>
-        <p className="mt-3 inline-flex items-center gap-1.5 text-xs font-semibold text-foreground">
-          <span className="relative flex size-2">
-            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-60" />
-            <span className="relative inline-flex size-2 rounded-full bg-emerald-400" />
+    <BlurFade className={cn("h-full", className)}>
+      <div className="bezel h-full">
+        <div className="bezel-core h-full p-7 transition-colors duration-500 ease-spring hover:bg-popover">
+          <span className="inline-flex size-10 items-center justify-center rounded-full border border-border bg-foreground/[0.03] text-brand">
+            {icon}
           </span>
-          Agent en ligne
-        </p>
-      </div>
-
-      {/* Orbite intérieure (rapide) */}
-      <OrbitingCircles radius={130} duration={22} iconSize={44} path>
-        {inner.map(({ Icon, label }) => (
-          <span
-            key={label}
-            title={label}
-            className="inline-flex size-11 items-center justify-center rounded-xl border border-border bg-card text-brand shadow-md [&_svg]:size-5"
-          >
-            <Icon strokeWidth={1.75} />
-          </span>
-        ))}
-      </OrbitingCircles>
-
-      {/* Orbite extérieure (lente, sens inverse) */}
-      <OrbitingCircles radius={210} duration={36} iconSize={44} reverse path>
-        {outer.map(({ Icon, label }) => (
-          <span
-            key={label}
-            title={label}
-            className="inline-flex size-11 items-center justify-center rounded-xl border border-border bg-card text-foreground/70 shadow-md [&_svg]:size-5"
-          >
-            <Icon strokeWidth={1.75} />
-          </span>
-        ))}
-      </OrbitingCircles>
-    </div>
-  );
-}
-
-/** Soulignement signature sous un mot, façon trait dessiné. */
-function Underline() {
-  return (
-    <svg className="absolute -bottom-1.5 left-0 h-2.5 w-full text-brand/40" viewBox="0 0 100 8" preserveAspectRatio="none" aria-hidden>
-      <path d="M1 5.5C20 2 45 1.5 99 4" stroke="currentColor" strokeWidth="2.5" fill="none" strokeLinecap="round" />
-    </svg>
-  );
-}
-
-/** Onde sonore signature (statique, animée en opacité). */
-function Waveform({ tone = "brand", className }: { tone?: "brand" | "light"; className?: string }) {
-  const bars = [6, 11, 16, 9, 18, 13, 7, 15, 20, 12, 8, 14, 10];
-  return (
-    <div className={cn("flex items-center gap-[3px]", className)} aria-hidden>
-      {bars.map((h, i) => (
-        <span
-          key={i}
-          className={cn("w-[3px] animate-pulse rounded-full", tone === "light" ? "bg-brand/70" : "bg-brand/60")}
-          style={{ height: `${h}px`, animationDelay: `${i * 90}ms`, animationDuration: "1.4s" }}
-        />
-      ))}
-    </div>
-  );
-}
-
-/** Maquette du tableau de bord (visuel produit, HTML/SVG, on-brand). */
-function DashboardMockup() {
-  const bars = [38, 52, 30, 64, 46, 72, 58, 80, 50, 68, 42, 60];
-  return (
-    <div className="overflow-hidden rounded-2xl border border-border bg-card shadow-md">
-      <div className="flex items-center gap-2 border-b border-border bg-secondary/50 px-4 py-2.5">
-        <span className="size-2.5 rounded-full bg-muted-foreground/30" />
-        <span className="size-2.5 rounded-full bg-muted-foreground/30" />
-        <span className="size-2.5 rounded-full bg-muted-foreground/30" />
-        <span className="ml-2 font-mono text-xs text-muted-foreground">app.callpme.com/overview</span>
-      </div>
-      <div className="grid grid-cols-1 sm:grid-cols-[120px_1fr]">
-        <div className="hidden flex-col gap-1 border-r border-border p-3 sm:flex">
-          {[["Bot", "Agents", true], ["PhoneIncoming", "Appels", false], ["Megaphone", "Campagnes", false], ["BarChart3", "Statistiques", false], ["AudioLines", "Studio", false]].map(([icon, label, active]) => (
-            <span key={label as string} className={cn("flex items-center gap-2 rounded-md px-2 py-1.5 text-xs", active ? "bg-brand-50 font-medium text-brand-700" : "text-muted-foreground")}>
-              <span className="[&_svg]:size-3.5"><DynamicIcon name={icon as string} /></span>
-              {label as string}
-            </span>
-          ))}
-        </div>
-        <div className="p-4">
-          <div className="grid grid-cols-3 gap-2.5">
-            {[["Appels", "1 284"], ["Résolus", "78%"], ["Durée moy.", "2:48"]].map(([l, v]) => (
-              <div key={l} className="rounded-lg border border-border bg-secondary/30 p-2.5">
-                <p className="text-[0.65rem] text-muted-foreground">{l}</p>
-                <p className="tabular mt-0.5 text-sm font-semibold text-foreground">{v}</p>
-              </div>
-            ))}
-          </div>
-          <div className="mt-3 rounded-lg border border-border p-3">
-            <div className="flex items-center justify-between">
-              <p className="text-xs font-medium text-foreground">Appels · 14 jours</p>
-              <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-1.5 py-0.5 text-[0.6rem] font-medium text-emerald-700">+12%</span>
-            </div>
-            <div className="mt-3 flex h-20 items-end gap-1.5">
-              {bars.map((h, i) => (
-                <span key={i} className={cn("flex-1 rounded-t-sm", i === bars.length - 2 ? "bg-brand" : "bg-brand/25")} style={{ height: `${h}%` }} />
-              ))}
-            </div>
-          </div>
+          <h3 className="mt-6 text-lg font-semibold tracking-tight text-foreground">{title}</h3>
+          <p className="mt-2 max-w-md text-sm leading-relaxed text-muted-foreground">{body}</p>
+          {children}
         </div>
       </div>
-    </div>
+    </BlurFade>
+  );
+}
+
+/** Bouton pilule avec icône nichée dans son propre cercle (« button-in-button »). */
+function PrimaryCta({
+  href,
+  children,
+  variant = "primary",
+  full = false,
+}: {
+  href: string;
+  children: React.ReactNode;
+  variant?: "primary" | "brand" | "ghost";
+  full?: boolean;
+}) {
+  return (
+    <Link
+      href={href}
+      className={cn(
+        "group inline-flex items-center justify-between gap-3 rounded-full py-2 pl-6 pr-2 text-sm font-medium transition-transform duration-300 ease-spring active:scale-[0.98]",
+        full && "w-full",
+        variant === "primary" && "bg-primary text-primary-foreground",
+        variant === "brand" && "bg-brand text-brand-foreground shadow-brand",
+        variant === "ghost" && "border border-border bg-foreground/[0.03] text-foreground hover:bg-foreground/[0.06]",
+      )}
+    >
+      {children}
+      <span
+        className={cn(
+          "inline-flex size-8 items-center justify-center rounded-full transition-transform duration-300 ease-spring group-hover:-translate-y-px group-hover:translate-x-0.5 group-hover:scale-105",
+          variant === "primary" ? "bg-primary-foreground/10" : "bg-foreground/10",
+        )}
+      >
+        <ArrowUpRight className="size-4" strokeWidth={1.75} />
+      </span>
+    </Link>
   );
 }

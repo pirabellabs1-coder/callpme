@@ -10,6 +10,7 @@ import {
   Download,
 } from "lucide-react";
 import { getCallById } from "@/lib/db/calls";
+import { requireSession } from "@/lib/auth/session";
 import { getAgentById } from "@/lib/db/agents";
 import { getPresetVoice } from "@/lib/voices/catalog";
 import { prisma } from "@/lib/db/client";
@@ -47,7 +48,8 @@ export default async function CallTranscriptPage({
 }: {
   params: { id: string };
 }) {
-  const call = await getCallById(params.id);
+  const session = await requireSession();
+  const call = await getCallById(params.id, session.org.id);
   if (!call) notFound();
 
   const [evaluation, agent] = await Promise.all([

@@ -7,7 +7,7 @@ export const metadata: Metadata = {
 
 export default function SecureLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex min-h-screen items-center justify-center bg-foreground px-4 py-10">
+    <div className="flex min-h-screen items-center justify-center bg-background px-4 py-10">
       {children}
     </div>
   );

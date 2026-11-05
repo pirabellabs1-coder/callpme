@@ -23,7 +23,7 @@ export default function AuthLayout({
       </div>
 
       {/* Colonne marque */}
-      <div className="relative hidden overflow-hidden bg-foreground lg:block">
+      <div className="relative hidden overflow-hidden border-l border-border bg-card lg:block">
         <div
           className="pointer-events-none absolute inset-0 opacity-50"
           style={{
@@ -33,11 +33,11 @@ export default function AuthLayout({
         />
         <div className="absolute inset-0 bg-grid opacity-[0.04]" />
         <div className="relative flex h-full flex-col justify-center px-14">
-          <span className="inline-flex w-fit items-center gap-2 rounded-full border border-background/15 bg-background/5 px-3 py-1 text-xs font-medium text-background/80">
+          <span className="inline-flex w-fit items-center gap-2 rounded-full border border-foreground/15 bg-foreground/5 px-3 py-1 text-xs font-medium text-foreground/80">
             <span className="size-1.5 rounded-full bg-brand" />
             Plateforme d'agents vocaux IA
           </span>
-          <h2 className="mt-6 max-w-md text-display-md font-semibold tracking-tight text-background text-balance">
+          <h2 className="mt-6 max-w-md text-display-md font-semibold tracking-tight text-foreground text-balance">
             Des agents vocaux qui décrochent, comprennent et agissent.
           </h2>
           <ul className="mt-8 space-y-3">
@@ -49,7 +49,7 @@ export default function AuthLayout({
             ].map((item) => (
               <li
                 key={item}
-                className="flex items-center gap-3 text-sm text-background/75"
+                className="flex items-center gap-3 text-sm text-foreground/75"
               >
                 <span className="inline-flex size-5 items-center justify-center rounded-full bg-brand/20 text-brand">
                   <Check className="size-3" strokeWidth={3} />

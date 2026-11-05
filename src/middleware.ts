@@ -1,0 +1,75 @@
+/**
+ * Middleware — défense en profondeur : toute route applicative est privée par
+ * défaut. Il ne vérifie que la PRÉSENCE du cookie de session (l'Edge runtime
+ * n'accède pas à Prisma) ; la validation réelle de la session et le
+ * cloisonnement par organisation restent faits par chaque layout / handler
+ * (requireSession, requireOwnedAgent…). Une nouvelle route oubliée n'est donc
+ * plus publique par accident.
+ */
+import { NextResponse, type NextRequest } from "next/server";
+
+const SESSION_COOKIE = "cpme_session";
+
+/** Routes API accessibles sans session (auth propre ou appel serveur-à-serveur). */
+const PUBLIC_API_PREFIXES = [
+  "/api/auth/", // OAuth Google (state vérifié)
+  "/api/v1/", // API publique : clé d'API
+  "/api/telephony/vapi/webhook", // secret Vapi
+  "/api/payments/geniuspay/webhook", // revérifié auprès de GeniusPay
+];
+
+/** Pages applicatives réservées aux utilisateurs connectés. */
+const PRIVATE_PAGE_PREFIXES = [
+  "/overview",
+  "/agents",
+  "/analytics",
+  "/billing",
+  "/calls",
+  "/campaigns",
+  "/clients",
+  "/developers",
+  "/integrations",
+  "/knowledge",
+  "/numbers",
+  "/settings",
+  "/templates",
+  "/voices",
+  // "/admin" volontairement absent : son layout renvoie 404 sans session
+  // (espace invisible) ; une redirection vers /login révélerait son existence.
+];
+
+function matches(path: string, prefix: string) {
+  return prefix.endsWith("/")
+    ? path.startsWith(prefix)
+    : path === prefix || path.startsWith(prefix + "/");
+}
+
+export function middleware(req: NextRequest) {
+  const { pathname } = req.nextUrl;
+  const hasSession = Boolean(req.cookies.get(SESSION_COOKIE)?.value);
+  if (hasSession) return NextResponse.next();
+
+  if (pathname.startsWith("/api/")) {
+    if (PUBLIC_API_PREFIXES.some((p) => matches(pathname, p))) {
+      return NextResponse.next();
+    }
+    return NextResponse.json(
+      { error: "Authentification requise" },
+      { status: 401 },
+    );
+  }
+
+  if (PRIVATE_PAGE_PREFIXES.some((p) => matches(pathname, p))) {
+    const url = req.nextUrl.clone();
+    url.pathname = "/login";
+    url.search = "";
+    return NextResponse.redirect(url);
+  }
+
+  return NextResponse.next();
+}
+
+export const config = {
+  // Exclut les fichiers statiques et assets Next.
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|.*\\.(?:png|jpg|jpeg|svg|webp|ico|woff2?|mp3|wav)$).*)"],
+};

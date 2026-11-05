@@ -93,9 +93,13 @@ export async function listCalls(
   return rows.map(toCall);
 }
 
-export async function getCallById(id: string): Promise<Call | null> {
-  const row = await prisma.call.findUnique({
-    where: { id },
+/**
+ * Lit un appel. Avec `orgId`, ne renvoie l'appel que s'il appartient à
+ * l'organisation (cloisonnement multi-tenant) — à toujours passer côté API.
+ */
+export async function getCallById(id: string, orgId?: string): Promise<Call | null> {
+  const row = await prisma.call.findFirst({
+    where: orgId ? { id, agent: { organizationId: orgId } } : { id },
     include: { agent: { select: { name: true, role: true } } },
   });
   return row ? toCall(row) : null;

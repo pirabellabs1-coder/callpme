@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
-import { getAgentById } from "@/lib/db/agents";
-import { ok, notFound } from "@/lib/api/respond";
+import { requireOwnedAgent } from "@/lib/api/agent-access";
+import { ok, serverError } from "@/lib/api/respond";
 
 export const dynamic = "force-dynamic";
 
@@ -14,13 +14,18 @@ export async function POST(
   _req: NextRequest,
   { params }: { params: { id: string } },
 ) {
-  const agent = await getAgentById(params.id);
-  if (!agent) return notFound("Agent introuvable");
-  return ok({
+  try {
+    const access = await requireOwnedAgent(params.id);
+    if (!access.ok) return access.response;
+    const agent = access.agent;
+    return ok({
     ready: false,
     message:
       "Le test d'appel en direct (micro via WebRTC) sera activé en Phase 3.",
     firstMessage: agent.config.firstMessage,
     voice: agent.config.voice,
-  });
+    });
+  } catch {
+    return serverError();
+  }
 }

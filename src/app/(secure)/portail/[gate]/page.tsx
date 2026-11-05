@@ -14,7 +14,8 @@ export default function AdminGatePage({
   params: { gate: string };
 }) {
   // Toute URL qui ne correspond pas exactement au slug secret → 404.
-  if (params.gate !== adminGateSlug()) notFound();
+  const slug = adminGateSlug();
+  if (!slug || params.gate !== slug) notFound();
 
   return (
     <AdminGateForm gate={params.gate} requirePassphrase={adminPassphrase() !== null} />

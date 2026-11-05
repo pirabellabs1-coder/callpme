@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { z } from "zod";
 import { authenticateApiKey } from "@/lib/auth/api-key";
-import { getAgentById, updateAgent, deleteAgent } from "@/lib/db/agents";
+import { getAgentById, updateAgent, deleteAgent, ForeignReferenceError } from "@/lib/db/agents";
 import { dispatchEvent } from "@/lib/webhooks/dispatch";
 import {
   ok,
@@ -63,7 +63,8 @@ export async function PATCH(req: NextRequest, { params }: Ctx) {
       });
     }
     return ok({ data: agent });
-  } catch {
+  } catch (e) {
+    if (e instanceof ForeignReferenceError) return badRequest(e.message);
     return serverError();
   }
 }

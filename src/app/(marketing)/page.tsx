@@ -13,7 +13,7 @@ import { ALL_ROLE_META } from "@/lib/agents/roles";
 import { DynamicIcon } from "@/components/icon";
 import { BlurFade } from "@/components/magicui/blur-fade";
 import { Marquee } from "@/components/magicui/marquee";
-import { LiveCallCard } from "@/components/marketing/live-call-card";
+import { HeroCallScene } from "@/components/marketing/hero-call-scene";
 import { CallJourney } from "@/components/marketing/call-journey";
 import { TradesShowcase } from "@/components/marketing/trades-showcase";
 import { DashboardPreview } from "@/components/marketing/dashboard-preview";
@@ -205,7 +205,7 @@ export default function LandingPage() {
           </div>
 
           <BlurFade delay={0.2} className="flex justify-center lg:justify-end">
-            <LiveCallCard />
+            <HeroCallScene callerSrc="/hero/caller.png" />
           </BlurFade>
         </div>
       </section>

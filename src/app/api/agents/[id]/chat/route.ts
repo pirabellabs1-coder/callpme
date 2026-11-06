@@ -1,4 +1,5 @@
 import { NextRequest } from "next/server";
+import { assertPublicUrl } from "@/lib/net/safe-fetch";
 import { z } from "zod";
 import { getSession } from "@/lib/auth/session";
 import { getAgentById } from "@/lib/db/agents";
@@ -120,7 +121,9 @@ export async function POST(
             arguments: args,
             timestamp: new Date().toISOString(),
           });
-          const res = await fetch(custom.serverUrl, {
+          await assertPublicUrl(custom.serverUrl);
+    const res = await fetch(custom.serverUrl, {
+      redirect: "error",
             method: custom.method || "POST",
             headers: {
               "Content-Type": "application/json",

@@ -1,4 +1,5 @@
 import { NextRequest } from "next/server";
+import { assertPublicUrl } from "@/lib/net/safe-fetch";
 import { getSession } from "@/lib/auth/session";
 import { prisma } from "@/lib/db/client";
 import { signPayload } from "@/lib/webhooks/dispatch";
@@ -59,7 +60,9 @@ export async function POST(
 
     let status: number | null = null;
     try {
-      const res = await fetch(tool.serverUrl, {
+      await assertPublicUrl(tool.serverUrl);
+    const res = await fetch(tool.serverUrl, {
+      redirect: "error",
         method: tool.method || "POST",
         headers: {
           "Content-Type": "application/json",

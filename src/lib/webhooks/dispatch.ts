@@ -3,6 +3,7 @@
  * Les consommateurs vérifient l'en-tête `X-Callpme-Signature`.
  */
 import { createHmac } from "crypto";
+import { assertPublicUrl } from "@/lib/net/safe-fetch";
 import { prisma } from "@/lib/db/client";
 import { WEBHOOK_EVENTS, type WebhookEvent } from "./events";
 
@@ -33,7 +34,9 @@ export async function deliver(
   const signature = signPayload(webhook.secret, body);
 
   try {
+    await assertPublicUrl(webhook.url);
     const res = await fetch(webhook.url, {
+      redirect: "error",
       method: "POST",
       headers: {
         "Content-Type": "application/json",

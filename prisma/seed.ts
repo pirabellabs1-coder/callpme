@@ -470,6 +470,8 @@ async function main() {
       const created = new Date();
       created.setDate(created.getDate() - daysAgo);
       created.setHours(randInt(8, 19), randInt(0, 59), 0, 0);
+      // Jamais dans le futur : un appel « d'aujourd'hui » après l'heure actuelle passe à la veille.
+      if (created.getTime() > Date.now()) created.setDate(created.getDate() - 1);
 
       const dir = directionFor(a.role, i);
       calls.push({

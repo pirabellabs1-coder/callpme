@@ -26,7 +26,7 @@ interface Results {
 const ACTIONS = [
   { label: "Créer un agent", href: "/agents/new", icon: Plus },
   { label: "Nouvelle campagne", href: "/campaigns", icon: Megaphone },
-  { label: "Studio Voix", href: "/voices", icon: AudioLines },
+  { label: "Voix", href: "/voices", icon: AudioLines },
 ];
 
 export function CommandPalette() {

@@ -65,7 +65,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { href: "/templates", label: "Modèles", icon: LayoutTemplate },
       { href: "/campaigns", label: "Campagnes", icon: Megaphone, match: "/campaigns" },
       { href: "/knowledge", label: "Connaissances", icon: BookOpen, match: "/knowledge" },
-      { href: "/voices", label: "Studio Voix", icon: AudioLines },
+      { href: "/voices", label: "Voix", icon: AudioLines },
     ],
   },
   {

@@ -695,3 +695,27 @@ model AgentVersion {
   @@unique([agentId, number])
   @@index([agentId, createdAt])
 }
+
+// Catalogue de voix de la plateforme (géré dans l'espace administrateur).
+// Chaque voix est une vraie voix du fournisseur : l'aperçu entendu par le
+// client est exactement la voix entendue au téléphone.
+model PlatformVoice {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  gender      String? // feminine | masculine | neutral
+  age         String? // young | middle_aged | old
+  accent      String?
+  language    String   @default("fr")
+  useCase     String?
+  provider    String   @default("elevenlabs")
+  /// Identifiant de la voix chez le fournisseur (utilisable en synthèse).
+  externalId  String   @unique
+  previewUrl  String?
+  active      Boolean  @default(true)
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([active, sortOrder])
+}

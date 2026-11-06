@@ -27,6 +27,7 @@ import { checkDestination } from "../telephony/destinations";
 import { remainingMinutes } from "../billing/limits";
 import type { VoiceTokenPayload } from "./token";
 import { QualityTracker } from "./quality";
+import { defaultPlatformVoice } from "../voices/platform";
 
 /** Ce que le transport doit savoir faire. */
 export interface VoiceTransport {
@@ -131,7 +132,9 @@ export class CallSession {
     }
     this.quotaSec = remaining * 60;
     this.organizationName = org?.name ?? "";
-    this.voice = resolveVoice(agent);
+    // Sans voix choisie (ou voix retirée), première voix active du catalogue.
+    const fallback = agent.config.voice.providerVoiceId ? null : await defaultPlatformVoice().catch(() => null);
+    this.voice = resolveVoice(agent, fallback?.externalId);
     if (!this.voice) {
       this.transport.sendEvent?.({ type: "error", message: "Aucune voix configurée pour le moteur vocal." });
       return this.end("failed");

@@ -37,7 +37,8 @@ export function buildDefaultConfig(
   return {
     voice: {
       provider: "elevenlabs",
-      voiceId: "Adélaïde",
+      // Sans voix choisie, le moteur prend la première voix du catalogue.
+      voiceId: "",
       language: "fr-FR",
       speed: 1,
       ...overrides.voice,

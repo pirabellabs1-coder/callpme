@@ -16,7 +16,6 @@ import {
 import { getCallById } from "@/lib/db/calls";
 import { requireSession } from "@/lib/auth/session";
 import { getAgentById } from "@/lib/db/agents";
-import { getPresetVoice } from "@/lib/voices/catalog";
 import { prisma } from "@/lib/db/client";
 import { getTool } from "@/lib/tools/registry";
 import { formatValue } from "@/lib/analysis/fields";
@@ -103,8 +102,10 @@ export default async function CallTranscriptPage({
 
   // Voix de l'agent (pour reconstituer l'audio) : genre + langue.
   const voice = agent?.config.voice;
-  const presetGender = voice?.voiceId ? getPresetVoice(voice.voiceId)?.gender : undefined;
-  const audioGender = (presetGender ?? null) as "feminine" | "masculine" | "neutral" | null;
+  const catalogVoice = voice?.providerVoiceId
+    ? await prisma.platformVoice.findUnique({ where: { externalId: voice.providerVoiceId }, select: { gender: true } })
+    : null;
+  const audioGender = (catalogVoice?.gender ?? null) as "feminine" | "masculine" | "neutral" | null;
   const audioLang = voice?.language || "fr-FR";
 
   return (

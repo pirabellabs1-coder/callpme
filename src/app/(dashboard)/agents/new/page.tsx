@@ -1,5 +1,6 @@
 import { getCurrentOrg } from "@/lib/db/context";
 import { studioVoiceOption } from "@/lib/voices/provider-voice";
+import { listPlatformVoices, platformVoiceOption } from "@/lib/voices/platform";
 import { listAgents } from "@/lib/db/agents";
 import { listPhoneNumbers } from "@/lib/db/numbers";
 import { listCustomTools } from "@/lib/db/custom-tools";
@@ -22,12 +23,13 @@ export default async function NewAgentPage({
     ? getTemplate(searchParams.template)
     : undefined;
 
-  const [agents, numbers, customTools, kbs, voices] = await Promise.all([
+  const [agents, numbers, customTools, kbs, voices, catalog] = await Promise.all([
     listAgents(org.id),
     listPhoneNumbers(org.id),
     listCustomTools(org.id),
     listKnowledgeBases(org.id),
     listVoices(org.id),
+    listPlatformVoices({ activeOnly: true }),
   ]);
   const usedNumbers = agents
     .map((a) => a.phoneNumber)
@@ -40,7 +42,7 @@ export default async function NewAgentPage({
       availableNumbers={numbers}
       customTools={customTools}
       knowledgeBases={kbs.map((k) => ({ id: k.id, name: k.name }))}
-      studioVoices={voices.map(studioVoiceOption)}
+      studioVoices={[...catalog.map(platformVoiceOption), ...voices.map(studioVoiceOption)]}
       template={template}
     />
   );

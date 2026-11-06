@@ -2,31 +2,74 @@
 
 import Link from "next/link";
 import { LANGUAGES } from "@/lib/agents/catalog";
-import {
-  PRESET_VOICES,
-  getPresetVoice,
-  presetsByCategory,
-} from "@/lib/voices/catalog";
+import { cn } from "@/lib/utils";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
+import { SamplePlayButton } from "@/components/voices/sample-play-button";
 import { VoicePreview } from "./voice-preview";
 import { FieldError, fieldId, invalidProps } from "./controls";
-import type {
-  SetWizardState,
-  StepErrors,
-  StudioVoiceOption,
-  WizardState,
-} from "./state";
+import type { SetWizardState, StepErrors, StudioVoiceOption, WizardState } from "./state";
 
-const GENDER_LABEL: Record<string, string> = {
-  feminine: "Féminine",
-  masculine: "Masculine",
+export const GENDER_LABEL: Record<string, string> = {
+  feminine: "Femme",
+  masculine: "Homme",
   neutral: "Neutre",
 };
 
-const FALLBACK_TEXT =
-  "Bonjour, je suis votre agent vocal. Comment puis-je vous aider ?";
+const FALLBACK_TEXT = "Bonjour, je suis votre agent vocal. Comment puis-je vous aider ?";
+
+function VoiceList({
+  title,
+  voices,
+  selectedId,
+  onSelect,
+}: {
+  title: string;
+  voices: StudioVoiceOption[];
+  selectedId: string;
+  onSelect: (id: string) => void;
+}) {
+  if (voices.length === 0) return null;
+  return (
+    <fieldset className="space-y-2">
+      <legend className="text-sm font-medium text-foreground">{title}</legend>
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+        {voices.map((v) => {
+          const selected = v.id === selectedId;
+          return (
+            <label
+              key={v.id}
+              className={cn(
+                "flex cursor-pointer items-start gap-3 rounded-lg border p-3 transition-colors focus-within:ring-2 focus-within:ring-ring/55",
+                selected ? "border-brand bg-brand/5" : "border-border hover:bg-accent",
+              )}
+            >
+              <input
+                type="radio"
+                name="voice"
+                value={v.id}
+                checked={selected}
+                onChange={() => onSelect(v.id)}
+                className="mt-1 accent-brand"
+              />
+              <span className="min-w-0 flex-1">
+                <span className="block text-sm font-medium text-foreground">{v.name}</span>
+                <span className="block text-xs text-muted-foreground">
+                  {[v.gender ? GENDER_LABEL[v.gender] : null, v.accent].filter(Boolean).join(" · ") || "Voix"}
+                </span>
+                {v.description && (
+                  <span className="mt-0.5 line-clamp-2 block text-xs text-muted-foreground">{v.description}</span>
+                )}
+              </span>
+              {v.sampleUrl && <SamplePlayButton src={v.sampleUrl} label={`Écouter ${v.name}`} />}
+            </label>
+          );
+        })}
+      </div>
+    </fieldset>
+  );
+}
 
 export function StepVoice({
   s,
@@ -39,121 +82,67 @@ export function StepVoice({
   errors: StepErrors;
   studioVoices: StudioVoiceOption[];
 }) {
-  const selectedStudio = studioVoices.find((v) => v.id === s.voiceId);
-  const isStudioVoice = Boolean(selectedStudio);
-  const selectedPreset = getPresetVoice(s.voiceId);
+  const catalog = studioVoices.filter((v) => v.catalog);
+  const own = studioVoices.filter((v) => !v.catalog);
+  const selected = studioVoices.find((v) => v.id === s.voiceId);
+  const choose = (id: string) => set({ voiceId: id });
 
   return (
     <>
-      {studioVoices.length > 0 && (
-        <div className="space-y-2">
-          <Label htmlFor="studioVoice">Voix entraînée (Studio Voix)</Label>
-          <Select
-            id="studioVoice"
-            value={isStudioVoice ? s.voiceId : ""}
-            onChange={(e) => {
-              const val = e.target.value;
-              set({ voiceId: val || PRESET_VOICES[0]?.id || "" });
-            }}
-          >
-            <option value="">
-              — Aucune (utiliser une voix de la plateforme) —
-            </option>
-            {studioVoices.map((v) => (
-              <option key={v.id} value={v.id}>
-                {v.name}
-                {v.gender ? ` — ${GENDER_LABEL[v.gender] ?? v.gender}` : ""}
-              </option>
-            ))}
-          </Select>
+      {studioVoices.length === 0 ? (
+        <p className="rounded-lg border border-dashed border-border p-4 text-sm text-muted-foreground">
+          Aucune voix n&apos;est encore disponible. Les voix sont ajoutées au catalogue par l&apos;équipe Callpme.
+        </p>
+      ) : (
+        <div className="space-y-5" id={fieldId("voice")}>
+          <VoiceList title="Voix Callpme" voices={catalog} selectedId={s.voiceId} onSelect={choose} />
+          <VoiceList title="Vos voix" voices={own} selectedId={s.voiceId} onSelect={choose} />
+          <FieldError name="voice" message={errors.voice} />
           <p className="text-xs text-muted-foreground">
-            Vos voix produites au{" "}
+            Toutes les voix sont de vraies voix : celle que vous écoutez ici est celle qu&apos;entendront vos appelants.
+            Retrouvez-les toutes dans{" "}
             <Link href="/voices" className="text-brand-700 hover:underline">
-              Studio Voix
-            </Link>{" "}
-            — leurs réglages (hauteur, débit, voix) s&apos;appliquent pendant
-            les appels.
+              Voix
+            </Link>
+            .
           </p>
         </div>
       )}
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <div className="space-y-2">
-          <Label htmlFor={fieldId("voice")}>Voix de la plateforme</Label>
-          <Select
-            id={fieldId("voice")}
-            value={isStudioVoice ? "" : s.voiceId}
-            disabled={isStudioVoice}
-            onChange={(e) => {
-              const pv = getPresetVoice(e.target.value);
-              set({
-                voiceId: e.target.value,
-                ...(pv ? { language: pv.language, speed: pv.rate } : {}),
-              });
-            }}
-            {...invalidProps("voice", errors.voice)}
-          >
-            {isStudioVoice && (
-              <option value="">Voix Studio sélectionnée</option>
-            )}
-            {presetsByCategory().map((group) => (
-              <optgroup key={group.category} label={group.category}>
-                {group.voices.map((v) => (
-                  <option key={v.id} value={v.id}>
-                    {v.label} — {v.description}
-                  </option>
-                ))}
-              </optgroup>
-            ))}
-          </Select>
-          <FieldError name="voice" message={errors.voice} />
+      {/* Écoute de la voix choisie avec le message d'accueil de l'agent */}
+      {selected?.providerVoiceId && (
+        <div className="flex items-center justify-between gap-3 rounded-lg border border-border bg-secondary/30 p-3">
+          <div className="min-w-0">
+            <p className="text-sm font-medium text-foreground">Aperçu — {selected.name}</p>
+            <p className="truncate text-xs text-muted-foreground">{s.firstMessage || FALLBACK_TEXT}</p>
+          </div>
+          <VoicePreview
+            text={s.firstMessage || FALLBACK_TEXT}
+            language={s.language}
+            speed={s.speed}
+            gender={selected.gender}
+            provider={selected.provider}
+            externalVoiceId={selected.providerVoiceId}
+            label="Écouter avec votre accueil"
+          />
         </div>
-        <div className="space-y-2">
-          <Label htmlFor={fieldId("language")}>Langue</Label>
-          <Select
-            id={fieldId("language")}
-            value={s.language}
-            disabled={isStudioVoice}
-            onChange={(e) => set({ language: e.target.value })}
-            {...invalidProps("language", errors.language)}
-          >
-            {LANGUAGES.map((l) => (
-              <option key={l.id} value={l.id}>
-                {l.label}
-              </option>
-            ))}
-          </Select>
-          <FieldError name="language" message={errors.language} />
-        </div>
-      </div>
+      )}
 
-      {/* Écoute d'un échantillon */}
-      <div className="flex items-center justify-between gap-3 rounded-lg border border-border bg-secondary/30 p-3">
-        <div className="min-w-0">
-          <p className="text-sm font-medium text-foreground">
-            {selectedStudio
-              ? `Aperçu — ${selectedStudio.name}`
-              : selectedPreset
-                ? `Aperçu — ${selectedPreset.label}`
-                : "Aperçu de la voix"}
-          </p>
-          <p className="truncate text-xs text-muted-foreground">
-            {selectedStudio
-              ? selectedStudio.sampleUrl
-                ? "Votre voix enregistrée au Studio — écoute du vrai enregistrement."
-                : "Voix Studio (réglages synthèse)."
-              : (selectedPreset?.description ??
-                (s.firstMessage || FALLBACK_TEXT))}
-          </p>
-        </div>
-        <VoicePreview
-          text={s.firstMessage || FALLBACK_TEXT}
-          language={s.language}
-          speed={s.speed}
-          pitch={selectedPreset?.pitch ?? 0}
-          gender={selectedStudio?.gender ?? selectedPreset?.gender}
-          sampleUrl={selectedStudio?.sampleUrl}
-        />
+      <div className="space-y-2">
+        <Label htmlFor={fieldId("language")}>Langue</Label>
+        <Select
+          id={fieldId("language")}
+          value={s.language}
+          onChange={(e) => set({ language: e.target.value })}
+          {...invalidProps("language", errors.language)}
+        >
+          {LANGUAGES.map((l) => (
+            <option key={l.id} value={l.id}>
+              {l.label}
+            </option>
+          ))}
+        </Select>
+        <FieldError name="language" message={errors.language} />
       </div>
 
       <div className="space-y-2">
@@ -163,18 +152,8 @@ export function StepVoice({
             {s.speed.toFixed(2)}×
           </span>
         </div>
-        <Slider
-          id="speed"
-          min={0.8}
-          max={1.2}
-          step={0.05}
-          value={s.speed}
-          onValueChange={(v) => set({ speed: v })}
-        />
-        <div
-          className="flex justify-between text-[0.7rem] text-muted-foreground"
-          aria-hidden
-        >
+        <Slider id="speed" min={0.8} max={1.2} step={0.05} value={s.speed} onValueChange={(v) => set({ speed: v })} />
+        <div className="flex justify-between text-[0.7rem] text-muted-foreground" aria-hidden>
           <span>Lent</span>
           <span>Naturel</span>
           <span>Rapide</span>

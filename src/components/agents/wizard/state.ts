@@ -72,6 +72,10 @@ export interface StudioVoiceOption {
   provider?: string;
   /** Voix clonée ou ajoutée par ID : utilisée telle quelle au téléphone. */
   providerVoiceId?: string;
+  description?: string | null;
+  accent?: string | null;
+  /** Voix du catalogue de la plateforme (sinon voix propre à l'organisation). */
+  catalog?: boolean;
 }
 
 export function initialState(
@@ -118,7 +122,8 @@ export function initialState(
     customRoleLabel: "",
     customRoleDescription: "",
     voiceProvider: "elevenlabs",
-    voiceId: "amelie",
+    // Choisie à l'étape « Voix » (première voix du catalogue par défaut).
+    voiceId: "",
     language: "fr-FR",
     speed: 1,
     modelProvider: "openai",
@@ -218,7 +223,6 @@ export function buildPayload(
   opts: {
     asDraft: boolean;
     studio?: StudioVoiceOption;
-    presetLabel?: string;
   },
 ) {
   const { studio } = opts;
@@ -230,9 +234,9 @@ export function buildPayload(
       language: s.language,
       speed: s.speed,
       kind: studio ? (studio.providerVoiceId ? "provider" : "custom") : "preset",
-      // On embarque l'enregistrement réel pour qu'il soit rejoué tel quel.
-      sampleUrl: studio?.sampleUrl ?? null,
-      voiceLabel: studio?.name ?? opts.presetLabel,
+      // Voix enregistrée au Studio : on embarque l'enregistrement réel pour qu'il soit rejoué tel quel.
+      sampleUrl: studio && !studio.catalog ? (studio.sampleUrl ?? null) : null,
+      voiceLabel: studio?.name,
     },
     model: {
       provider: s.modelProvider,

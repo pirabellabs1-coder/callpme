@@ -5,7 +5,6 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db/client";
 import { requireAdmin } from "@/lib/auth/session";
 import { isPlanId } from "@/lib/billing/plans";
-import { createVoice } from "@/lib/db/voices";
 import {
   createPromoCode,
   togglePromoCode,
@@ -190,33 +189,6 @@ export async function deletePromo(id: string): Promise<AdminResult> {
 
 /* -------------------------------- Voix ----------------------------------- */
 
-export async function deleteVoiceAdmin(id: string): Promise<AdminResult> {
-  await requireAdmin();
-  await prisma.voice.delete({ where: { id } }).catch(() => {});
-  revalidatePath("/admin/voices");
-  return { ok: true };
-}
-
-export async function addVoiceAdmin(formData: FormData): Promise<AdminResult> {
-  const session = await requireAdmin();
-  const name = String(formData.get("name") ?? "").trim();
-  const provider = String(formData.get("provider") ?? "elevenlabs");
-  const voiceId = String(formData.get("voiceId") ?? "").trim();
-  const gender = String(formData.get("gender") ?? "feminine");
-  if (!name || !voiceId) return { error: "Nom et ID de voix requis." };
-
-  await createVoice(session.org.id, {
-    name,
-    provider,
-    gender,
-    accent: provider,
-    description: `Voix ${provider} · ID ${voiceId}`,
-    settings: JSON.stringify({ externalVoiceId: voiceId }),
-  });
-  revalidatePath("/admin/voices");
-  return { ok: true };
-}
-
 /* ---------------------------- Utilisateurs ------------------------------- */
 
 export async function setUserAdmin(
@@ -303,9 +275,7 @@ export async function reloadDemoData(): Promise<AdminResult> {
 
   try {
     for (const r of roster) {
-      const config = buildDefaultConfig(r.role, r.name, orgName, {
-        voice: { voiceId: "amelie" },
-      });
+      const config = buildDefaultConfig(r.role, r.name, orgName);
       const agent = await prisma.agent.create({
         data: {
           organizationId: orgId,

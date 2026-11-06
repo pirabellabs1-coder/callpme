@@ -21,7 +21,6 @@ import { ROLE_META } from "@/lib/agents/roles";
 import type { AgentTemplate } from "@/lib/agents/templates";
 import { generateSystemPrompt } from "@/lib/agents/role-templates";
 import { MODELS } from "@/lib/agents/catalog";
-import { getPresetVoice } from "@/lib/voices/catalog";
 import { Button } from "@/components/ui/button";
 import { CallPreview } from "./wizard/call-preview";
 import { Stepper } from "./wizard/stepper";
@@ -79,7 +78,12 @@ export function AgentWizard({
   const [step, setStep] = useState(1);
   // En édition, toutes les étapes sont déjà renseignées.
   const [maxReached, setMaxReached] = useState(isEdit ? LAST_STEP : 1);
-  const [s, setS] = useState<WizardState>(() => initialState(agent, template));
+  const [s, setS] = useState<WizardState>(() => {
+    const init = initialState(agent, template);
+    // Voix inconnue (ancienne voix supprimée) ou nouvel agent : première voix du catalogue.
+    const known = studioVoices.some((v) => v.id === init.voiceId);
+    return known || !studioVoices[0] ? init : { ...init, voiceId: studioVoices[0].id };
+  });
   const [showErrors, setShowErrors] = useState(false);
   const [promptDirty, setPromptDirty] = useState(isEdit);
   const [firstMsgDirty, setFirstMsgDirty] = useState(isEdit);
@@ -221,7 +225,7 @@ export function AgentWizard({
     const studio = studioVoices.find((v) => v.id === s.voiceId);
     const payload = buildPayload(
       { ...s, role: s.role },
-      { asDraft, studio, presetLabel: getPresetVoice(s.voiceId)?.label },
+      { asDraft, studio },
     );
     try {
       const res = await fetch(
@@ -251,7 +255,7 @@ export function AgentWizard({
 
   const studio = studioVoices.find((v) => v.id === s.voiceId);
   const voiceLabel =
-    studio?.name ?? getPresetVoice(s.voiceId)?.label ?? s.voiceId;
+    studio?.name ?? "Aucune voix choisie";
   const modelLabel =
     MODELS[s.modelProvider]?.find((m) => m.id === s.modelId)?.label ??
     s.modelId;

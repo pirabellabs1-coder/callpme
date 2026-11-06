@@ -3,8 +3,7 @@ import { notFound } from "next/navigation";
 import { ArrowLeft, Mic, BrainCircuit, Volume2, Info } from "lucide-react";
 import { requireSession } from "@/lib/auth/session";
 import { getAgentById } from "@/lib/db/agents";
-import { getVoice } from "@/lib/db/voices";
-import { getPresetVoice } from "@/lib/voices/catalog";
+import { prisma } from "@/lib/db/client";
 import { hasLLMKey } from "@/lib/llm/chat";
 import { MODELS } from "@/lib/agents/catalog";
 import { Card } from "@/components/ui/card";
@@ -44,39 +43,15 @@ export default async function TestAgentPage({
       ? agent.config.customRole?.label || "Rôle personnalisé"
       : undefined;
 
-  // Si la voix de l'agent pointe vers une voix du Studio, on applique ses
-  // réglages (hauteur, gain, voix système) pendant le test.
-  const studioVoice = agent.config.voice.voiceId
-    ? await getVoice(session.org.id, agent.config.voice.voiceId)
+  // Voix réelle de l'agent (catalogue ou voix propre) : aperçu par le fournisseur.
+  const v = agent.config.voice;
+  const catalogVoice = v.providerVoiceId
+    ? await prisma.platformVoice.findUnique({ where: { externalId: v.providerVoiceId }, select: { gender: true } })
     : null;
-  const preset = getPresetVoice(agent.config.voice.voiceId);
-  let studioSettings: {
-    pitch?: number;
-    gain?: number;
-    voiceURI?: string;
-    externalVoiceId?: string;
-  } | null = null;
-  if (studioVoice?.settings) {
-    try {
-      studioSettings = JSON.parse(studioVoice.settings);
-    } catch {
-      studioSettings = null;
-    }
-  }
-  // Voix « par ID » d'un provider premium (audio réel si clé configurée).
-  const providerVoice =
-    studioVoice &&
-    ["elevenlabs", "cartesia", "openai"].includes(studioVoice.provider) &&
-    studioSettings?.externalVoiceId
-      ? { provider: studioVoice.provider, externalVoiceId: studioSettings.externalVoiceId }
-      : null;
   const voiceProfile = {
-    rate: agent.config.voice.speed ?? 1,
-    pitch: studioSettings?.pitch ?? preset?.pitch,
-    gain: studioSettings?.gain,
-    voiceURI: studioSettings?.voiceURI,
-    provider: providerVoice?.provider,
-    externalVoiceId: providerVoice?.externalVoiceId,
+    rate: v.speed ?? 1,
+    provider: v.providerVoiceId ? v.provider : undefined,
+    externalVoiceId: v.providerVoiceId,
   };
 
   // Moteur vocal Callpme configuré : c'est LE test (même moteur qu'au téléphone).
@@ -107,9 +82,7 @@ export default async function TestAgentPage({
             liveMode={liveMode}
             modelLabel={modelLabel}
             voiceProfile={voiceProfile}
-            voiceGender={studioVoice?.gender ?? preset?.gender ?? null}
-            // Le clonage passe désormais par le Studio Voix (ElevenLabs), plus par un serveur local.
-            voiceSampleUrl={null}
+            voiceGender={catalogVoice?.gender ?? null}
             maxDurationSec={agent.config.maxDurationSec}
           />
           )}

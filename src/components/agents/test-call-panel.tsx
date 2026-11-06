@@ -19,7 +19,6 @@ import type { AgentRole, FirstSpeaker } from "@/lib/shared/types";
 import { cn } from "@/lib/utils";
 import { RoleIcon, RoleBadge } from "@/components/role-badge";
 import { Button } from "@/components/ui/button";
-import { cloneSpeak } from "@/lib/voices/clone-client";
 import { sanitizeSpoken } from "@/lib/voice/speech-text";
 
 type Status =
@@ -89,7 +88,6 @@ export function TestCallPanel({
   modelLabel,
   voiceProfile,
   voiceGender,
-  voiceSampleUrl,
   maxDurationSec,
 }: {
   agentId: string;
@@ -104,8 +102,6 @@ export function TestCallPanel({
   modelLabel: string;
   voiceProfile?: VoiceProfile;
   voiceGender?: string | null;
-  /** Enregistrement de la voix (data URL) → clonage via le serveur local. */
-  voiceSampleUrl?: string | null;
   maxDurationSec?: number;
 }) {
   const [status, setStatus] = useState<Status>("idle");
@@ -117,8 +113,6 @@ export function TestCallPanel({
   // Diagnostic cerveau : null = inconnu, true = modèle du serveur, false = moteur local.
   const [brainOk, setBrainOk] = useState<boolean | null>(null);
   // Diagnostic voix clonée : null = inconnu, true = ta voix, false = repli (serveur off).
-  const [cloneOk, setCloneOk] = useState<boolean | null>(null);
-  const [cloneErr, setCloneErr] = useState("");
 
   const activeRef = useRef(false);
   const statusRef = useRef<Status>("idle");
@@ -366,29 +360,6 @@ export function TestCallPanel({
         /* repli synthèse navigateur */
       }
     }
-    // Voix CLONÉE via le serveur local auto-hébergé : TA voix enregistrée,
-    // sur n'importe quel texte, sans aucun service externe.
-    if (voiceSampleUrl) {
-      const { url, error } = await cloneSpeak(text, voiceSampleUrl, language);
-      if (url) {
-        setCloneOk(true);
-        setCloneErr("");
-        const audio = new Audio(url);
-        audioRef.current = audio;
-        routeForRecording(audio);
-        const done = () => {
-          URL.revokeObjectURL(url);
-          resolve();
-        };
-        audio.onended = done;
-        audio.onerror = done;
-        await audio.play().catch(done);
-        return;
-      }
-      // Échec du clonage : on affiche la raison précise et on se replie.
-      setCloneOk(false);
-      setCloneErr(error);
-    }
     // Repli : synthèse du navigateur avec la signature de la voix.
     if (!("speechSynthesis" in window)) return resolve();
     window.speechSynthesis.cancel();
@@ -596,28 +567,7 @@ export function TestCallPanel({
                 {modelLabel}
               </span>
             )}
-            {voiceSampleUrl &&
-              cloneOk !== null &&
-              (cloneOk ? (
-                <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[0.7rem] font-medium text-emerald-700 ring-1 ring-inset ring-emerald-600/15">
-                  <Mic className="size-3" />
-                  Ta voix
-                </span>
-              ) : (
-                <span
-                  title={cloneErr ? `Voix de repli — ${cloneErr}` : "Voix de repli"}
-                  className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-[0.7rem] font-medium text-amber-700 ring-1 ring-inset ring-amber-600/20"
-                >
-                  <Mic className="size-3" />
-                  Voix de repli
-                </span>
-              ))}
           </div>
-          {cloneOk === false && cloneErr && (
-            <p className="mt-1 text-[0.7rem] text-amber-700" title={cloneErr}>
-              Clonage indisponible : {cloneErr}
-            </p>
-          )}
         </div>
         {active && (
           <span className="mono inline-flex items-center gap-1.5 text-sm text-foreground">

@@ -7,7 +7,6 @@
  * quand l'appelant interrompt l'agent.
  */
 import type { Agent } from "../shared/types";
-import { getPresetVoice } from "../voices/catalog";
 
 export type StreamingTtsProvider = "elevenlabs" | "cartesia";
 
@@ -33,11 +32,10 @@ export function ttsConfigured(): boolean {
 
 /**
  * Voix utilisée pour un agent :
- * - voix fournisseur choisie explicitement (même fournisseur que le moteur) ;
- * - sinon voix par défaut selon le genre de la voix préréglée
- *   (VOICE_DEFAULT_FEMALE_ID / VOICE_DEFAULT_MALE_ID).
+ * - la vraie voix choisie (catalogue ou voix propre), chez le fournisseur du moteur ;
+ * - sinon `fallbackVoiceId` (première voix du catalogue), puis VOICE_DEFAULT_FEMALE_ID.
  */
-export function resolveVoice(agent: Agent): TtsVoice | null {
+export function resolveVoice(agent: Agent, fallbackVoiceId?: string | null): TtsVoice | null {
   const provider = ttsProvider();
   if (!provider) return null;
   const v = agent.config.voice;
@@ -46,11 +44,7 @@ export function resolveVoice(agent: Agent): TtsVoice | null {
   if (v.kind === "provider" && v.providerVoiceId && v.provider === provider) {
     return { provider, voiceId: v.providerVoiceId, language };
   }
-  const preset = v.voiceId ? getPresetVoice(v.voiceId) : undefined;
-  const voiceId =
-    preset?.gender === "masculine"
-      ? process.env.VOICE_DEFAULT_MALE_ID
-      : process.env.VOICE_DEFAULT_FEMALE_ID;
+  const voiceId = (provider === "elevenlabs" ? fallbackVoiceId : null) || process.env.VOICE_DEFAULT_FEMALE_ID;
   if (!voiceId) return null;
   return { provider, voiceId, language };
 }

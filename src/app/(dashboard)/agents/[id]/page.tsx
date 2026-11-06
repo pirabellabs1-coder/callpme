@@ -1,3 +1,4 @@
+import { prisma } from "@/lib/db/client";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { formatDistanceToNow } from "date-fns";
@@ -28,7 +29,6 @@ import { listCalls } from "@/lib/db/calls";
 import { listCustomTools } from "@/lib/db/custom-tools";
 import { listKnowledgeBases } from "@/lib/db/knowledge";
 import { getVoice } from "@/lib/db/voices";
-import { getPresetVoice } from "@/lib/voices/catalog";
 import { ROLE_META } from "@/lib/agents/roles";
 import { resolveTools } from "@/lib/tools/registry";
 import { languageLabel, MODELS, MODEL_PROVIDERS } from "@/lib/agents/catalog";
@@ -106,12 +106,16 @@ export default async function AgentDetailPage({
   // Un agent d'une autre organisation est traité comme inexistant.
   if (!agent || agent.organizationId !== org.id) notFound();
 
-  const [calls, customTools, kbs, studioVoice] = await Promise.all([
+  const [calls, customTools, kbs, studioVoice, catalogVoice] = await Promise.all([
     listCalls(org.id, { agentId: agent.id, limit: 6 }),
     listCustomTools(org.id),
     agent.knowledgeBaseId ? listKnowledgeBases(org.id) : Promise.resolve([]),
     agent.config.voice.voiceId
       ? getVoice(org.id, agent.config.voice.voiceId)
+      : Promise.resolve(null),
+    // Nom actuel de la voix du catalogue (l'admin a pu la renommer).
+    agent.config.voice.providerVoiceId
+      ? prisma.platformVoice.findUnique({ where: { externalId: agent.config.voice.providerVoiceId }, select: { name: true } })
       : Promise.resolve(null),
   ]);
 
@@ -137,10 +141,10 @@ export default async function AgentDetailPage({
       ? agent.config.customRole?.label || "Rôle personnalisé"
       : ROLE_META[agent.role].label;
   const voiceName =
+    catalogVoice?.name ??
     studioVoice?.name ??
     agent.config.voice.voiceLabel ??
-    getPresetVoice(agent.config.voice.voiceId)?.label ??
-    (agent.config.voice.voiceId || "—");
+    "Aucune voix choisie";
   const modelLabel =
     MODELS[agent.config.model.provider]?.find(
       (m) => m.id === agent.config.model.modelId,

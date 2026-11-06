@@ -1,25 +1,34 @@
-import { getSession } from "@/lib/auth/session";
-import { listVoices } from "@/lib/db/voices";
+import { listPlatformVoices } from "@/lib/voices/platform";
+import { hasElevenLabs } from "@/lib/voices/elevenlabs";
 import { PageHeader } from "@/components/dashboard/page-header";
-import { AdminVoiceCatalog } from "@/components/admin/admin-voice-catalog";
-import { VoiceStudio } from "@/components/voices/voice-studio";
+import { AdminVoiceLibrary } from "@/components/admin/admin-voice-library";
 
-export const metadata = { title: "Studio Voix" };
+export const metadata = { title: "Voix" };
 export const dynamic = "force-dynamic";
 
 export default async function AdminVoicesPage() {
-  const session = await getSession();
-  const voices = session ? await listVoices(session.org.id) : [];
+  const voices = await listPlatformVoices();
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Studio Voix — Administration"
-        description="Écoutez le catalogue, enregistrez et mixez des voix, ajoutez des voix par ID (ElevenLabs / Cartesia / OpenAI)."
+        title="Voix de la plateforme"
+        description="Le catalogue de voix proposé à tous les clients. Chaque voix est une vraie voix ElevenLabs : l'aperçu est exactement ce qu'entend l'appelant."
       />
-      {/* Catalogue intégré écoutable */}
-      <AdminVoiceCatalog />
-      {/* Studio complet : enregistrement, mixage, ajout par ID, bibliothèque */}
-      <VoiceStudio initial={voices} showCatalog={false} />
+      <AdminVoiceLibrary
+        configured={hasElevenLabs()}
+        catalogExternalIds={voices.map((v) => v.externalId)}
+        catalog={voices.map((v) => ({
+          id: v.id,
+          name: v.name,
+          description: v.description,
+          gender: v.gender,
+          age: v.age,
+          accent: v.accent,
+          useCase: v.useCase,
+          previewUrl: v.previewUrl,
+          active: v.active,
+        }))}
+      />
     </div>
   );
 }

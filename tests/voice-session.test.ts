@@ -94,6 +94,8 @@ vi.mock("@/lib/db/client", () => ({
         return { name: "Cabinet Diallo", plan: "pro" };
       },
     },
+    // Catalogue de voix : une voix active (voix de secours si l'agent n'en a pas).
+    platformVoice: { findFirst: async () => ({ id: "pv1", externalId: "voix-catalogue", gender: "feminine" }) },
   },
 }));
 const quota = vi.hoisted(() => ({ minutes: 500 }));

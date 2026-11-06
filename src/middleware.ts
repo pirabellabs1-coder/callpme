@@ -27,6 +27,7 @@ const PUBLIC_API_PREFIXES = [
 /** Pages applicatives réservées aux utilisateurs connectés. */
 const PRIVATE_PAGE_PREFIXES = [
   "/overview",
+  "/start",
   "/agents",
   "/analytics",
   "/billing",

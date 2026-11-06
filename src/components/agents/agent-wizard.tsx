@@ -238,7 +238,8 @@ export function AgentWizard({
         setSubmitting(null);
         return;
       }
-      router.push(`/agents/${data.agent.id}`);
+      // Création : on enchaîne sur le guide de mise en ligne.
+      router.push(isEdit ? `/agents/${data.agent.id}` : `/agents/${data.agent.id}/launch`);
       router.refresh();
     } catch {
       setSubmitError(

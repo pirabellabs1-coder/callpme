@@ -1,5 +1,6 @@
 import {
   LayoutDashboard,
+  Rocket,
   Bot,
   LayoutTemplate,
   Megaphone,
@@ -45,6 +46,7 @@ export const NAV_GROUPS: NavGroup[] = [
     id: "pilot",
     label: "Piloter",
     items: [
+      { href: "/start", label: "Bien démarrer", icon: Rocket },
       { href: "/overview", label: "Vue d'ensemble", icon: LayoutDashboard },
       { href: "/calls", label: "Appels", icon: PhoneCall, match: "/calls" },
       { href: "/appointments", label: "Rendez-vous", icon: CalendarDays },

@@ -35,7 +35,7 @@ export async function getOnboardingSteps(orgId: string): Promise<OnboardingStep[
       key: "test",
       label: "Tester l'agent",
       description: "Parlez-lui depuis le navigateur.",
-      href: "/agents",
+      href: "/start",
       done: calls > 0,
     },
     {

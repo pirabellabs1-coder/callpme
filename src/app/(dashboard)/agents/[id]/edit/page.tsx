@@ -52,7 +52,7 @@ export default async function EditAgentPage({
       availableNumbers={numbers}
       customTools={customTools}
       knowledgeBases={kbs.map((k) => ({ id: k.id, name: k.name }))}
-      studioVoices={[...catalogWithCurrent.map(platformVoiceOption), ...voices.map(studioVoiceOption)]}
+      studioVoices={[...catalogWithCurrent.map(platformVoiceOption), ...voices.map(studioVoiceOption).filter((v) => v.providerVoiceId)]}
       agent={agent}
     />
   );

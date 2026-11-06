@@ -28,6 +28,7 @@ import { remainingMinutes } from "../billing/limits";
 import type { VoiceTokenPayload } from "./token";
 import { QualityTracker } from "./quality";
 import { defaultPlatformVoice } from "../voices/platform";
+import { loadStudioExtras } from "../voices/studio";
 
 /** Ce que le transport doit savoir faire. */
 export interface VoiceTransport {
@@ -133,8 +134,10 @@ export class CallSession {
     this.quotaSec = remaining * 60;
     this.organizationName = org?.name ?? "";
     // Sans voix choisie (ou voix retirée), première voix active du catalogue.
-    const fallback = agent.config.voice.providerVoiceId ? null : await defaultPlatformVoice().catch(() => null);
-    this.voice = resolveVoice(agent, fallback?.externalId);
+    // Voix réglée au Studio : réglages et prononciations relus à jour à chaque appel.
+    const studio = await loadStudioExtras(agent.organizationId, agent.config.voice.voiceId).catch(() => null);
+    const fallback = agent.config.voice.providerVoiceId || studio?.voiceId ? null : await defaultPlatformVoice().catch(() => null);
+    this.voice = resolveVoice(agent, fallback?.externalId, studio);
     if (!this.voice) {
       this.transport.sendEvent?.({ type: "error", message: "Aucune voix configurée pour le moteur vocal." });
       return this.end("failed");

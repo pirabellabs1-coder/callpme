@@ -61,3 +61,47 @@ describe("voix choisie dans l'assistant de création", () => {
     });
   });
 });
+
+describe("Studio : réglages et prononciation", () => {
+  it("remplace les mots du dictionnaire, mot entier, sans tenir compte de la casse", async () => {
+    const { applyPronunciations } = await import("@/lib/voices/tuning");
+    const dico = [
+      { word: "MTN", say: "èm-té-ène" },
+      { word: "MTN Bénin", say: "èm-té-ène Bénin" },
+      { word: "Cotonou", say: "Ko-to-nou" },
+    ];
+    expect(applyPronunciations("Bienvenue chez MTN Bénin à cotonou.", dico)).toBe("Bienvenue chez èm-té-ène Bénin à Ko-to-nou.");
+    expect(applyPronunciations("MTNX et AMTN restent tels quels", dico)).toBe("MTNX et AMTN restent tels quels");
+    expect(applyPronunciations("Prix (MTN) ?", [{ word: "(MTN)", say: "x" }])).toBe("Prix x ?");
+    expect(applyPronunciations("rien", [])).toBe("rien");
+  });
+
+  it("borne les réglages lus depuis du JSON non fiable", async () => {
+    const { normalizeTuning } = await import("@/lib/voices/tuning");
+    expect(normalizeTuning({ stability: 3, similarity: -1, style: "x", speed: 5, speakerBoost: "oui" })).toEqual({
+      stability: 1,
+      similarity: 0,
+      style: 0,
+      speed: 1.2,
+      speakerBoost: true,
+    });
+    expect(normalizeTuning(null, 0.9).speed).toBe(0.9);
+  });
+
+  it("au téléphone, applique la voix et les réglages du Studio", () => {
+    process.env.ELEVENLABS_API_KEY = "x";
+    const tuning = { stability: 0.8, similarity: 0.7, style: 0.1, speed: 0.9, speakerBoost: false };
+    const v = resolveVoice(agentWith({ kind: "provider", providerVoiceId: "ancienne01", voiceId: "studio1" }), null, {
+      voiceId: "nouvelleBase1",
+      tuning,
+      pronunciations: [{ word: "MTN", say: "èm-té-ène" }],
+    });
+    expect(v).toMatchObject({ voiceId: "nouvelleBase1", tuning, pronunciations: [{ word: "MTN", say: "èm-té-ène" }] });
+  });
+
+  it("sans Studio, la vitesse de l'agent est reprise dans les réglages", () => {
+    process.env.ELEVENLABS_API_KEY = "x";
+    const v = resolveVoice(agentWith({ kind: "provider", providerVoiceId: "voixChoisie1", speed: 0.85 }), null);
+    expect(v?.tuning?.speed).toBe(0.85);
+  });
+});

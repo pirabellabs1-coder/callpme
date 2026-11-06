@@ -11,6 +11,7 @@ export interface SliderProps {
   id?: string;
   className?: string;
   disabled?: boolean;
+  "aria-describedby"?: string;
 }
 
 /** Curseur basé sur un input range natif, teinté à la marque (accessible). */
@@ -23,6 +24,7 @@ export function Slider({
   id,
   className,
   disabled,
+  ...rest
 }: SliderProps) {
   return (
     <input
@@ -34,6 +36,7 @@ export function Slider({
       value={value}
       disabled={disabled}
       onChange={(e) => onValueChange(Number(e.target.value))}
+      {...rest}
       className={cn(
         "h-1.5 w-full cursor-pointer appearance-none rounded-full bg-muted accent-brand outline-none",
         "focus-visible:ring-2 focus-visible:ring-brand/25",

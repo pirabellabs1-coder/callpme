@@ -123,6 +123,7 @@ export function StepVoice({
             gender={selected.gender}
             provider={selected.provider}
             externalVoiceId={selected.providerVoiceId}
+            studioVoiceId={selected.catalog ? undefined : selected.id}
             label="Écouter avec votre accueil"
           />
         </div>
@@ -145,6 +146,15 @@ export function StepVoice({
         <FieldError name="language" message={errors.language} />
       </div>
 
+      {selected && !selected.catalog ? (
+        <p className="text-xs text-muted-foreground">
+          Le débit, le ton et la prononciation de « {selected.name} » se règlent au{" "}
+          <Link href={`/voices/studio/${selected.id}`} className="text-brand-700 hover:underline">
+            Studio
+          </Link>
+          .
+        </p>
+      ) : (
       <div className="space-y-2">
         <div className="flex items-center justify-between">
           <Label htmlFor="speed">Débit de parole</Label>
@@ -159,6 +169,7 @@ export function StepVoice({
           <span>Rapide</span>
         </div>
       </div>
+      )}
     </>
   );
 }

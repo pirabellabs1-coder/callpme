@@ -39,6 +39,6 @@ describe("voix Studio au téléphone", () => {
     const agent = {
       config: { voice: { provider: "elevenlabs", voiceId: "cuid_callpme", providerVoiceId: "abcdef123", kind: "provider", language: "fr-FR", speed: 1 } },
     } as unknown as Agent;
-    expect(resolveVoice(agent)).toEqual({ provider: "elevenlabs", voiceId: "abcdef123", language: "fr-FR" });
+    expect(resolveVoice(agent)).toMatchObject({ provider: "elevenlabs", voiceId: "abcdef123", language: "fr-FR" });
   });
 });

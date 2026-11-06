@@ -22,6 +22,7 @@ export function VoicePreview({
   provider,
   externalVoiceId,
   sampleUrl,
+  studioVoiceId,
   label = "Écouter un échantillon",
 }: {
   text: string;
@@ -33,6 +34,8 @@ export function VoicePreview({
   externalVoiceId?: string;
   /** Enregistrement réel de la voix (data URL). Prioritaire : on lit VRAIMENT cet audio. */
   sampleUrl?: string | null;
+  /** Voix réglée au Studio : le serveur applique ses réglages et sa prononciation. */
+  studioVoiceId?: string;
   label?: string;
 }) {
   const [state, setState] = useState<"idle" | "loading" | "playing">("idle");
@@ -123,6 +126,7 @@ export function VoicePreview({
             voiceId: externalVoiceId,
             text: sample,
             language,
+            ...(studioVoiceId ? { studioVoiceId } : {}),
           }),
         });
         const data = await res.json();

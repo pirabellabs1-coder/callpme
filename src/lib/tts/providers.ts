@@ -8,6 +8,7 @@
  * Aucune dépendance SDK : appels REST + base64.
  */
 import type { TtsProvider } from "@/lib/voices/catalog";
+import { applyPronunciations, DEFAULT_TUNING, elevenLabsSettings, type Pronunciation, type VoiceTuning } from "@/lib/voices/tuning";
 
 export function hasTtsKey(provider: TtsProvider): boolean {
   if (provider === "elevenlabs") return Boolean(process.env.ELEVENLABS_API_KEY);
@@ -21,12 +22,16 @@ interface SynthInput {
   voiceId: string;
   text: string;
   language?: string;
+  /** Réglages Studio (ElevenLabs). */
+  tuning?: VoiceTuning;
+  pronunciations?: Pronunciation[];
 }
 
 /** Renvoie une data URL audio, ou null si aucune clé / échec. */
 export async function synthesizeSpeech(
   input: SynthInput,
 ): Promise<{ dataUrl: string } | null> {
+  input = { ...input, text: applyPronunciations(input.text, input.pronunciations) };
   try {
     if (input.provider === "elevenlabs" && process.env.ELEVENLABS_API_KEY)
       return await elevenlabs(input);
@@ -57,8 +62,10 @@ async function elevenlabs(i: SynthInput) {
       },
       body: JSON.stringify({
         text: i.text,
-        model_id: "eleven_multilingual_v2",
-        voice_settings: { stability: 0.5, similarity_boost: 0.75 },
+        // Même modèle qu'au téléphone : l'aperçu ressemble à ce qu'entendront les appelants.
+        model_id: process.env.ELEVENLABS_MODEL || "eleven_flash_v2_5",
+        ...(i.language ? { language_code: i.language.slice(0, 2) } : {}),
+        voice_settings: elevenLabsSettings(i.tuning ?? DEFAULT_TUNING),
       }),
       signal: AbortSignal.timeout(20000),
     },

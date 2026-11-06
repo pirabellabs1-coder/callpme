@@ -42,7 +42,7 @@ export default async function NewAgentPage({
       availableNumbers={numbers}
       customTools={customTools}
       knowledgeBases={kbs.map((k) => ({ id: k.id, name: k.name }))}
-      studioVoices={[...catalog.map(platformVoiceOption), ...voices.map(studioVoiceOption)]}
+      studioVoices={[...catalog.map(platformVoiceOption), ...voices.map(studioVoiceOption).filter((v) => v.providerVoiceId)]}
       template={template}
     />
   );

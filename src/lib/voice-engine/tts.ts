@@ -7,6 +7,7 @@
  * quand l'appelant interrompt l'agent.
  */
 import type { Agent } from "../shared/types";
+import { applyPronunciations, DEFAULT_TUNING, elevenLabsSettings, normalizeTuning, type Pronunciation, type VoiceTuning } from "../voices/tuning";
 
 export type StreamingTtsProvider = "elevenlabs" | "cartesia";
 
@@ -14,6 +15,17 @@ export interface TtsVoice {
   provider: StreamingTtsProvider;
   voiceId: string;
   language: string;
+  /** Réglages Studio (ElevenLabs). Par défaut : réglages équilibrés. */
+  tuning?: VoiceTuning;
+  /** Dictionnaire de prononciation appliqué au texte avant la synthèse. */
+  pronunciations?: Pronunciation[];
+}
+
+/** Réglages Studio d'une voix enregistrée par le client. */
+export interface StudioExtras {
+  voiceId?: string;
+  tuning?: VoiceTuning;
+  pronunciations?: Pronunciation[];
 }
 
 /** Fournisseur TTS du moteur : VOICE_TTS_PROVIDER, sinon le premier dont la clé existe. */
@@ -35,23 +47,30 @@ export function ttsConfigured(): boolean {
  * - la vraie voix choisie (catalogue ou voix propre), chez le fournisseur du moteur ;
  * - sinon `fallbackVoiceId` (première voix du catalogue), puis VOICE_DEFAULT_FEMALE_ID.
  */
-export function resolveVoice(agent: Agent, fallbackVoiceId?: string | null): TtsVoice | null {
+export function resolveVoice(agent: Agent, fallbackVoiceId?: string | null, studio?: StudioExtras | null): TtsVoice | null {
   const provider = ttsProvider();
   if (!provider) return null;
   const v = agent.config.voice;
   const language = v.language || "fr-FR";
-  // Voix Studio clonée (ou ajoutée par ID) chez le fournisseur du moteur vocal.
-  if (v.kind === "provider" && v.providerVoiceId && v.provider === provider) {
-    return { provider, voiceId: v.providerVoiceId, language };
+  const extras = {
+    // Sans réglages Studio : réglages équilibrés, à la vitesse choisie pour l'agent.
+    tuning: studio?.tuning ?? normalizeTuning({}, v.speed),
+    ...(studio?.pronunciations?.length ? { pronunciations: studio.pronunciations } : {}),
+  };
+  // Voix Studio (réglée par le client) : son identifiant fournisseur à jour prime.
+  const chosen = studio?.voiceId || (v.kind === "provider" ? v.providerVoiceId : undefined);
+  if (chosen && v.provider === provider) {
+    return { provider, voiceId: chosen, language, ...extras };
   }
   const voiceId = (provider === "elevenlabs" ? fallbackVoiceId : null) || process.env.VOICE_DEFAULT_FEMALE_ID;
   if (!voiceId) return null;
-  return { provider, voiceId, language };
+  return { provider, voiceId, language, ...extras };
 }
 
 /** Génère `text` et renvoie l'audio µ-law 8 kHz au fil de l'eau. */
 export async function* streamSpeech(text: string, voice: TtsVoice, signal: AbortSignal): AsyncGenerator<Buffer> {
-  const res = voice.provider === "elevenlabs" ? await elevenlabs(text, voice, signal) : await cartesia(text, voice, signal);
+  const spoken = applyPronunciations(text, voice.pronunciations);
+  const res = voice.provider === "elevenlabs" ? await elevenlabs(spoken, voice, signal) : await cartesia(spoken, voice, signal);
   if (!res.ok || !res.body) {
     throw new Error(`Synthèse vocale refusée (${voice.provider}, HTTP ${res.status}).`);
   }
@@ -79,7 +98,7 @@ function elevenlabs(text: string, voice: TtsVoice, signal: AbortSignal) {
       text,
       model_id: process.env.ELEVENLABS_MODEL || "eleven_flash_v2_5",
       language_code: voice.language.slice(0, 2),
-      voice_settings: { stability: 0.5, similarity_boost: 0.75 },
+      voice_settings: elevenLabsSettings(voice.tuning ?? DEFAULT_TUNING),
     }),
   });
 }

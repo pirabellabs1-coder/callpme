@@ -21,6 +21,8 @@ export function studioVoiceOption(v: {
   sampleUrl: string | null;
   provider: string;
   settings: string | null;
+  accent?: string | null;
+  description?: string | null;
 }) {
   const providerVoiceId = externalVoiceId(v.settings);
   return {
@@ -29,6 +31,8 @@ export function studioVoiceOption(v: {
     gender: v.gender,
     sampleUrl: v.sampleUrl,
     provider: v.provider,
+    accent: v.accent ?? null,
+    description: v.description ?? null,
     providerVoiceId: providerVoiceId && (v.provider === "elevenlabs" || v.provider === "cartesia") ? providerVoiceId : undefined,
   };
 }

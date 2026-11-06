@@ -166,6 +166,39 @@ export interface AgentConfig {
   voicemail?: VoicemailConfig;
   /** Analyse de fin d'appel : données à relever et critère de réussite. */
   analysis?: AnalysisConfig;
+  /** Parcours de conversation dessiné dans le constructeur visuel. */
+  flow?: ConversationFlow;
+}
+
+/** Type d'un bloc du parcours. */
+export type FlowNodeType = "message" | "question" | "decision" | "action" | "transfer" | "end";
+
+/** Suite possible d'un bloc : vers quel bloc, et à quelle condition (en langage naturel). */
+export interface FlowEdge {
+  to: string;
+  when?: string;
+}
+
+export interface FlowNode {
+  id: string;
+  type: FlowNodeType;
+  title: string;
+  /** Ce que l'agent dit ou fait à cette étape. */
+  instruction: string;
+  /** Question : clé de l'information à relever (ex. « motif »). */
+  variable?: string;
+  /** Action : outil à utiliser (ex. bookAppointment). */
+  tool?: string;
+  next: FlowEdge[];
+  /** Position sur le canevas de l'éditeur. */
+  position: { x: number; y: number };
+}
+
+export interface ConversationFlow {
+  /** Désactivé : l'agent suit seulement son prompt. */
+  enabled: boolean;
+  start: string;
+  nodes: FlowNode[];
 }
 
 export interface VoicemailConfig {
@@ -344,4 +377,7 @@ export interface CreateAgentInput {
   knowledgeBaseId?: string | null;
 }
 
-export type UpdateAgentInput = Partial<CreateAgentInput>;
+export type UpdateAgentInput = Partial<Omit<CreateAgentInput, "config">> & {
+  /** Fusion superficielle : seules les clés fournies remplacent la config existante. */
+  config?: Partial<AgentConfig>;
+};

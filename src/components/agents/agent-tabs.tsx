@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutGrid, SlidersHorizontal, PlayCircle, FlaskConical } from "lucide-react";
+import { LayoutGrid, SlidersHorizontal, PlayCircle, FlaskConical, Workflow } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 /** Onglets de l'espace de travail d'un agent. */
@@ -12,6 +12,7 @@ export function AgentTabs({ agentId }: { agentId: string }) {
   const tabs = [
     { href: base, label: "Aperçu", icon: LayoutGrid, active: pathname === base },
     { href: `${base}/edit`, label: "Configuration", icon: SlidersHorizontal, active: pathname.startsWith(`${base}/edit`) },
+    { href: `${base}/flow`, label: "Parcours", icon: Workflow, active: pathname.startsWith(`${base}/flow`) },
     { href: `${base}/test`, label: "Tester", icon: PlayCircle, active: pathname === `${base}/test` },
     { href: `${base}/tests`, label: "Scénarios de test", icon: FlaskConical, active: pathname.startsWith(`${base}/tests`) },
   ];

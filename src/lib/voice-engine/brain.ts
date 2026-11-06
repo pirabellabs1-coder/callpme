@@ -7,7 +7,8 @@
  */
 import { retrieveContext } from "../db/knowledge";
 import { listCustomToolsFull } from "../db/custom-tools";
-import { resolveTools } from "../tools/registry";
+import { getTool, resolveTools } from "../tools/registry";
+import { compileFlow, flowToolNames } from "../flow/flow";
 import { runBuiltinTool } from "../tools/handlers";
 import { bookingConfig } from "../agenda/slots";
 import { signPayload } from "../webhooks/dispatch";
@@ -72,6 +73,13 @@ export interface PreparedTurn {
 export async function prepareTurn(ctx: BrainContext, history: Turn[]): Promise<PreparedTurn> {
   const { agent } = ctx;
   let systemContent = agent.config.systemPrompt;
+  const customs = await listCustomToolsFull(ctx.organizationId);
+  // Parcours dessiné dans le constructeur visuel : étapes à suivre pendant l'appel.
+  const flow = agent.config.flow;
+  if (flow?.enabled && flow.nodes.length) {
+    const label = (name: string) => getTool(name)?.label ?? customs.find((c) => c.name === name)?.label ?? name;
+    systemContent += `\n\n${compileFlow(flow, label)}`;
+  }
   if (ctx.extraInstructions) systemContent += `\n\n${ctx.extraInstructions}`;
   systemContent += `\n\n${nowContext(agent)}`;
 
@@ -106,8 +114,8 @@ export async function prepareTurn(ctx: BrainContext, history: Turn[]): Promise<P
   const messages: ChatMessage[] = [{ role: "system", content: systemContent }, ...convo];
 
   // Outils activés : intégrés + fonctions personnalisées de l'organisation.
-  const enabled = agent.config.tools ?? [];
-  const customs = await listCustomToolsFull(ctx.organizationId);
+  // Outils du parcours (actions, transfert, fin) activés même s'ils ne sont pas cochés.
+  const enabled = Array.from(new Set([...(agent.config.tools ?? []), ...flowToolNames(flow)]));
   const customByName = new Map(customs.map((c) => [c.name, c]));
   const tools: ResolvedTool[] = [
     ...resolveTools(enabled).map((d) => ({ name: d.name, description: d.description, parameters: d.parameters })),

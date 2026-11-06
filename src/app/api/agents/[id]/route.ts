@@ -7,6 +7,9 @@ import {
 } from "@/lib/db/agents";
 import { updateAgentSchema } from "@/lib/validation/agent";
 import { dispatchEvent } from "@/lib/webhooks/dispatch";
+import { checkFlow } from "@/lib/flow/flow";
+import { listCustomTools } from "@/lib/db/custom-tools";
+import { ALL_TOOLS } from "@/lib/tools/registry";
 import { ok, badRequest, notFound, serverError } from "@/lib/api/respond";
 import type {
   AgentConfig,
@@ -45,6 +48,12 @@ export async function PATCH(req: NextRequest, { params }: Ctx) {
       return badRequest(msg, parsed.error.flatten());
     }
     const d = parsed.data;
+    if (d.config?.flow) {
+      const customs = await listCustomTools(access.agent.organizationId);
+      const known = [...ALL_TOOLS.map((t) => t.name), ...customs.map((c) => c.name)];
+      const { errors } = checkFlow(d.config.flow, known);
+      if (errors.length) return badRequest(`Parcours invalide : ${errors[0].message}`);
+    }
     // FK vides -> null (sinon violation de contrainte sur PostgreSQL).
     const patch: UpdateAgentInput = {
       ...(d.name !== undefined ? { name: d.name } : {}),

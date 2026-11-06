@@ -1,4 +1,5 @@
 import { checkDestination } from "../telephony/destinations";
+import { flowSchema } from "../flow/flow";
 /**
  * Schémas de validation Zod pour l'API agents.
  * Les types métier (`@/lib/shared/types`) restent la source de vérité ;
@@ -99,6 +100,7 @@ export const configSchema = z.object({
       message: z.string().trim().max(600).optional(),
     })
     .optional(),
+  flow: flowSchema.optional(),
 });
 
 export const createAgentSchema = z.object({

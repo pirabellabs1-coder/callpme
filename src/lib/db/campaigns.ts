@@ -157,6 +157,9 @@ function pickOutcome(seed: number) {
  * Sans téléphonie configurée, on retombe sur un dialer simulé (utile pour la
  * démo et les tests) — chaque contact reçoit une issue plausible.
  */
+/** Levée quand on tente de lancer une campagne en pause. */
+export class CampaignPausedError extends Error {}
+
 export async function runCampaign(orgId: string, id: string) {
   const camp = await prisma.campaign.findUnique({
     where: { id },
@@ -166,6 +169,8 @@ export async function runCampaign(orgId: string, id: string) {
     },
   });
   if (!camp || camp.organizationId !== orgId) return null;
+  // Une campagne en pause ne doit jamais composer, même via un appel API direct.
+  if (camp.status === "paused") throw new CampaignPausedError();
 
   /* ---------------------------- Mode RÉEL (Vapi) ---------------------------- */
   if (vapiConfigured()) {

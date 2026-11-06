@@ -38,14 +38,14 @@ export default function LandingPage() {
             </BlurFade>
             <BlurFade delay={0.08}>
               <h1 className="mt-6 text-display-2xl font-semibold tracking-tight text-foreground text-balance">
-                Répondez à chaque appel, à toute heure.
+                Répondez à tous vos appels, à toute heure.
               </h1>
             </BlurFade>
             <BlurFade delay={0.16}>
               <p className="mt-6 max-w-xl text-lg leading-relaxed text-muted-foreground text-pretty">
-                Callpme répond au téléphone pour votre entreprise. L'agent prend les
-                rendez-vous, qualifie les demandes et transfère les urgences. Chaque appel
-                est transcrit et résumé dans votre tableau de bord.
+                Votre agent vocal décroche à votre place. Il prend vos rendez-vous, qualifie
+                vos demandes et vous transfère les urgences. Vous retrouvez chaque appel
+                transcrit et résumé dans votre tableau de bord.
               </p>
             </BlurFade>
             <BlurFade delay={0.24}>
@@ -55,7 +55,7 @@ export default function LandingPage() {
                   href="/produit"
                   className="inline-flex items-center rounded-full px-5 py-3 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
                 >
-                  Découvrir le produit
+                  Voir ce que fait votre agent
                 </Link>
               </div>
               <p className="mt-5 text-xs text-muted-foreground">
@@ -87,8 +87,8 @@ export default function LandingPage() {
         <div className="container-marketing">
           <SectionHeading
             eyebrow="Démo"
-            title="Un appel, de la sonnerie au résumé."
-            subtitle="Un client appelle un garage à 2 h du matin. Voici ce que fait l'agent."
+            title="Votre agent gère l'appel, de la sonnerie au résumé."
+            subtitle="Un client appelle votre garage à 2 h du matin. Voici ce que fait votre agent pendant que vous dormez."
           />
           <div className="mt-16">
             <CallJourney />
@@ -99,8 +99,8 @@ export default function LandingPage() {
       <Section id="produit">
         <SectionHeading
           eyebrow="Produit"
-          title="Répondre, agir, suivre. Dans un seul outil."
-          subtitle="L'agent gère l'appel du début à la fin, puis vous en donne le compte rendu. Paiement, numéros et voix sont adaptés aux marchés francophones."
+          title="Gérez tous vos appels depuis un seul outil."
+          subtitle="Votre agent gère chaque appel du début à la fin, puis vous en donne le compte rendu. Paiement, numéros et voix sont adaptés à votre marché."
         />
         <div className="mt-16">
           <ProductBento />
@@ -113,7 +113,7 @@ export default function LandingPage() {
       <Section id="metiers">
         <SectionHeading
           eyebrow="Métiers"
-          title="Des modèles adaptés à votre secteur."
+          title="Votre agent parle le langage de votre métier."
           subtitle="Chaque modèle connaît le vocabulaire et les questions courantes de son secteur."
         />
         <div className="mt-14">
@@ -130,7 +130,7 @@ export default function LandingPage() {
         <div className="container-marketing relative">
           <SectionHeading
             eyebrow="Tableau de bord"
-            title="Tous vos appels sur un seul écran."
+            title="Suivez tous vos appels sur un seul écran."
             subtitle="Appels, rendez-vous, taux de résolution. Vous voyez ce qui fonctionne et ce qu'il faut ajuster."
           />
           <BlurFade delay={0.1} className="mt-16">
@@ -143,8 +143,8 @@ export default function LandingPage() {
       <Section id="pour-qui">
         <SectionHeading
           eyebrow="Pour qui"
-          title="Une plateforme, trois usages."
-          subtitle="La même technologie sert la PME qui veut un standard, l'agence qui revend et le développeur qui intègre."
+          title="Callpme s'adapte à votre activité."
+          subtitle="Que vous dirigiez une PME, une agence ou une équipe technique, vous utilisez la même plateforme."
         />
         <div className="mt-16">
           <AudienceCards />
@@ -163,8 +163,8 @@ export default function LandingPage() {
             <SectionHeading
               align="left"
               eyebrow="Mise en route"
-              title="Du compte au premier appel en quinze minutes."
-              subtitle="Sans intégrateur ni frais de mise en service."
+              title="Votre agent répond à son premier appel en quinze minutes."
+              subtitle="Vous le configurez vous-même, sans intégrateur ni frais de mise en service."
             />
           </div>
           <StepsList />
@@ -174,8 +174,8 @@ export default function LandingPage() {
       <Section id="tarifs">
         <SectionHeading
           eyebrow="Tarifs"
-          title="Des forfaits simples, sans engagement."
-          subtitle="Les minutes incluses couvrent la voix, la transcription et la téléphonie. Aucun frais caché."
+          title="Choisissez votre forfait, sans engagement."
+          subtitle="Vos minutes incluent la voix, la transcription et la téléphonie. Vous ne payez aucun frais caché."
         />
         <div className="mt-14">
           <PricingTeaser />
@@ -184,7 +184,7 @@ export default function LandingPage() {
 
       <Section id="faq">
         <div className="grid gap-16 lg:grid-cols-[0.8fr_1.2fr]">
-          <SectionHeading align="left" eyebrow="Questions" title="Questions fréquentes" subtitle="Vous ne trouvez pas votre réponse ? Écrivez-nous depuis la page contact." />
+          <SectionHeading align="left" eyebrow="Questions" title="Vos questions" subtitle="Vous ne trouvez pas votre réponse ? Écrivez-nous depuis la page contact." />
           <FaqList />
         </div>
       </Section>

@@ -182,7 +182,7 @@ export function Bullet({ children }: { children: React.ReactNode }) {
 export function ProductBento() {
   return (
     <div className="grid gap-4 md:grid-cols-6">
-      <BentoCard className="md:col-span-4" icon={<Workflow className="size-5" strokeWidth={1.5} />} title="Six rôles prêts à l'emploi" body="Standard, rendez-vous, support, qualification, vente, enquête. Chaque rôle a ses propres consignes et actions.">
+      <BentoCard className="md:col-span-4" icon={<Workflow className="size-5" strokeWidth={1.5} />} title="Choisissez le rôle de votre agent" body="Standard, rendez-vous, support, qualification, vente, enquête. Chaque rôle est prêt à l'emploi, avec ses consignes et ses actions.">
         <div className="mt-8 flex flex-wrap gap-2">
           {ALL_ROLE_META.map((r) => (
             <span key={r.key} className="inline-flex items-center gap-2 rounded-full border border-border bg-foreground/[0.03] px-3 py-1.5 text-xs text-foreground">
@@ -192,12 +192,12 @@ export function ProductBento() {
           ))}
         </div>
       </BentoCard>
-      <BentoCard className="md:col-span-2" icon={<Smartphone className="size-5" strokeWidth={1.5} />} title="Mobile Money" body="Payez en FCFA avec Orange Money, MTN, Wave ou Moov, sans carte internationale." />
-      <BentoCard className="md:col-span-2" icon={<Globe2 className="size-5" strokeWidth={1.5} />} title="Numéros locaux" body="Numéros en France, en Belgique, en Suisse et au Canada. L'Afrique de l'Ouest suivra." />
-      <BentoCard className="md:col-span-2" icon={<CalendarCheck className="size-5" strokeWidth={1.5} />} title="Des actions pendant l'appel" body="L'agent réserve dans votre agenda, crée la fiche dans votre CRM et envoie la confirmation par SMS." />
-      <BentoCard className="md:col-span-2" icon={<BookOpen className="size-5" strokeWidth={1.5} />} title="Il connaît votre entreprise" body="Importez vos PDF, votre FAQ ou votre site. L'agent répond à partir de vos documents." />
-      <BentoCard className="md:col-span-3" icon={<ChartNoAxesColumn className="size-5" strokeWidth={1.5} />} title="Un résumé pour chaque appel" body="Transcription, enregistrement, résumé et issue de l'appel. Les statistiques montrent ce que vos clients demandent." />
-      <BentoCard className="md:col-span-3" icon={<Code2 className="size-5" strokeWidth={1.5} />} title="Une API complète" body="API REST, clés d'API et webhooks signés. Tout ce que fait le tableau de bord est aussi disponible par API." />
+      <BentoCard className="md:col-span-2" icon={<Smartphone className="size-5" strokeWidth={1.5} />} title="Payez par Mobile Money" body="Réglez en FCFA avec Orange Money, MTN, Wave ou Moov, sans carte internationale." />
+      <BentoCard className="md:col-span-2" icon={<Globe2 className="size-5" strokeWidth={1.5} />} title="Obtenez un numéro local" body="Disponible en France, en Belgique, en Suisse et au Canada. L'Afrique de l'Ouest suivra." />
+      <BentoCard className="md:col-span-2" icon={<CalendarCheck className="size-5" strokeWidth={1.5} />} title="Votre agent agit pendant l'appel" body="Il réserve dans votre agenda, crée la fiche dans votre CRM et envoie la confirmation par SMS à votre client." />
+      <BentoCard className="md:col-span-2" icon={<BookOpen className="size-5" strokeWidth={1.5} />} title="Il connaît votre entreprise" body="Importez vos PDF, votre FAQ ou votre site. Votre agent répond à partir de vos documents." />
+      <BentoCard className="md:col-span-3" icon={<ChartNoAxesColumn className="size-5" strokeWidth={1.5} />} title="Vous recevez un résumé de chaque appel" body="Transcription, enregistrement, résumé et issue de l'appel. Vos statistiques montrent ce que vos clients demandent." />
+      <BentoCard className="md:col-span-3" icon={<Code2 className="size-5" strokeWidth={1.5} />} title="Pilotez tout par API" body="API REST, clés d'API et webhooks signés. Tout ce que vous faites dans le tableau de bord est aussi disponible par API." />
     </div>
   );
 }
@@ -297,7 +297,7 @@ export function PricingCards() {
         ))}
       </div>
       <p className="mt-8 text-center text-sm text-muted-foreground">
-        Développeurs : {API_PRICE} la minute tout compris, facturé à l'usage.{" "}
+        Vous êtes développeur ? {API_PRICE} la minute tout compris, facturé à l'usage.{" "}
         <Link href="/developpeurs" className="text-foreground underline underline-offset-4">Voir l'API</Link>
       </p>
     </>
@@ -326,7 +326,7 @@ export function FaqList({ items = FAQ }: { items?: { q: string; a: string }[] })
 /** Bandeau d'appel à l'action de fin de page. */
 export function CtaBand({
   title = "Ne laissez plus un appel sans réponse.",
-  subtitle = "Créez votre agent et testez-le gratuitement avant de choisir un forfait.",
+  subtitle = "Créez votre agent et testez-le gratuitement. Vous choisirez votre forfait ensuite.",
   href = "/register",
   label = "Essayer gratuitement",
 }: {

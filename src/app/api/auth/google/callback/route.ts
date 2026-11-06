@@ -4,6 +4,8 @@ import { randomBytes } from "crypto";
 import { prisma } from "@/lib/db/client";
 import { hashPassword } from "@/lib/auth/password";
 import { CLIENT_COOKIE, createSession, SESSION_COOKIE } from "@/lib/auth/session";
+import { sendEmail } from "@/lib/email/resend";
+import { welcomeEmail } from "@/lib/email/templates";
 
 export const dynamic = "force-dynamic";
 
@@ -49,10 +51,12 @@ export async function GET(req: NextRequest) {
     });
     const profile = await profRes.json();
     const email = String(profile.email || "").toLowerCase().trim();
-    if (!email) return fail;
+    // Seule une adresse vérifiée par Google peut ouvrir (ou créer) un compte à ce nom.
+    if (!email || profile.verified_email !== true) return fail;
 
     // 3) Retrouve ou crée le compte (+ organisation pour un nouveau compte)
     let user = await prisma.user.findUnique({ where: { email } });
+    const isNew = !user;
     if (!user) {
       const name = String(profile.name || email.split("@")[0]);
       const passwordHash = await hashPassword(randomBytes(24).toString("hex"));
@@ -65,6 +69,8 @@ export async function GET(req: NextRequest) {
         include: { users: true },
       });
       user = org.users[0];
+      const wel = welcomeEmail(name, org.name);
+      void sendEmail({ to: email, subject: wel.subject, html: wel.html, text: wel.text }).catch(() => {});
     }
 
     // 4) Double authentification active : le code est demandé avant toute session.
@@ -89,7 +95,8 @@ export async function GET(req: NextRequest) {
       res.cookies.delete("g_state");
       return res;
     }
-    const res = NextResponse.redirect(`${base}/overview`);
+    // Nouveau compte : le parcours guidé de démarrage ; sinon le tableau de bord.
+    const res = NextResponse.redirect(`${base}${isNew ? "/start" : "/overview"}`);
     res.cookies.set(SESSION_COOKIE, token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",

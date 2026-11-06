@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { GoogleButton, OrSeparator } from "@/components/auth/google-button";
 
 export function RegisterForm({ plan }: { plan?: string }) {
   const router = useRouter();
@@ -75,7 +76,10 @@ export function RegisterForm({ plan }: { plan?: string }) {
         </div>
       )}
 
-      <form onSubmit={submit} className="mt-6 space-y-4">
+      <GoogleButton label="S'inscrire avec Google" className="mt-6" />
+      <OrSeparator />
+
+      <form onSubmit={submit} className="space-y-4">
         <div className="space-y-2">
           <Label htmlFor="org">Nom de l'organisation</Label>
           <Input

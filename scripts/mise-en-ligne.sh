@@ -29,7 +29,7 @@ done
 # Sur Vercel, une seule connexion par fonction (pooler Supabase en mode transaction).
 push DATABASE_URL "$(val DATABASE_URL .env | sed 's/connection_limit=[0-9]*/connection_limit=1/')"
 for k in ANTHROPIC_API_KEY OPENAI_API_KEY MISTRAL_API_KEY DEEPGRAM_API_KEY ELEVENLABS_API_KEY \
-         TWILIO_ACCOUNT_SID TWILIO_AUTH_TOKEN RESEND_API_KEY RESEND_FROM; do
+         TWILIO_ACCOUNT_SID TWILIO_AUTH_TOKEN RESEND_API_KEY RESEND_FROM GOOGLE_CLIENT_ID GOOGLE_CLIENT_SECRET; do
   push "$k" "$(val "$k" .env)"
 done
 push PUBLIC_URL "$PROD_URL"

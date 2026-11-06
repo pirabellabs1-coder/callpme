@@ -2,6 +2,8 @@ import Link from "next/link";
 import { Building2, ArrowRight } from "lucide-react";
 import { requireSession } from "@/lib/auth/session";
 import { listClients } from "@/lib/db/clients";
+import { outcomesByAgent, startOfMonth, usageByClient } from "@/lib/db/outcomes";
+import { formatNumber } from "@/lib/utils";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { ClientsManager } from "@/components/clients/clients-manager";
 import { Card } from "@/components/ui/card";
@@ -46,7 +48,13 @@ export default async function ClientsPage() {
     );
   }
 
-  const clients = await listClients(session.org.id);
+  const [clients, outcomes] = await Promise.all([
+    listClients(session.org.id),
+    outcomesByAgent(session.org.id, startOfMonth()),
+  ]);
+  const usage = usageByClient(outcomes);
+  const nameOf = (id: string | null) => (id ? clients.find((c) => c.id === id)?.name ?? "Client supprimé" : "Agence (sans client)");
+  const month = new Intl.DateTimeFormat("fr-FR", { month: "long", year: "numeric" }).format(new Date());
 
   return (
     <div className="space-y-6">
@@ -54,6 +62,39 @@ export default async function ClientsPage() {
         title="Clients"
         description="Gérez les sous-comptes de votre agence — chaque client a ses propres agents."
       />
+      {usage.some((u) => u.calls > 0) && (
+        <Card className="overflow-x-auto">
+          <div className="p-5 pb-3">
+            <h2 className="text-[0.95rem] font-semibold tracking-tight">Consommation de {month}</h2>
+            <p className="text-sm text-muted-foreground">Minutes et résultats par client, pour piloter et refacturer.</p>
+          </div>
+          <table className="w-full min-w-[640px] text-sm">
+            <caption className="sr-only">Consommation par client ce mois-ci</caption>
+            <thead>
+              <tr className="border-y border-border text-left text-xs uppercase tracking-wide text-muted-foreground">
+                <th scope="col" className="px-5 py-2.5 font-medium">Client</th>
+                <th scope="col" className="px-3 py-2.5 text-right font-medium">Agents</th>
+                <th scope="col" className="px-3 py-2.5 text-right font-medium">Appels</th>
+                <th scope="col" className="px-3 py-2.5 text-right font-medium">Minutes</th>
+                <th scope="col" className="px-3 py-2.5 text-right font-medium">Rendez-vous</th>
+                <th scope="col" className="px-5 py-2.5 text-right font-medium">Prospects</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border tabular-nums">
+              {usage.map((u) => (
+                <tr key={u.clientId ?? "none"}>
+                  <th scope="row" className="px-5 py-3 text-left font-medium">{nameOf(u.clientId)}</th>
+                  <td className="px-3 py-3 text-right text-muted-foreground">{u.agents}</td>
+                  <td className="px-3 py-3 text-right">{formatNumber(u.calls)}</td>
+                  <td className="px-3 py-3 text-right font-medium text-foreground">{formatNumber(u.minutes)}</td>
+                  <td className="px-3 py-3 text-right">{u.appointments || "—"}</td>
+                  <td className="px-5 py-3 text-right">{u.leads || "—"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </Card>
+      )}
       <ClientsManager initial={clients} />
     </div>
   );

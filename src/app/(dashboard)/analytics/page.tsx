@@ -17,6 +17,9 @@ import { cn, formatDuration, formatNumber } from "@/lib/utils";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { SeedNotice } from "@/components/dashboard/seed-notice";
 import { StatCard } from "@/components/ui/stat";
+import { outcomesByAgent } from "@/lib/db/outcomes";
+import { AgentOutcomesTable } from "@/components/analytics/agent-outcomes";
+import { zonedDayStart } from "@/lib/db/calls";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { RoleIcon } from "@/components/role-badge";
@@ -98,6 +101,7 @@ export default async function AnalyticsPage({
     : 14;
 
   const a = await getAnalytics(org.id, days);
+  const outcomes = await outcomesByAgent(org.id, zonedDayStart(a.fromDate));
 
   const range = `du ${formatYmd(a.fromDate, { day: "numeric", month: "long" })} au ${formatYmd(a.toDate, { day: "numeric", month: "long", year: "numeric" })}`;
   const header = (
@@ -377,6 +381,8 @@ export default async function AnalyticsPage({
           </ul>
         </Card>
       </div>
+
+      <AgentOutcomesTable rows={outcomes} caption={`Ce que chaque agent a produit ${range}.`} />
     </div>
   );
 }

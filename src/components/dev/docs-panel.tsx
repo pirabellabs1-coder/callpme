@@ -178,6 +178,12 @@ export function DocsPanel({ apiBaseUrl }: { apiBaseUrl: string }) {
     `curl "${base}/calls?agentId=AGENT_ID&direction=inbound&limit=50" \\`,
     `  -H "Authorization: Bearer $CALLPME_KEY"`,
   ].join("\n");
+  const createCallCurl = [
+    `curl -X POST "${base}/calls" \\`,
+    `  -H "Authorization: Bearer $CALLPME_KEY" \\`,
+    `  -H "Content-Type: application/json" \\`,
+    `  -d '{"agentId":"AGENT_ID","to":"+22901970000","variables":{"nom":"Awa","produit":"crédit"}}'`,
+  ].join("\n");
   const callResp = [
     "{",
     '  "data": {',
@@ -374,6 +380,16 @@ export function DocsPanel({ apiBaseUrl }: { apiBaseUrl: string }) {
         desc="Historique des appels. Filtres : agentId, status (completed | transferred | failed | missed | in_progress), direction (inbound | outbound), limit (défaut 100, max 500)."
       >
         <CodeBlock language="bash" code={callsCurl} />
+      </DocSection>
+
+      {/* Lancer un appel */}
+      <DocSection
+        title="Lancer un appel sortant"
+        method="POST"
+        path="/api/v1/calls"
+        desc="L'agent (« En ligne ») appelle le numéro. Les variables (10 au plus) remplacent {nom}, {produit}… dans le message d'accueil et sont connues de l'agent. Mêmes règles que les campagnes : pays autorisés, liste d'opposition, minutes de l'offre, plafond de 300 appels par jour. Réponse 202 avec l'identifiant de l'appel ; le résultat arrive par le webhook call.completed."
+      >
+        <CodeBlock language="bash" code={createCallCurl} />
       </DocSection>
 
       {/* Récupérer un appel */}

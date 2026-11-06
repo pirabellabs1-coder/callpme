@@ -10,6 +10,11 @@ export const voiceSchema = z.object({
   voiceId: z.string().max(120),
   language: z.string().min(2).max(12),
   speed: z.number().min(0.5).max(2),
+  // Champs optionnels conservés (sinon supprimés par zod et jamais enregistrés).
+  kind: z.enum(["preset", "custom", "provider"]).optional(),
+  // Enregistrement Studio en data URL audio : taille plafonnée (~2 Mo).
+  sampleUrl: z.string().max(2_800_000).regex(/^(data:audio\/|https:\/\/)/).nullable().optional(),
+  voiceLabel: z.string().max(120).optional(),
 });
 
 export const modelSchema = z.object({

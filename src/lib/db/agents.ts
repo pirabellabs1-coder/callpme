@@ -77,10 +77,15 @@ function toAgent(row: AgentRow, stats?: AgentStats): Agent {
 
 /* ------------------------------ Statistiques ----------------------------- */
 
+/** Minuit aujourd'hui à l'heure de Paris (indépendant du fuseau du serveur). */
 function startOfToday(): Date {
-  const d = new Date();
-  d.setHours(0, 0, 0, 0);
-  return d;
+  const now = new Date();
+  const parts = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Paris", year: "numeric", month: "2-digit", day: "2-digit" }).format(now);
+  // Décalage de Paris par rapport à UTC à cet instant (heure d'été comprise).
+  const paris = new Date(now.toLocaleString("en-US", { timeZone: "Europe/Paris" }));
+  const utc = new Date(now.toLocaleString("en-US", { timeZone: "UTC" }));
+  const offsetMs = paris.getTime() - utc.getTime();
+  return new Date(new Date(`${parts}T00:00:00Z`).getTime() - offsetMs);
 }
 
 /** Agrège, pour chaque agent de l'org, total / aujourd'hui / durée moy. / taux de résolution. */
@@ -149,7 +154,7 @@ export async function listAgents(
       ...(opts.status ? { status: opts.status } : {}),
       ...(opts.clientId ? { clientId: opts.clientId } : {}),
       ...(opts.search
-        ? { name: { contains: opts.search } }
+        ? { name: { contains: opts.search, mode: "insensitive" as const } }
         : {}),
     },
     orderBy: { createdAt: "desc" },

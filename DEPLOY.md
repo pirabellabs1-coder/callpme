@@ -1,4 +1,4 @@
-# Déploiement Callpme — Vercel + PostgreSQL (Neon)
+# Déploiement Callpme — Vercel + PostgreSQL (Supabase ou Neon)
 
 Le schéma Prisma est déjà en **PostgreSQL** (`prisma/schema.prisma`), en local
 comme en production. Utilisez des bases distinctes : une base de développement
@@ -15,6 +15,19 @@ Créez le schéma :
 ```bash
 DATABASE_URL="postgresql://…" npx prisma db push
 ```
+
+**Supabase** (base actuelle) : bouton « Connect » du projet, rubrique pooler.
+N'utilisez pas l'hôte direct `db.<projet>.supabase.co` (IPv6 seulement,
+injoignable depuis Vercel).
+
+- Application (Vercel, développement) : *Transaction pooler*, port `6543`,
+  suffixe `?pgbouncer=true&connection_limit=5&connect_timeout=30` (sur Vercel,
+  `connection_limit=1`). Le mode session sature dès que le tableau de bord
+  lance ses requêtes en parallèle.
+- `prisma db push` et serveur vocal (processus long) : *Session pooler*, même
+  hôte, port `5432`. Exemple :
+  `DATABASE_URL="postgresql://postgres.<projet>:<mot de passe>@aws-1-eu-central-1.pooler.supabase.com:5432/postgres" npx prisma db push`
+- L'extension `vector` (base de connaissances) est créée par `db push`.
 
 Une base déjà créée avec l'ancien schéma (Vapi) demande
 `npx prisma db push --accept-data-loss` : la colonne `Contact.vapiCallId` est

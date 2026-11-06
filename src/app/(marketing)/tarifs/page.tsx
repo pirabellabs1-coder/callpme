@@ -53,7 +53,7 @@ const COMPARISON: { group: string; rows: { label: string; values: [Cell, Cell, C
 const BILLING_FAQ = [
   { q: "Puis-je changer de forfait ?", a: "Oui, depuis la page Facturation de votre tableau de bord. L'offre Agence se fait sur devis : envoyez une demande et l'équipe vous recontacte." },
   { q: "Que se passe-t-il si j'approche de ma limite ?", a: "Votre tableau de bord affiche votre consommation et vous alerte à 80 % puis à 100 % de votre forfait. Vous pouvez alors passer à l'offre supérieure." },
-  { q: "Quels moyens de paiement acceptez-vous ?", a: "Carte bancaire, Orange Money, MTN Mobile Money, Wave et Moov Money. La facturation est possible en euros ou en FCFA." },
+  { q: "Quels moyens de paiement acceptez-vous ?", a: "Carte bancaire, Orange Money, MTN Mobile Money, Wave et Moov Money. Tous les prix sont en euros, quel que soit votre pays." },
   { q: "Y a-t-il un engagement ?", a: "Non. Starter et Pro sont des forfaits mensuels, sans engagement." },
   { q: "Les prix incluent-ils la TVA ?", a: "Les prix sont indiqués hors taxes. La TVA applicable dans votre pays est ajoutée à la facture." },
 ];
@@ -124,7 +124,7 @@ export default function TarifsPage() {
           </div>
         </BlurFade>
         <p className="mt-6 text-center text-xs text-muted-foreground">
-          Prix hors taxes. Conversion en FCFA indicative.
+          Prix en euros, hors taxes.
         </p>
       </Section>
 

@@ -102,6 +102,24 @@ export async function setOrgPlan(
   return { ok: true };
 }
 
+/**
+ * Accès démo accordé par l'équipe (il n'y a pas d'essai gratuit automatique) :
+ * DEMO_DAYS jours et quelques minutes d'appel, limites de l'offre Starter.
+ * `days = 0` retire l'accès démo.
+ */
+export async function setDemoAccess(orgId: string, days: number): Promise<AdminResult> {
+  await requireAdmin();
+  if (!Number.isInteger(days) || days < 0 || days > 30) return { error: "Durée invalide." };
+  const org = await prisma.organization.findUnique({ where: { id: orgId }, select: { id: true } });
+  if (!org) return { error: "Organisation introuvable." };
+  await prisma.organization.update({
+    where: { id: orgId },
+    data: { trialEndsAt: days === 0 ? null : new Date(Date.now() + days * 86_400_000) },
+  });
+  revalidatePath("/admin/organizations");
+  return { ok: true };
+}
+
 /* ------------------------------- E-mails --------------------------------- */
 
 export async function sendPlatformEmail(

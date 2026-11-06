@@ -49,8 +49,8 @@ export default async function StartPage() {
 
       {sub.status === "trial" && (
         <p className="rounded-xl border border-border bg-secondary/40 px-4 py-3 text-sm">
-          Essai gratuit : {sub.daysLeft} jour{sub.daysLeft > 1 ? "s" : ""} et {sub.minutesIncluded} minutes d&apos;appel pour tout
-          essayer.{" "}
+          Accès démo : {sub.daysLeft} jour{sub.daysLeft > 1 ? "s" : ""} et {sub.minutesIncluded} minutes d&apos;appel, offerts par
+          l&apos;équipe Callpme.{" "}
           <Link href="/billing" className="font-medium text-brand hover:underline">
             Voir les offres
           </Link>

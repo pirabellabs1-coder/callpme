@@ -133,7 +133,7 @@ function KnowledgeVisual() {
       </ul>
       <div className="mt-4 rounded-xl border border-border bg-background/50 p-4 text-sm">
         <p className="text-muted-foreground">« Combien coûte une consultation ? »</p>
-        <p className="mt-2 text-foreground">« La consultation est à 25 000 FCFA, remboursable sur présentation de votre carte. »</p>
+        <p className="mt-2 text-foreground">« La consultation est à 40 €, remboursable sur présentation de votre carte. »</p>
         <p className="mt-2 text-xs text-muted-foreground">Source : tarifs-2026.pdf, page 2</p>
       </div>
     </Panel>
@@ -286,7 +286,7 @@ export default function ProduitPage() {
         title="Tout ce que fait un agent Callpme."
         subtitle="Six modules qui fonctionnent ensemble, de la configuration de l'agent jusqu'à l'analyse de chaque appel."
       >
-        <PrimaryCta href="/register">Essayer gratuitement</PrimaryCta>
+        <PrimaryCta href="/contact">Demander une démo</PrimaryCta>
         <PrimaryCta href="/tarifs" variant="ghost">Voir les tarifs</PrimaryCta>
       </PageHero>
 

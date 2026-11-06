@@ -5,12 +5,12 @@ import { AlertCircle, Loader2, Smartphone } from "lucide-react";
 import { startTopup } from "@/app/actions/billing";
 import { MINUTE_PACKS } from "@/lib/billing/topups";
 import { Button } from "@/components/ui/button";
+import { formatEur } from "@/lib/billing/money";
 
-export function TopupPacks({ xofRate, disabledReason }: { xofRate: number; disabledReason?: string }) {
+export function TopupPacks({ disabledReason }: { disabledReason?: string }) {
   const [pending, start] = useTransition();
   const [target, setTarget] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const fcfa = (eur: number) => new Intl.NumberFormat("fr-FR").format(Math.round(eur * xofRate));
 
   return (
     <div className="space-y-3">
@@ -19,11 +19,9 @@ export function TopupPacks({ xofRate, disabledReason }: { xofRate: number; disab
           <li key={p.id} className="flex flex-col rounded-xl border border-border bg-card p-4">
             <p className="font-semibold">{p.label}</p>
             <p className="mt-1 tabular text-xl font-semibold">
-              {fcfa(p.priceEur)} <span className="text-sm font-normal text-muted-foreground">FCFA</span>
+              {formatEur(p.priceEur)}
             </p>
-            <p className="text-xs text-muted-foreground">
-              ≈ {p.priceEur} € · {fcfa(p.priceEur / p.minutes)} FCFA la minute
-            </p>
+            <p className="text-xs text-muted-foreground">{formatEur(Math.round((p.priceEur / p.minutes) * 1000) / 1000)} la minute</p>
             <Button
               variant="outline"
               size="sm"

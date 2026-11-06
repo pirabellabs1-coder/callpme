@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/db/client";
-import { getGeniusPaymentStatus, isPaid } from "@/lib/payments/geniuspay";
+import { getGeniusPaymentStatus, isFailed, isPaid } from "@/lib/payments/geniuspay";
 import { extendPaidUntil } from "@/lib/billing/subscription";
 
 /**
@@ -44,6 +44,10 @@ export async function confirmAndActivatePayment(
   const status = payment.reference
     ? await getGeniusPaymentStatus(payment.reference)
     : null;
+  if (isFailed(status)) {
+    await prisma.payment.updateMany({ where: { id: payment.id, status: "pending" }, data: { status: "failed" } });
+    return "failed";
+  }
   if (!isPaid(status)) return "pending";
 
   // Passage à « completed » une seule fois (page de retour et webhook peuvent arriver ensemble).

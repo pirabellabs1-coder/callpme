@@ -97,10 +97,12 @@ export async function getLaunchState(agent: Agent): Promise<LaunchState> {
     {
       key: "plan",
       title: "Avoir une offre active",
-      why: "Les minutes d'appel sont comprises dans votre essai ou votre offre.",
+      why: "Les minutes d'appel sont comprises dans votre offre (ou votre accès démo).",
       done: sub.status !== "expired",
       required: true,
-      todo: "Votre abonnement a expiré : renouvelez-le pour que l'agent reprenne les appels.",
+      todo: sub.neverPaid
+        ? "Choisissez une offre pour que l'agent prenne des appels, ou demandez une démo à l'équipe."
+        : "Votre abonnement a expiré : renouvelez-le pour que l'agent reprenne les appels.",
       action: { label: "Facturation", href: "/billing" },
     },
   ];

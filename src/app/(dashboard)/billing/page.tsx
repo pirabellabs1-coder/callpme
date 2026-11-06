@@ -9,7 +9,7 @@ import { PageHeader } from "@/components/dashboard/page-header";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { BillingPlans } from "@/components/billing/billing-plans";
-import { EUR_TO_XOF } from "@/lib/payments/geniuspay";
+import { formatEur } from "@/lib/billing/money";
 import { cn } from "@/lib/utils";
 
 export const metadata = { title: "Facturation" };
@@ -109,10 +109,12 @@ export default async function BillingPage() {
   const dateFmt = new Intl.DateTimeFormat("fr-FR", { day: "numeric", month: "long", year: "numeric" });
   const statusText =
     sub.status === "trial"
-      ? `Essai gratuit jusqu'au ${dateFmt.format(sub.endsAt)} (${sub.daysLeft} jour${sub.daysLeft > 1 ? "s" : ""}) : ${sub.minutesIncluded} minutes d'appel pour découvrir Callpme.`
+      ? `Accès démo jusqu'au ${dateFmt.format(sub.endsAt)} (${sub.daysLeft} jour${sub.daysLeft > 1 ? "s" : ""}) : ${sub.minutesIncluded} minutes d'appel offertes par l'équipe Callpme.`
       : sub.status === "active"
         ? `Payé jusqu'au ${dateFmt.format(sub.endsAt)} (${sub.daysLeft} jour${sub.daysLeft > 1 ? "s" : ""}). Renouvelez quand vous voulez : les jours s'ajoutent.`
-        : `Expiré depuis le ${dateFmt.format(sub.endsAt)} : vos agents ne prennent plus d'appels. Vos données sont conservées.`;
+        : sub.neverPaid
+          ? "Aucune offre active : choisissez une offre ci-dessous pour que vos agents prennent des appels. Vous préférez voir Callpme en action d'abord ? Demandez une démo à l'équipe."
+          : `Expiré depuis le ${dateFmt.format(sub.endsAt)} : vos agents ne prennent plus d'appels. Vos données sont conservées.`;
   const agency = agencyRow
     ? {
         id: agencyRow.id,
@@ -141,9 +143,11 @@ export default async function BillingPage() {
             <p className="eyebrow">Offre actuelle</p>
             <div className="mt-2">
               {sub.status === "trial" ? (
-                <Badge variant="brand">Essai gratuit</Badge>
+                <Badge variant="brand">Accès démo</Badge>
               ) : sub.status === "active" ? (
                 <Badge variant="success">Active</Badge>
+              ) : sub.neverPaid ? (
+                <Badge variant="muted">Aucune offre</Badge>
               ) : (
                 <Badge variant="danger">Expirée</Badge>
               )}
@@ -161,19 +165,13 @@ export default async function BillingPage() {
               {plan.priceLabel}
               <span className="text-sm font-normal text-muted-foreground"> {plan.period}</span>
             </p>
-            {plan.priceMonthly != null && (
-              <p className="mt-0.5 font-mono text-xs text-muted-foreground">
-                ≈ {new Intl.NumberFormat("fr-FR").format(Math.round(plan.priceMonthly * EUR_TO_XOF))}{" "}
-                FCFA / mois
-              </p>
-            )}
           </div>
         </div>
 
         <h3 className="mt-6 text-sm font-medium text-foreground">
           Consommation{" "}
           <span className="font-normal text-muted-foreground">
-            · {sub.status === "trial" ? "pendant l'essai" : sub.status === "active" ? `depuis le ${dateFmt.format(sub.periodStart)}` : monthLabel}
+            · {sub.status === "trial" ? "pendant la démo" : sub.status === "active" ? `depuis le ${dateFmt.format(sub.periodStart)}` : monthLabel}
           </span>
         </h3>
         <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
@@ -195,7 +193,7 @@ export default async function BillingPage() {
           Starter et Pro se règlent en ligne. L&apos;offre Agence se fait sur devis :
           envoyez une demande, l&apos;équipe fixe le montant, puis vous réglez.
         </p>
-        <BillingPlans currentPlan={session.org.plan} status={sub.status} agency={agency} xofRate={EUR_TO_XOF} />
+        <BillingPlans currentPlan={session.org.plan} status={sub.status} agency={agency} />
       </section>
 
       {/* Recharges de minutes */}
@@ -210,7 +208,6 @@ export default async function BillingPage() {
           </p>
         </div>
         <TopupPacks
-          xofRate={EUR_TO_XOF}
           disabledReason={sub.status === "expired" ? "Renouvelez d'abord votre offre : les recharges s'utilisent avec une offre active." : undefined}
         />
       </section>
@@ -249,7 +246,7 @@ export default async function BillingPage() {
                       {p.promoCode && <span className="ml-2 font-mono text-xs text-muted-foreground">{p.promoCode}</span>}
                     </td>
                     <td className="px-4 py-2.5 text-right tabular">
-                      {new Intl.NumberFormat("fr-FR").format(p.amountXof)} FCFA
+                      {formatEur(p.amountEur)}
                     </td>
                     <td className="px-4 py-2.5">
                       {p.status === "completed" ? <Badge variant="success">Payé</Badge> : <Badge variant="danger">Échoué</Badge>}
@@ -272,9 +269,9 @@ export default async function BillingPage() {
       <div className="flex items-start gap-3 rounded-xl border border-border bg-secondary/30 p-4">
         <ShieldCheck className="mt-0.5 size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
         <p className="text-xs text-muted-foreground text-pretty">
-          Paiements sécurisés via GeniusPay (mobile money &amp; carte). Les prix sont
-          affichés en euros ; le montant est débité en FCFA à l&apos;équivalent, avec
-          aperçu avant paiement.
+          Paiements sécurisés via GeniusPay (Mobile Money &amp; carte). Tous les prix
+          sont en euros. Pour un règlement par Mobile Money, l&apos;opérateur débite
+          l&apos;équivalent en monnaie locale, au taux fixe de l&apos;euro.
         </p>
       </div>
     </div>

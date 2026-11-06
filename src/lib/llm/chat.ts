@@ -673,7 +673,7 @@ function sales(turn: number, u: string): string {
     case 1:
       return "En une phrase : nous aidons les entreprises à ne plus jamais rater un appel grâce à des agents vocaux. Est-ce que ça vous parle ?";
     case 2:
-      return "Beaucoup de nos clients gagnent plusieurs heures par semaine. Seriez-vous ouvert à un court essai gratuit ?";
+      return "Beaucoup de nos clients gagnent plusieurs heures par semaine. Seriez-vous ouvert à une courte démonstration ?";
     case 3:
       return "Parfait ! Je vous propose qu'un conseiller vous montre ça en quinze minutes. Préférez-vous cette semaine ou la suivante ?";
     default:

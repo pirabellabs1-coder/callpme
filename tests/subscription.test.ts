@@ -5,16 +5,24 @@ const DAY = 86_400_000;
 const now = new Date("2026-11-06T12:00:00Z");
 
 describe("abonnement", () => {
-  it("essai gratuit à l'inscription : 14 jours, minutes limitées, limites Starter", () => {
+  it("pas d'essai gratuit : un nouveau compte n'a aucune minute tant qu'il n'a pas payé", () => {
     const s = subscriptionState({ plan: "starter", createdAt: new Date(now.getTime() - 3 * DAY), paidUntil: null, trialEndsAt: null }, now);
+    expect(s.status).toBe("expired");
+    expect(s.neverPaid).toBe(true);
+    expect(s.minutesIncluded).toBe(0);
+  });
+
+  it("accès démo accordé par l'équipe : minutes limitées, limites Starter", () => {
+    const s = subscriptionState({ plan: "pro", createdAt: new Date(now.getTime() - 20 * DAY), paidUntil: null, trialEndsAt: new Date(now.getTime() + 2 * DAY) }, now);
     expect(s.status).toBe("trial");
     expect(s.minutesIncluded).toBe(TRIAL_MINUTES);
     expect(s.plan.id).toBe("starter");
-    expect(s.daysLeft).toBe(11);
+    expect(s.daysLeft).toBe(2);
+    expect(s.periodStart.getTime()).toBe(now.getTime() - DAY);
   });
 
-  it("essai terminé sans paiement : expiré, plus de minutes", () => {
-    const s = subscriptionState({ plan: "starter", createdAt: new Date(now.getTime() - 20 * DAY), paidUntil: null, trialEndsAt: null }, now);
+  it("accès démo terminé : plus de minutes", () => {
+    const s = subscriptionState({ plan: "starter", createdAt: new Date(now.getTime() - 20 * DAY), paidUntil: null, trialEndsAt: new Date(now.getTime() - DAY) }, now);
     expect(s.status).toBe("expired");
     expect(s.minutesIncluded).toBe(0);
   });
@@ -30,6 +38,7 @@ describe("abonnement", () => {
   it("une offre payée puis échue n'a pas de nouvel essai", () => {
     const s = subscriptionState({ plan: "pro", createdAt: new Date(now.getTime() - 2 * DAY), paidUntil: new Date(now.getTime() - DAY), trialEndsAt: null }, now);
     expect(s.status).toBe("expired");
+    expect(s.neverPaid).toBe(false);
   });
 
   it("renouvellement : les jours s'ajoutent ; changement d'offre : repart d'aujourd'hui", () => {
@@ -44,5 +53,30 @@ describe("abonnement", () => {
     expect(applyPromo(49, { discountType: "percent", discountValue: 150 })).toBe(0);
     expect(applyPromo(49, { discountType: "amount", discountValue: 60 })).toBe(0);
     expect(applyPromo(49, { discountType: "plan", discountValue: 0 })).toBe(49);
+  });
+});
+
+describe("webhook GeniusPay", () => {
+  it("vérifie la signature HMAC et l'horodatage", async () => {
+    const { createHmac } = await import("crypto");
+    const { verifyGeniusWebhook } = await import("@/lib/payments/geniuspay");
+    const body = '{"event":"payment.success","data":{"metadata":{"paymentId":"p1"}}}';
+    const t = Date.UTC(2026, 10, 6, 12);
+    const ts = String(Math.floor(t / 1000));
+    const sig = createHmac("sha256", "whsec_test").update(`${ts}.${body}`).digest("hex");
+    expect(verifyGeniusWebhook(body, sig, ts, "whsec_test", t)).toBe(true);
+    expect(verifyGeniusWebhook(body, `sha256=${sig}`, ts, "whsec_test", t)).toBe(true);
+    expect(verifyGeniusWebhook(body + " ", sig, ts, "whsec_test", t)).toBe(false);
+    expect(verifyGeniusWebhook(body, sig, ts, "autre", t)).toBe(false);
+    expect(verifyGeniusWebhook(body, sig, ts, "whsec_test", t + 10 * 60_000)).toBe(false);
+    expect(verifyGeniusWebhook(body, null, ts, "whsec_test", t)).toBe(false);
+  });
+});
+
+describe("affichage des prix", () => {
+  it("formate toujours en euros", async () => {
+    const { formatEur } = await import("@/lib/billing/money");
+    expect(formatEur(49).replace(/\s/g, " ")).toBe("49 €");
+    expect(formatEur(0.035).replace(/\s/g, " ")).toBe("0,04 €");
   });
 });

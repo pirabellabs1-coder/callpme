@@ -152,7 +152,7 @@ export default function DeveloppeursPage() {
 
       <CtaBand
         title="Votre première clé d'API en deux minutes."
-        subtitle="Créez un compte, générez une clé et lancez votre premier appel avec les crédits d'essai."
+        subtitle="Créez un compte, choisissez une offre, générez une clé et lancez votre premier appel."
         label="Créer un compte"
       />
     </>

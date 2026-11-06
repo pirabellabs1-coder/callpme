@@ -96,10 +96,10 @@ export function MarketingNav() {
             Connexion
           </Link>
           <Link
-            href="/register"
+            href="/contact"
             className="group hidden items-center gap-2 rounded-full bg-primary py-1.5 pl-4 pr-1.5 text-sm font-medium text-primary-foreground transition-transform duration-300 ease-spring active:scale-[0.97] sm:inline-flex"
           >
-            Essai gratuit
+            Demander une démo
             <span className="inline-flex size-6 items-center justify-center rounded-full bg-primary-foreground/10 transition-transform duration-300 ease-spring group-hover:-translate-y-px group-hover:translate-x-0.5">
               <ArrowUpRight className="size-3.5" strokeWidth={1.75} />
             </span>
@@ -139,7 +139,7 @@ export function MarketingNav() {
         className="pointer-events-auto fixed inset-0 -z-10 bg-background/90 backdrop-blur-3xl lg:hidden"
       >
         <nav ref={panelRef} aria-label="Menu mobile" className="flex h-full flex-col justify-center gap-2 px-8">
-          {[...LINKS, { href: "/login", label: "Connexion" }, { href: "/register", label: "Essai gratuit" }].map(
+          {[...LINKS, { href: "/login", label: "Connexion" }, { href: "/contact", label: "Demander une démo" }].map(
             (l, i) => (
               <Link
                 key={l.href}

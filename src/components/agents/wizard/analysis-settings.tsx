@@ -15,7 +15,7 @@ const TYPES: { value: ExtractFieldType; label: string }[] = [
 /** Suggestions courantes pour démarrer vite. */
 const PRESETS: ExtractField[] = [
   { key: "motif", label: "Motif de l'appel", type: "text", description: "La raison principale de l'appel, en quelques mots." },
-  { key: "budget", label: "Budget", type: "number", description: "Budget annoncé, en euros ou FCFA." },
+  { key: "budget", label: "Budget", type: "number", description: "Budget annoncé, en euros." },
   { key: "rappel_souhaite", label: "Rappel souhaité", type: "boolean", description: "L'appelant demande à être rappelé." },
   { key: "urgence", label: "Urgence", type: "choice", options: ["faible", "moyenne", "haute"] },
 ];

@@ -13,10 +13,11 @@ import { sendEmail } from "@/lib/email/resend";
 import {
   createGeniusPayment,
   eurToXof,
+  MIN_XOF,
   geniusConfigured,
 } from "@/lib/payments/geniuspay";
 
-const PUBLIC_URL = process.env.PUBLIC_URL || "https://www.callpme.com";
+const PUBLIC_URL = process.env.PUBLIC_URL || "https://callpme.com";
 
 export interface BillingResult {
   ok?: boolean;
@@ -89,6 +90,7 @@ export async function startCheckout(planId: string, promoCode = ""): Promise<Che
     }
   }
   if (!geniusConfigured()) return { error: "Paiement momentanément indisponible." };
+  if (eurToXof(amountEur) < MIN_XOF) return { error: "Montant trop faible pour un paiement en ligne." };
   const payment = await prisma.payment.create({
     data: {
       organizationId: session.org.id,

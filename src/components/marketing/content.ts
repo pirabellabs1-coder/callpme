@@ -122,7 +122,6 @@ export const STEPS = [
 
 // Offres affichées sur le site : dérivées du catalogue de facturation
 // (src/lib/billing/plans.ts), seule source de vérité pour les prix et limites.
-const XOF_PER_EUR = 655.957;
 const fmt = (n: number) => new Intl.NumberFormat("fr-FR").format(n);
 
 export const PLANS = PLAN_ORDER.map((id) => {
@@ -133,7 +132,6 @@ export const PLANS = PLAN_ORDER.map((id) => {
     name: p.name,
     tagline: p.tagline,
     price: price === null ? null : String(price),
-    fcfa: price === null ? null : fmt(Math.round((price * XOF_PER_EUR) / 500) * 500),
     minutes: p.minutes >= UNLIMITED ? "Volume de minutes sur mesure" : `${fmt(p.minutes)} minutes incluses par mois`,
     features: p.features,
     highlight: Boolean(p.highlight),
@@ -143,7 +141,7 @@ export const PLANS = PLAN_ORDER.map((id) => {
 export const FAQ = [
   { q: "Mes clients sauront-ils qu'ils parlent à une IA ?", a: "Oui. L'agent se présente comme un assistant IA en début d'appel, comme l'exige l'AI Act européen." },
   { q: "Puis-je garder mon numéro actuel ?", a: "Oui. Vous activez un renvoi d'appel vers Callpme, sur toutes vos lignes ou seulement en dehors des heures d'ouverture." },
-  { q: "Comment payer depuis l'Afrique ?", a: "Par Orange Money, MTN, Wave, Moov ou carte bancaire, en FCFA. Aucune carte internationale n'est nécessaire." },
+  { q: "Comment payer depuis l'Afrique ?", a: "Par Orange Money, MTN, Wave, Moov ou carte bancaire. Les prix sont fixés en euros ; aucune carte internationale n'est nécessaire." },
   { q: "Où sont stockées les données ?", a: "Dans l'Union européenne. Vous choisissez la durée de conservation des enregistrements, puis ils sont supprimés." },
   { q: "Que se passe-t-il si l'agent ne sait pas répondre ?", a: "Il transfère l'appel à la personne de votre choix ou prend un message détaillé, selon vos règles." },
 ];

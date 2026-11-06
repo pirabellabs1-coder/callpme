@@ -28,13 +28,11 @@ export function BillingPlans({
   currentPlan,
   status,
   agency,
-  xofRate,
 }: {
   currentPlan: string;
-  /** État de l'abonnement : l'offre en cours se renouvelle, l'essai se transforme. */
+  /** État de l'abonnement : l'offre en cours se renouvelle, la démo se transforme. */
   status: "trial" | "active" | "expired";
   agency: Agency;
-  xofRate: number;
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
@@ -43,9 +41,6 @@ export function BillingPlans({
   const [target, setTarget] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
-
-  const fcfa = (eur: number) =>
-    new Intl.NumberFormat("fr-FR").format(Math.round(eur * xofRate)) + " FCFA";
 
   function checkout(id: PlanId) {
     setError(null);
@@ -163,11 +158,6 @@ export function BillingPlans({
                 </span>
                 <span className="text-sm text-muted-foreground">{plan.period}</span>
               </div>
-              {plan.priceMonthly != null && (
-                <p className="mt-0.5 font-mono text-xs text-muted-foreground">
-                  ≈ {fcfa(plan.priceMonthly)} / mois
-                </p>
-              )}
               <ul className="mt-5 flex-1 space-y-2.5">
                 {plan.features.map((f) => (
                   <li key={f} className="flex items-start gap-2.5 text-sm">

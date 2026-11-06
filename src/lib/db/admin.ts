@@ -168,6 +168,8 @@ export async function listAllOrganizations() {
     users: r._count.users,
     calls: callsByOrg.get(r.id) ?? 0,
     createdAt: r.createdAt.toISOString(),
+    paidUntil: r.paidUntil?.toISOString() ?? null,
+    trialEndsAt: r.trialEndsAt?.toISOString() ?? null,
   }));
 }
 

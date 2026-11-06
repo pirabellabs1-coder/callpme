@@ -1,3 +1,4 @@
+import { formatEur } from "@/lib/billing/money";
 import { notFound } from "next/navigation";
 import { requireSession } from "@/lib/auth/session";
 import { prisma } from "@/lib/db/client";
@@ -75,7 +76,7 @@ export default async function InvoicePage({ params }: { params: { id: string } }
                 {label}
                 {payment.promoCode && <span className="block text-xs text-neutral-500">Code promo : {payment.promoCode}</span>}
               </td>
-              <td className="py-3 text-right tabular-nums">{fmt.format(payment.amountXof)} FCFA</td>
+              <td className="py-3 text-right tabular-nums">{formatEur(payment.amountEur)}</td>
             </tr>
           </tbody>
           <tfoot>
@@ -83,11 +84,11 @@ export default async function InvoicePage({ params }: { params: { id: string } }
               <th scope="row" className="pt-4 text-left font-semibold">
                 Total payé
               </th>
-              <td className="pt-4 text-right text-lg font-semibold tabular-nums">{fmt.format(payment.amountXof)} FCFA</td>
+              <td className="pt-4 text-right text-lg font-semibold tabular-nums">{formatEur(payment.amountEur)}</td>
             </tr>
             <tr>
               <td colSpan={2} className="pt-1 text-right text-xs text-neutral-500">
-                ≈ {fmt.format(payment.amountEur)} € · {payment.amountXof === 0 ? "offert" : "réglé par Mobile Money ou carte (GeniusPay)"}
+                {payment.amountEur === 0 ? "offert" : "montant en euros, réglé par Mobile Money ou carte (GeniusPay)"}
                 {payment.reference ? ` · réf. ${payment.reference}` : ""}
               </td>
             </tr>

@@ -434,7 +434,7 @@ export function CampaignDetail({
                 rows={7}
                 spellCheck={false}
                 className="font-mono text-xs"
-                placeholder={"prenom;nom;telephone;montant\nMarie;Durand;+33 6 12 34 56 78;120 €\nAmadou;Diallo;+221 77 123 45 67;45 000 FCFA"}
+                placeholder={"prenom;nom;telephone;montant\nMarie;Durand;+33 6 12 34 56 78;120 €\nAmadou;Diallo;+221 77 123 45 67;68 €"}
                 aria-describedby={`${ids}-format ${ids}-check`}
               />
 

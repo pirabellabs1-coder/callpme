@@ -3,6 +3,7 @@ import { formatNumber } from "@/lib/utils";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { Card } from "@/components/ui/card";
 import { OrgPlanSelect } from "@/components/admin/org-plan-select";
+import { OrgDemoAccess } from "@/components/admin/org-demo-access";
 
 export const metadata = { title: "Organisations" };
 export const dynamic = "force-dynamic";
@@ -21,6 +22,7 @@ export default async function AdminOrganizationsPage() {
         <div className="hidden items-center gap-4 border-b border-border bg-secondary/40 px-5 py-2.5 text-[0.7rem] font-semibold uppercase tracking-wide text-muted-foreground sm:flex">
           <span className="flex-1">Organisation</span>
           <span className="w-36">Offre (abonnement)</span>
+          <span className="w-44">Accès</span>
           <span className="w-20 text-right">Agents</span>
           <span className="w-20 text-right">Membres</span>
           <span className="w-20 text-right">Appels</span>
@@ -37,6 +39,9 @@ export default async function AdminOrganizationsPage() {
               </div>
               <span className="w-36">
                 <OrgPlanSelect orgId={o.id} plan={o.plan} />
+              </span>
+              <span className="w-44">
+                <OrgDemoAccess orgId={o.id} paidUntil={o.paidUntil} trialEndsAt={o.trialEndsAt} />
               </span>
               <span className="w-20 text-right text-sm tabular text-muted-foreground">{formatNumber(o.agents)}</span>
               <span className="w-20 text-right text-sm tabular text-muted-foreground">{formatNumber(o.users)}</span>

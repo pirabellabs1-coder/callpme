@@ -29,7 +29,7 @@ export async function canCreateAgent(
   return { ok: true };
 }
 
-/** État d'abonnement de l'organisation (essai, payé, expiré). */
+/** État d'abonnement de l'organisation (démo, payé, expiré ou jamais payé). */
 export async function orgSubscription(orgId: string, now = new Date()): Promise<SubscriptionState> {
   const org = await prisma.organization.findUnique({
     where: { id: orgId },
@@ -47,7 +47,7 @@ export async function minutesUsedSince(orgId: string, since: Date): Promise<numb
   return Math.round((agg._sum.durationSec ?? 0) / 60);
 }
 
-/** Minutes consommées sur la période en cours (essai ou mois payé). */
+/** Minutes consommées sur la période en cours (démo ou mois payé). */
 export async function monthlyMinutesUsed(orgId: string): Promise<number> {
   const sub = await orgSubscription(orgId);
   return minutesUsedSince(orgId, sub.periodStart);
@@ -55,8 +55,9 @@ export async function monthlyMinutesUsed(orgId: string): Promise<number> {
 
 /** Message affiché quand l'abonnement ne couvre plus d'appels. */
 function quotaMessage(sub: SubscriptionState): string {
+  if (sub.status === "expired" && sub.neverPaid) return "Aucune offre active. Choisissez une offre dans Facturation pour activer les appels, ou demandez une démo à l'équipe.";
   if (sub.status === "expired") return "Votre abonnement a expiré. Renouvelez-le dans Facturation pour reprendre les appels.";
-  if (sub.status === "trial") return `Les ${sub.minutesIncluded} minutes de l'essai gratuit sont utilisées. Choisissez une offre dans Facturation pour continuer.`;
+  if (sub.status === "trial") return `Les ${sub.minutesIncluded} minutes de votre accès démo sont utilisées. Choisissez une offre dans Facturation pour continuer.`;
   return `Quota de l'offre ${sub.plan.name} atteint (${sub.minutesIncluded} minutes). Passez à une offre supérieure pour continuer.`;
 }
 

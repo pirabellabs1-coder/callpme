@@ -1,15 +1,18 @@
 /**
  * État d'abonnement d'une organisation (module pur, testable).
  *
- * - Essai gratuit à l'inscription : TRIAL_DAYS jours, TRIAL_MINUTES minutes,
- *   limites de l'offre Starter, pas d'achat de numéro.
+ * - Pas d'essai gratuit : à l'inscription, aucune minute tant qu'aucune offre
+ *   n'est payée. Le client peut demander une démo, faite par l'équipe.
+ * - Accès démo : accordé uniquement par l'équipe Callpme (trialEndsAt), quelques
+ *   jours et TRIAL_MINUTES minutes, limites de l'offre Starter, pas d'achat de numéro.
  * - Abonnement payé : chaque paiement couvre PERIOD_DAYS jours (paidUntil),
  *   un renouvellement prolonge la période en cours.
  * - Expiré : plus de minutes d'appel (les agents et les données sont gardés).
  */
 import { getPlan, type Plan } from "./plans";
 
-export const TRIAL_DAYS = 14;
+/** Durée d'un accès démo accordé par l'équipe. */
+export const DEMO_DAYS = 3;
 export const TRIAL_MINUTES = 30;
 export const PERIOD_DAYS = 30;
 const DAY = 86_400_000;
@@ -18,15 +21,17 @@ export type SubscriptionStatus = "trial" | "active" | "expired";
 
 export interface SubscriptionState {
   status: SubscriptionStatus;
-  /** Offre dont les limites s'appliquent (Starter pendant l'essai). */
+  /** Offre dont les limites s'appliquent (Starter pendant la démo). */
   plan: Plan;
   /** Minutes incluses sur la période en cours. */
   minutesIncluded: number;
   /** Début de la période de décompte des minutes. */
   periodStart: Date;
-  /** Fin de l'essai ou de la période payée. */
+  /** Fin de l'accès démo ou de la période payée. */
   endsAt: Date;
   daysLeft: number;
+  /** Aucune offre n'a jamais été payée (nouveau compte). */
+  neverPaid: boolean;
 }
 
 export interface OrgBilling {
@@ -41,17 +46,19 @@ export function subscriptionState(org: OrgBilling, now = new Date()): Subscripti
   if (org.paidUntil && org.paidUntil > now) {
     const plan = getPlan(org.plan);
     const start = new Date(org.paidUntil.getTime() - PERIOD_DAYS * DAY);
-    return { status: "active", plan, minutesIncluded: plan.minutes, periodStart: start, endsAt: org.paidUntil, daysLeft: daysLeft(org.paidUntil) };
+    return { status: "active", plan, minutesIncluded: plan.minutes, periodStart: start, endsAt: org.paidUntil, daysLeft: daysLeft(org.paidUntil), neverPaid: false };
   }
-  const trialEnd = org.trialEndsAt ?? new Date(org.createdAt.getTime() + TRIAL_DAYS * DAY);
-  if (!org.paidUntil && trialEnd > now) {
+  // Accès démo : seulement s'il a été accordé par l'équipe (aucun essai automatique).
+  const trialEnd = org.trialEndsAt;
+  if (trialEnd && trialEnd > now) {
     return {
       status: "trial",
       plan: getPlan("starter"),
       minutesIncluded: TRIAL_MINUTES,
-      periodStart: org.createdAt,
+      periodStart: new Date(Math.max(org.createdAt.getTime(), trialEnd.getTime() - DEMO_DAYS * DAY)),
       endsAt: trialEnd,
       daysLeft: daysLeft(trialEnd),
+      neverPaid: !org.paidUntil,
     };
   }
   return {
@@ -59,8 +66,9 @@ export function subscriptionState(org: OrgBilling, now = new Date()): Subscripti
     plan: getPlan(org.plan),
     minutesIncluded: 0,
     periodStart: now,
-    endsAt: org.paidUntil ?? trialEnd,
+    endsAt: org.paidUntil ?? trialEnd ?? org.createdAt,
     daysLeft: 0,
+    neverPaid: !org.paidUntil,
   };
 }
 

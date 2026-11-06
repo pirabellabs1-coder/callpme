@@ -192,7 +192,7 @@ export function ProductBento() {
           ))}
         </div>
       </BentoCard>
-      <BentoCard className="md:col-span-2" icon={<Smartphone className="size-5" strokeWidth={1.5} />} title="Payez par Mobile Money" body="Réglez en FCFA avec Orange Money, MTN, Wave ou Moov, sans carte internationale." />
+      <BentoCard className="md:col-span-2" icon={<Smartphone className="size-5" strokeWidth={1.5} />} title="Payez par Mobile Money" body="Réglez avec Orange Money, MTN, Wave, Moov ou par carte, sans carte internationale." />
       <BentoCard className="md:col-span-2" icon={<Globe2 className="size-5" strokeWidth={1.5} />} title="Obtenez un numéro local" body="Disponible en France, en Belgique, en Suisse et au Canada. L'Afrique de l'Ouest suivra." />
       <BentoCard className="md:col-span-2" icon={<CalendarCheck className="size-5" strokeWidth={1.5} />} title="Votre agent agit pendant l'appel" body="Il réserve dans votre agenda, crée la fiche dans votre CRM et envoie la confirmation par SMS à votre client." />
       <BentoCard className="md:col-span-2" icon={<BookOpen className="size-5" strokeWidth={1.5} />} title="Il connaît votre entreprise" body="Importez vos PDF, votre FAQ ou votre site. Votre agent répond à partir de vos documents." />
@@ -281,7 +281,6 @@ export function PricingCards() {
                       <span className="text-5xl font-semibold tracking-tight text-foreground tabular">{p.price} €</span>
                       <span className="text-sm text-muted-foreground">HT / mois</span>
                     </p>
-                    <p className="mt-1 text-xs text-muted-foreground">soit environ {p.fcfa} FCFA</p>
                   </>
                 ) : (
                   <p className="mt-6 text-4xl font-semibold tracking-tight text-foreground">Sur devis</p>
@@ -332,9 +331,9 @@ export function FaqList({ items = FAQ }: { items?: { q: string; a: string }[] })
 /** Bandeau d'appel à l'action de fin de page. */
 export function CtaBand({
   title = "Ne laissez plus un appel sans réponse.",
-  subtitle = "Créez votre agent et testez-le gratuitement. Vous choisirez votre forfait ensuite.",
-  href = "/register",
-  label = "Essayer gratuitement",
+  subtitle = "Demandez une démo : notre équipe configure un agent sur votre activité et vous le fait écouter.",
+  href = "/contact",
+  label = "Demander une démo",
 }: {
   title?: string;
   subtitle?: string;

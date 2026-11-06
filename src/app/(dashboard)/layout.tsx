@@ -81,7 +81,9 @@ export default async function DashboardLayout({
       usage={{ used: minutesUsed, total: sub.minutesIncluded }}
       status={
         sub.status === "expired"
-          ? { tone: "danger", label: "Abonnement expiré : renouveler", href: "/billing" }
+          ? sub.neverPaid
+            ? { tone: "warn", label: "Choisir une offre pour activer les appels", href: "/billing" }
+            : { tone: "danger", label: "Abonnement expiré : renouveler", href: "/billing" }
           : !telephonyConfigured()
             ? {
                 tone: "warn",
@@ -93,7 +95,7 @@ export default async function DashboardLayout({
                   : "Testez vos agents au micro et sur votre site ; les appels téléphoniques arrivent bientôt.",
               }
             : sub.status === "trial"
-              ? { tone: "warn", label: `Essai gratuit : ${sub.daysLeft} jour${sub.daysLeft > 1 ? "s" : ""}`, href: "/billing" }
+              ? { tone: "warn", label: `Accès démo : ${sub.daysLeft} jour${sub.daysLeft > 1 ? "s" : ""}`, href: "/billing" }
               : { tone: "ok", label: "Appels actifs", href: "/calls" }
       }
     >

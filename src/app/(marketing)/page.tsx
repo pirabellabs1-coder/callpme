@@ -50,7 +50,7 @@ export default function LandingPage() {
             </BlurFade>
             <BlurFade delay={0.24}>
               <div className="mt-10 flex flex-wrap items-center gap-3">
-                <PrimaryCta href="/register">Essayer gratuitement</PrimaryCta>
+                <PrimaryCta href="/contact">Demander une démo</PrimaryCta>
                 <Link
                   href="/produit"
                   className="inline-flex items-center rounded-full px-5 py-3 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
@@ -59,7 +59,7 @@ export default function LandingPage() {
                 </Link>
               </div>
               <p className="mt-5 text-xs text-muted-foreground">
-                Sans carte bancaire · Paiement par Mobile Money · Données hébergées dans l'UE
+                Démo personnalisée par notre équipe · Mobile Money ou carte · Données hébergées dans l'UE
               </p>
             </BlurFade>
           </div>

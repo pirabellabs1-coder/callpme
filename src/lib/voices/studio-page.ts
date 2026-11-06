@@ -5,7 +5,8 @@ import type { StudioBaseVoice } from "@/components/voices/voice-studio";
 export async function studioBaseVoices(includeId?: string): Promise<StudioBaseVoice[]> {
   const all = await listPlatformVoices();
   return all
-    .filter((v) => v.active || v.id === includeId)
+    // Le Studio règle des voix ElevenLabs : les voix maison n'y passent pas.
+    .filter((v) => v.provider !== "callpme" && (v.active || v.id === includeId))
     .map((v) => ({
       id: v.id,
       name: v.name,

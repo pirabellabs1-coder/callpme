@@ -1,5 +1,6 @@
 /**
- * Synthèse vocale en streaming (TTS) — ElevenLabs ou Cartesia.
+ * Synthèse vocale en streaming (TTS) — ElevenLabs, Cartesia, ou nos voix
+ * maison (fournisseur « callpme », actif seulement si CALLPME_TTS_URL existe).
  *
  * Les deux fournisseurs renvoient directement de l'audio µ-law 8 kHz
  * (format téléphonique) au fil de l'eau : l'agent commence à parler avant
@@ -7,12 +8,17 @@
  * quand l'appelant interrompt l'agent.
  */
 import type { Agent } from "../shared/types";
+import { callpmeSpeech, callpmeTtsConfigured, usesInhouseVoice } from "./callpme-tts";
+
+export { usesInhouseVoice };
 import { applyPronunciations, DEFAULT_TUNING, elevenLabsSettings, normalizeTuning, type Pronunciation, type VoiceTuning } from "../voices/tuning";
 
+/** Fournisseurs « par défaut » du moteur (clé API d'un service externe). */
 export type StreamingTtsProvider = "elevenlabs" | "cartesia";
 
 export interface TtsVoice {
-  provider: StreamingTtsProvider;
+  /** "callpme" : voix maison servie par notre serveur d'inférence. */
+  provider: StreamingTtsProvider | "callpme";
   voiceId: string;
   language: string;
   /** Réglages Studio (ElevenLabs). Par défaut : réglages équilibrés. */
@@ -44,12 +50,17 @@ export function ttsConfigured(): boolean {
 
 /**
  * Voix utilisée pour un agent :
+ * - une voix maison publiée, si notre serveur d'inférence est configuré ;
  * - la vraie voix choisie (catalogue ou voix propre), chez le fournisseur du moteur ;
  * - sinon `fallbackVoiceId` (première voix du catalogue), puis VOICE_DEFAULT_FEMALE_ID.
  */
-export function resolveVoice(agent: Agent, fallbackVoiceId?: string | null, studio?: StudioExtras | null): TtsVoice | null {
-  const provider = ttsProvider();
-  if (!provider) return null;
+export function resolveVoice(
+  agent: Agent,
+  fallbackVoiceId?: string | null,
+  studio?: StudioExtras | null,
+  /** Voix maison encore publiée au catalogue (vérifié en base par l'appelant). */
+  inhouseAvailable = false,
+): TtsVoice | null {
   const v = agent.config.voice;
   const language = v.language || "fr-FR";
   const extras = {
@@ -59,6 +70,12 @@ export function resolveVoice(agent: Agent, fallbackVoiceId?: string | null, stud
   };
   // Voix Studio (réglée par le client) : son identifiant fournisseur à jour prime.
   const chosen = studio?.voiceId || (v.kind === "provider" ? v.providerVoiceId : undefined);
+  // Voix maison : servie par notre serveur si configuré ; sinon voix par défaut du moteur.
+  if (usesInhouseVoice(agent) && chosen && inhouseAvailable && callpmeTtsConfigured()) {
+    return { provider: "callpme", voiceId: chosen, language, ...extras };
+  }
+  const provider = ttsProvider();
+  if (!provider) return null;
   if (chosen && v.provider === provider) {
     return { provider, voiceId: chosen, language, ...extras };
   }
@@ -70,7 +87,12 @@ export function resolveVoice(agent: Agent, fallbackVoiceId?: string | null, stud
 /** Génère `text` et renvoie l'audio µ-law 8 kHz au fil de l'eau. */
 export async function* streamSpeech(text: string, voice: TtsVoice, signal: AbortSignal): AsyncGenerator<Buffer> {
   const spoken = applyPronunciations(text, voice.pronunciations);
-  const res = voice.provider === "elevenlabs" ? await elevenlabs(spoken, voice, signal) : await cartesia(spoken, voice, signal);
+  const res =
+    voice.provider === "callpme"
+      ? await callpmeSpeech({ text: spoken, modelRef: voice.voiceId, language: voice.language, speed: voice.tuning?.speed }, signal)
+      : voice.provider === "elevenlabs"
+        ? await elevenlabs(spoken, voice, signal)
+        : await cartesia(spoken, voice, signal);
   if (!res.ok || !res.body) {
     throw new Error(`Synthèse vocale refusée (${voice.provider}, HTTP ${res.status}).`);
   }

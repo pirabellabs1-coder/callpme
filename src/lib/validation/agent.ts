@@ -9,7 +9,7 @@ import { widgetSchema } from "../widget/widget";
 import { z } from "zod";
 
 export const voiceSchema = z.object({
-  provider: z.enum(["elevenlabs", "cartesia", "azure", "playht"]),
+  provider: z.enum(["elevenlabs", "cartesia", "azure", "playht", "callpme"]),
   voiceId: z.string().max(120),
   language: z.string().min(2).max(12),
   speed: z.number().min(0.5).max(2),

@@ -18,71 +18,93 @@ datasource db {
 }
 
 model Organization {
-  id             String               @id @default(cuid())
-  name           String
-  plan           String               @default("starter") // starter | pro | agency
-  /** Fin de la période payée (chaque paiement ajoute 30 jours). */
-  paidUntil      DateTime?
-  /** Fin de l'essai gratuit (défaut : création + 14 jours). */
-  trialEndsAt    DateTime?
-  /** Réglages des alertes au propriétaire (JSON, voir src/lib/alerts). */
-  alerts         String?
-  /** Pays (ISO) : format des numéros saisis sans indicatif, fuseau par défaut. */
-  country        String               @default("FR")
-  /** Minutes rechargées (Mobile Money), utilisées après celles de l'offre. */
-  extraMinutes   Int                  @default(0)
-  /** Marque blanche (agence) : nom et logo affichés sur le portail des clients. */
-  brandName      String?
-  brandLogoUrl   String?
-  /** Domaine personnalisé du portail (ex. espace.monagence.bj). */
-  customDomain   String?              @unique
-  /** Propriété du domaine prouvée par un enregistrement DNS TXT (sinon ignoré). */
+  id                     String               @id @default(cuid())
+  name                   String
+  plan                   String               @default("starter") // starter | pro | agency
+  /**
+   * Fin de la période payée (chaque paiement ajoute 30 jours).
+   */
+  paidUntil              DateTime?
+  /**
+   * Fin de l'essai gratuit (défaut : création + 14 jours).
+   */
+  trialEndsAt            DateTime?
+  /**
+   * Réglages des alertes au propriétaire (JSON, voir src/lib/alerts).
+   */
+  alerts                 String?
+  /**
+   * Pays (ISO) : format des numéros saisis sans indicatif, fuseau par défaut.
+   */
+  country                String               @default("FR")
+  /**
+   * Minutes rechargées (Mobile Money), utilisées après celles de l'offre.
+   */
+  extraMinutes           Int                  @default(0)
+  /**
+   * Marque blanche (agence) : nom et logo affichés sur le portail des clients.
+   */
+  brandName              String?
+  brandLogoUrl           String?
+  /**
+   * Domaine personnalisé du portail (ex. espace.monagence.bj).
+   */
+  customDomain           String?              @unique
+  /**
+   * Propriété du domaine prouvée par un enregistrement DNS TXT (sinon ignoré).
+   */
   customDomainVerifiedAt DateTime?
-  agents         Agent[]
-  users          User[]
-  invitations    Invitation[]
-  whatsapp       WhatsAppChannel?
-  conversations  Conversation[]
-  apiKeys        ApiKey[]
-  webhooks       Webhook[]
-  customTools    CustomTool[]
-  phoneNumbers   PhoneNumber[]
-  providers      ProviderConnection[]
-  clients        Client[]
-  campaigns      Campaign[]
-  knowledgeBases KnowledgeBase[]
-  voices         Voice[]
-  notifications  Notification[]
-  integrations   Integration[]
-  payments       Payment[]
-  agencyRequests AgencyRequest[]
-  appointments   Appointment[]
-  leads          Lead[]
-  createdAt      DateTime             @default(now())
+  agents                 Agent[]
+  users                  User[]
+  invitations            Invitation[]
+  whatsapp               WhatsAppChannel?
+  conversations          Conversation[]
+  apiKeys                ApiKey[]
+  webhooks               Webhook[]
+  customTools            CustomTool[]
+  phoneNumbers           PhoneNumber[]
+  providers              ProviderConnection[]
+  clients                Client[]
+  campaigns              Campaign[]
+  knowledgeBases         KnowledgeBase[]
+  voices                 Voice[]
+  notifications          Notification[]
+  integrations           Integration[]
+  payments               Payment[]
+  agencyRequests         AgencyRequest[]
+  appointments           Appointment[]
+  leads                  Lead[]
+  createdAt              DateTime             @default(now())
 }
 
 model User {
-  id             String       @id @default(cuid())
-  email          String       @unique
-  name           String?
-  passwordHash   String? // scrypt: "scrypt$salt$hash"
-  organizationId String
-  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  role           String       @default("member") // owner | admin | member
-  isAdmin        Boolean      @default(false) // super-admin plateforme
-  /** Accès client d'une agence : ne voit que l'espace de ce client (portail). */
-  clientId       String?
-  client         Client?      @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  sessions       Session[]
-  createdAt      DateTime     @default(now())
+  id                   String       @id @default(cuid())
+  email                String       @unique
+  name                 String?
+  passwordHash         String? // scrypt: "scrypt$salt$hash"
+  organizationId       String
+  organization         Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  role                 String       @default("member") // owner | admin | member
+  isAdmin              Boolean      @default(false) // super-admin plateforme
+  /**
+   * Accès client d'une agence : ne voit que l'espace de ce client (portail).
+   */
+  clientId             String?
+  client               Client?      @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  sessions             Session[]
+  createdAt            DateTime     @default(now())
   // Double authentification (TOTP) : secret chiffré (AES-GCM), codes de secours hachés (JSON).
-  twoFactorEnabled     Boolean @default(false)
+  twoFactorEnabled     Boolean      @default(false)
   twoFactorSecret      String?
   twoFactorBackupCodes String?
-  /** Dernier pas de temps TOTP accepté : un code ne sert qu'une fois. */
+  /**
+   * Dernier pas de temps TOTP accepté : un code ne sert qu'une fois.
+   */
   twoFactorLastStep    Int?
-  /** Échecs de code consécutifs et verrouillage (partagés entre toutes les instances). */
-  twoFactorFailedCount Int       @default(0)
+  /**
+   * Échecs de code consécutifs et verrouillage (partagés entre toutes les instances).
+   */
+  twoFactorFailedCount Int          @default(0)
   twoFactorLockedUntil DateTime?
 
   @@index([organizationId])
@@ -95,9 +117,13 @@ model Invitation {
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   email          String
   role           String       @default("member") // admin | member | client
-  /** Invitation au portail d'un client de l'agence. */
+  /**
+   * Invitation au portail d'un client de l'agence.
+   */
   clientId       String?
-  /** Empreinte SHA-256 du jeton envoyé par e-mail (le jeton n'est jamais stocké). */
+  /**
+   * Empreinte SHA-256 du jeton envoyé par e-mail (le jeton n'est jamais stocké).
+   */
   tokenHash      String       @unique
   invitedById    String?
   expiresAt      DateTime
@@ -189,9 +215,13 @@ model Call {
   transcript     String // JSON: TranscriptTurn[]
   audioUrl       String? // enregistrement réel de l'appel (data URL), si capté
   providerCallId String?     @unique // identifiant de l'appel chez l'opérateur téléphonique
-  /** Test A/B : variante de l'agent utilisée pour cet appel (A = actuelle, B = version testée). */
+  /**
+   * Test A/B : variante de l'agent utilisée pour cet appel (A = actuelle, B = version testée).
+   */
   variant        String?
-  /** Client de l'agence au moment de l'appel (portail : pas de fuite si l'agent est réattribué). */
+  /**
+   * Client de l'agence au moment de l'appel (portail : pas de fuite si l'agent est réattribué).
+   */
   clientId       String?
   /// JSON : qualité technique (temps de réponse, interruptions, pannes). Voir voice-engine/quality.ts.
   quality        String?
@@ -469,11 +499,17 @@ model Payment {
   amountEur      Int // montant affiché en euros
   amountXof      Int // montant réellement facturé en FCFA
   status         String       @default("pending") // pending | completed | failed
-  /** Code promo utilisé (compté à la confirmation du paiement). */
+  /**
+   * Code promo utilisé (compté à la confirmation du paiement).
+   */
   promoCode      String?
-  /** Recharge : minutes achetées. */
+  /**
+   * Recharge : minutes achetées.
+   */
   minutes        Int?
-  /** Numéro de facture, attribué à la confirmation (FAC-2026-000001). */
+  /**
+   * Numéro de facture, attribué à la confirmation (FAC-2026-000001).
+   */
   invoiceNumber  String?      @unique
   createdAt      DateTime     @default(now())
 
@@ -506,7 +542,9 @@ model Appointment {
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   agentId        String?
   agent          Agent?       @relation(fields: [agentId], references: [id], onDelete: SetNull)
-  /** Client de l'agence au moment de la prise de rendez-vous. */
+  /**
+   * Client de l'agence au moment de la prise de rendez-vous.
+   */
   clientId       String?
   /// Référence courte donnée au client (ex. RDV-4K7P2).
   reference      String       @unique
@@ -539,7 +577,9 @@ model Lead {
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   agentId        String?
   agent          Agent?       @relation(fields: [agentId], references: [id], onDelete: SetNull)
-  /** Client de l'agence au moment de la création. */
+  /**
+   * Client de l'agence au moment de la création.
+   */
   clientId       String?
   name           String
   phone          String?
@@ -634,15 +674,23 @@ model WhatsAppChannel {
   id             String       @id @default(cuid())
   organizationId String       @unique
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  /** Agent qui répond sur WhatsApp. */
+  /**
+   * Agent qui répond sur WhatsApp.
+   */
   agentId        String
-  /** Identifiant du numéro chez Meta (« Phone number ID »). */
+  /**
+   * Identifiant du numéro chez Meta (« Phone number ID »).
+   */
   phoneNumberId  String       @unique
   displayNumber  String?
-  /** Jeton d'accès et secret de l'application Meta, chiffrés (AES-GCM). */
+  /**
+   * Jeton d'accès et secret de l'application Meta, chiffrés (AES-GCM).
+   */
   accessToken    String
   appSecret      String
-  /** Jeton de vérification du webhook (généré, à copier chez Meta). */
+  /**
+   * Jeton de vérification du webhook (généré, à copier chez Meta).
+   */
   verifyToken    String
   enabled        Boolean      @default(true)
   createdAt      DateTime     @default(now())
@@ -654,15 +702,23 @@ model Conversation {
   organizationId String
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   agentId        String
-  channel        String       // whatsapp
-  /** Numéro du contact (E.164). */
+  channel        String // whatsapp
+  /**
+   * Numéro du contact (E.164).
+   */
   contact        String
   contactName    String?
-  /** JSON : [{ role: "user" | "agent" | "tool", text, at, kind? }] */
+  /**
+   * JSON : [{ role: "user" | "agent" | "tool", text, at, kind? }]
+   */
   messages       String       @default("[]")
-  /** Dernier message (liste des conversations sans charger tout l'historique). */
+  /**
+   * Dernier message (liste des conversations sans charger tout l'historique).
+   */
   lastText       String?
-  /** Compteur de messages du contact sur la journée (limite par contact). */
+  /**
+   * Compteur de messages du contact sur la journée (limite par contact).
+   */
   dayKey         String?
   dayCount       Int          @default(0)
   lastMessageAt  DateTime     @default(now())
@@ -686,9 +742,13 @@ model AgentVersion {
   agentId   String
   agent     Agent    @relation(fields: [agentId], references: [id], onDelete: Cascade)
   number    Int
-  /** Configuration complète (JSON) au moment de l'enregistrement. */
+  /**
+   * Configuration complète (JSON) au moment de l'enregistrement.
+   */
   config    String
-  /** Ce qui a changé (résumé lisible). */
+  /**
+   * Ce qui a changé (résumé lisible).
+   */
   note      String?
   createdAt DateTime @default(now())
 
@@ -718,4 +778,124 @@ model PlatformVoice {
   updatedAt   DateTime @updatedAt
 
   @@index([active, sortOrder])
+}
+
+/**
+ * ------------------------------------------------------------------
+ */
+/**
+ * Voix maison : voix propres à Callpme, entraînées et hébergées
+ */
+/**
+ * par nos soins (voir docs/voix-maison.md).
+ */
+/**
+ * ------------------------------------------------------------------
+ */
+
+/// Une voix maison : un locuteur réel, son consentement, son jeu de données,
+/// ses entraînements et les versions de modèle produites.
+model InhouseVoice {
+  id          String                @id @default(cuid())
+  name        String
+  description String?
+  gender      String? // feminine | masculine | neutral
+  accent      String?
+  language    String                @default("fr")
+  createdById String
+  consent     InhouseVoiceConsent?
+  clips       InhouseVoiceClip[]
+  jobs        InhouseTrainingJob[]
+  versions    InhouseVoiceVersion[]
+  createdAt   DateTime              @default(now())
+  updatedAt   DateTime              @updatedAt
+}
+
+/// Consentement signé du locuteur. Sans consentement valide (non révoqué) :
+/// aucun clip, aucun entraînement, aucune version publiée.
+model InhouseVoiceConsent {
+  id             String       @id @default(cuid())
+  voiceId        String       @unique
+  voice          InhouseVoice @relation(fields: [voiceId], references: [id], onDelete: Cascade)
+  speakerName    String
+  speakerContact String?
+  /// Version du modèle de formulaire de consentement signé (ex. "2026-11-v1").
+  formVersion    String
+  signedAt       DateTime
+  /// Formulaire signé (PDF ou photo), conservé comme preuve.
+  document       Bytes
+  documentMime   String
+  documentName   String
+  attestedById   String
+  attestedAt     DateTime     @default(now())
+  revokedAt      DateTime?
+  revokeReason   String?
+}
+
+/// Clip du jeu de données : un enregistrement court et sa transcription exacte.
+model InhouseVoiceClip {
+  id              String       @id @default(cuid())
+  voiceId         String
+  voice           InhouseVoice @relation(fields: [voiceId], references: [id], onDelete: Cascade)
+  transcript      String
+  audio           Bytes
+  mimeType        String
+  sizeBytes       Int
+  durationMs      Int?
+  source          String // upload | record
+  /// L'administrateur a attesté que ce clip est la voix du locuteur consentant.
+  consentAttested Boolean
+  uploadedById    String
+  createdAt       DateTime     @default(now())
+
+  @@index([voiceId, createdAt])
+}
+
+/// Entraînement (fine-tuning) lancé depuis l'espace admin et exécuté par le
+/// serveur d'entraînement GPU (CALLPME_TRAINING_URL).
+model InhouseTrainingJob {
+  id              String               @id @default(cuid())
+  voiceId         String
+  voice           InhouseVoice         @relation(fields: [voiceId], references: [id], onDelete: Cascade)
+  /// queued | submitted | running | succeeded | failed | canceled
+  status          String               @default("queued")
+  baseModel       String
+  clipCount       Int
+  totalDurationMs Int
+  progress        Int?
+  message         String?
+  externalJobId   String?
+  createdById     String
+  startedAt       DateTime?
+  finishedAt      DateTime?
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+  version         InhouseVoiceVersion?
+
+  @@index([voiceId, createdAt])
+  @@index([status])
+}
+
+/// Version de modèle produite par un entraînement, servie par le serveur
+/// d'inférence (CALLPME_TTS_URL). Publiée = présente au catalogue PlatformVoice.
+model InhouseVoiceVersion {
+  id              String              @id @default(cuid())
+  voiceId         String
+  voice           InhouseVoice        @relation(fields: [voiceId], references: [id], onDelete: Cascade)
+  jobId           String?             @unique
+  job             InhouseTrainingJob? @relation(fields: [jobId], references: [id], onDelete: SetNull)
+  number          Int
+  /// Référence du modèle chez le serveur d'inférence : `cpm_<jobId>`, attribuée
+  /// par Callpme au lancement de l'entraînement. Sert aussi d'identifiant de voix.
+  modelRef        String              @unique
+  /// draft | published | retired
+  status          String              @default("draft")
+  notes           String?
+  /// Échantillon WAV généré par le serveur d'inférence à la publication.
+  sampleAudio     Bytes?
+  platformVoiceId String?             @unique
+  publishedAt     DateTime?
+  createdAt       DateTime            @default(now())
+
+  @@unique([voiceId, number])
 }

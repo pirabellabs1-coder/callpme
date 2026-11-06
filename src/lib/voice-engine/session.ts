@@ -22,12 +22,13 @@ import { SentenceChunker } from "./chunker";
 import { applyBehavior, pickVariant } from "../agents/versions";
 import { openDeepgram, type SttStream } from "./stt";
 import { resolveVoice, streamSpeech, type TtsVoice } from "./tts";
+import { callpmeTtsConfigured, usesInhouseVoice } from "./callpme-tts";
 import { finishCall } from "./persist";
 import { checkDestination } from "../telephony/destinations";
 import { remainingMinutes } from "../billing/limits";
 import type { VoiceTokenPayload } from "./token";
 import { QualityTracker } from "./quality";
-import { defaultPlatformVoice } from "../voices/platform";
+import { defaultPlatformVoice, inhouseVoiceAvailable } from "../voices/platform";
 import { loadStudioExtras } from "../voices/studio";
 
 /** Ce que le transport doit savoir faire. */
@@ -136,8 +137,14 @@ export class CallSession {
     // Sans voix choisie (ou voix retirée), première voix active du catalogue.
     // Voix réglée au Studio : réglages et prononciations relus à jour à chaque appel.
     const studio = await loadStudioExtras(agent.organizationId, agent.config.voice.voiceId).catch(() => null);
-    const fallback = agent.config.voice.providerVoiceId || studio?.voiceId ? null : await defaultPlatformVoice().catch(() => null);
-    this.voice = resolveVoice(agent, fallback?.externalId, studio);
+    // Voix maison retirée, consentement révoqué ou serveur d'inférence absent :
+    // on retombe sur la première voix du catalogue.
+    const inhouse = usesInhouseVoice(agent);
+    const inhouseOk =
+      inhouse && callpmeTtsConfigured() && (await inhouseVoiceAvailable(agent.config.voice.providerVoiceId).catch(() => false));
+    const needsFallback = (inhouse && !inhouseOk) || !(agent.config.voice.providerVoiceId || studio?.voiceId);
+    const fallback = needsFallback ? await defaultPlatformVoice().catch(() => null) : null;
+    this.voice = resolveVoice(agent, fallback?.externalId, studio, inhouseOk);
     if (!this.voice) {
       this.transport.sendEvent?.({ type: "error", message: "Aucune voix configurée pour le moteur vocal." });
       return this.end("failed");

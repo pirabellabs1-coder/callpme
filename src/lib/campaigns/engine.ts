@@ -17,8 +17,12 @@ import { placeOutboundCall, telephonyConfigured } from "../telephony/provider";
 import { toE164 } from "../telephony/e164";
 import { afterAttempt, campaignSettings, inCallingWindow, RETRYABLE } from "./settings";
 
-/** Un contact « en cours d'appel » depuis plus longtemps est considéré perdu. */
-const STALE_CALLING_MS = 30 * 60_000;
+/** Au-delà de la durée maximale d'un appel (2 h) + marge, un contact « en cours » est considéré perdu. */
+const STALE_CALLING_MS = (7200 + 300) * 1000;
+/** Durée du verrou de tour d'une campagne. */
+const TICK_LEASE_MS = 60_000;
+/** Budget de temps d'un tour global (cron serverless : 60 s maximum). */
+const TICK_BUDGET_MS = 45_000;
 
 /* ----------------------------- Liste d'opposition ----------------------------- */
 
@@ -26,6 +30,26 @@ export async function isOptedOut(organizationId: string, phone: string): Promise
   const e164 = toE164(phone);
   if (!e164) return false;
   return Boolean(await prisma.doNotCall.findUnique({ where: { organizationId_phone: { organizationId, phone: e164 } } }));
+}
+
+/** Ajout en masse (import Bloctel…) : requêtes groupées, numéros normalisés et dédoublonnés. */
+export async function addOptOuts(organizationId: string, phones: string[], reason: string): Promise<{ added: number; invalid: number }> {
+  const valid = Array.from(new Set(phones.map((p) => toE164(p)).filter((p): p is string => Boolean(p))));
+  const invalid = phones.length - phones.filter((p) => toE164(p)).length;
+  let added = 0;
+  for (let i = 0; i < valid.length; i += 1000) {
+    const chunk = valid.slice(i, i + 1000);
+    const r = await prisma.doNotCall.createMany({
+      data: chunk.map((phone) => ({ organizationId, phone, reason: reason.slice(0, 200) })),
+      skipDuplicates: true,
+    });
+    added += r.count;
+    await prisma.contact.updateMany({
+      where: { campaign: { organizationId }, phone: { in: chunk }, status: { in: ["pending", ...Array.from(RETRYABLE)] } },
+      data: { status: "opted_out", nextAttemptAt: null },
+    });
+  }
+  return { added, invalid };
 }
 
 /** Ajoute un numéro à la liste d'opposition et retire ses appels en attente. */
@@ -63,10 +87,12 @@ export async function recordContactOutcome(
     },
     include: { campaign: { select: { settings: true } } },
   });
-  if (!contact || contact.status === "opted_out") return;
+  // Seul un contact « en cours d'appel » reçoit une issue : un rappel tardif ou
+  // en double de l'opérateur n'écrase pas un contact joint ou déjà relancé.
+  if (!contact || contact.status !== "calling") return;
   const next = afterAttempt(status, Math.max(1, contact.attempts), campaignSettings(contact.campaign.settings));
-  await prisma.contact.update({
-    where: { id: contact.id },
+  await prisma.contact.updateMany({
+    where: { id: contact.id, status: "calling", attempts: contact.attempts },
     data: {
       status: next.status,
       nextAttemptAt: next.nextAttemptAt,
@@ -90,11 +116,38 @@ export async function tickCampaign(campaignId: string, now = new Date()): Promis
   if (!camp || camp.status !== "running") return { campaignId, placed: 0, skipped: "terminee" };
   const s = campaignSettings(camp.settings);
 
-  // Appels « en cours » restés sans nouvelles : libérés (relance possible).
-  await prisma.contact.updateMany({
-    where: { campaignId, status: "calling", calledAt: { lt: new Date(now.getTime() - STALE_CALLING_MS) } },
-    data: { status: "failed", outcome: "Sans nouvelles de l'opérateur" },
+  // Verrou de tour : un autre moteur (cron, autre instance) ne compose pas en même temps.
+  const lease = await prisma.campaign.updateMany({
+    where: { id: campaignId, status: "running", OR: [{ tickUntil: null }, { tickUntil: { lt: now } }] },
+    data: { tickUntil: new Date(now.getTime() + TICK_LEASE_MS) },
   });
+  if (lease.count === 0) return { campaignId, placed: 0, skipped: "complet" };
+  try {
+    return await tickLocked(campaignId, s, camp.organizationId, camp.agentId, now);
+  } finally {
+    await prisma.campaign.update({ where: { id: campaignId }, data: { tickUntil: null } }).catch(() => {});
+  }
+}
+
+async function tickLocked(
+  campaignId: string,
+  s: ReturnType<typeof campaignSettings>,
+  organizationId: string,
+  agentId: string,
+  now: Date,
+): Promise<TickReport> {
+  // Appels « en cours » restés sans nouvelles : échec, avec relance si possible.
+  const stale = await prisma.contact.findMany({
+    where: { campaignId, status: "calling", calledAt: { lt: new Date(now.getTime() - STALE_CALLING_MS) } },
+    select: { id: true, attempts: true },
+  });
+  for (const c of stale) {
+    const next = afterAttempt("failed", Math.max(1, c.attempts), s, now);
+    await prisma.contact.updateMany({
+      where: { id: c.id, status: "calling" },
+      data: { status: "failed", outcome: "Sans nouvelles de l'opérateur", nextAttemptAt: next.nextAttemptAt },
+    });
+  }
 
   const eligible = {
     campaignId,
@@ -116,10 +169,10 @@ export async function tickCampaign(campaignId: string, now = new Date()): Promis
   const slots = s.maxConcurrent - calling;
   if (slots <= 0) return { campaignId, placed: 0, skipped: "complet" };
 
-  const agent = await getAgentById(camp.agentId);
-  if (!agent || agent.organizationId !== camp.organizationId) return { campaignId, placed: 0, skipped: "agent" };
-  const org = await prisma.organization.findUnique({ where: { id: camp.organizationId }, select: { plan: true } });
-  const quota = await canUseMinutes(camp.organizationId, org?.plan ?? "starter");
+  const agent = await getAgentById(agentId);
+  if (!agent || agent.organizationId !== organizationId) return { campaignId, placed: 0, skipped: "agent" };
+  const org = await prisma.organization.findUnique({ where: { id: organizationId }, select: { plan: true } });
+  const quota = await canUseMinutes(organizationId, org?.plan ?? "starter");
   if (!quota.ok) {
     await prisma.campaign.update({ where: { id: campaignId }, data: { status: "paused" } });
     return { campaignId, placed: 0, skipped: "quota" };
@@ -140,7 +193,7 @@ export async function tickCampaign(campaignId: string, now = new Date()): Promis
     });
     if (claimed.count === 0) continue;
 
-    if (await isOptedOut(camp.organizationId, c.phone)) {
+    if (await isOptedOut(organizationId, c.phone)) {
       await prisma.contact.update({ where: { id: c.id }, data: { status: "opted_out", outcome: "Liste d'opposition" } });
       continue;
     }
@@ -169,8 +222,15 @@ export async function tickCampaigns(now = new Date()): Promise<TickReport[]> {
   if (!telephonyConfigured()) return [];
   const running = await prisma.campaign.findMany({ where: { status: "running" }, select: { id: true } });
   const reports: TickReport[] = [];
+  const started = Date.now();
   for (const c of running) {
-    reports.push(await tickCampaign(c.id, now).catch(() => ({ campaignId: c.id, placed: 0 })));
+    if (Date.now() - started > TICK_BUDGET_MS) break; // le reste au prochain tour
+    reports.push(
+      await tickCampaign(c.id, now).catch((e) => {
+        console.error(`[campagnes] ${c.id} :`, e instanceof Error ? e.message : e);
+        return { campaignId: c.id, placed: 0 };
+      }),
+    );
   }
   return reports;
 }

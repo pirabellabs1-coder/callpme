@@ -25,6 +25,8 @@ export interface FinishCallInput {
   sessionCallId?: string;
   /** Issue connue d'avance (ex. message laissé sur répondeur) : pas de résumé LLM. */
   outcome?: string;
+  /** Message laissé sur un répondeur (contact de campagne : « messagerie », relançable). */
+  voicemail?: boolean;
 }
 
 /** Résumé court de l'appel : LLM si disponible, sinon repli déterministe. */
@@ -104,7 +106,7 @@ export async function finishCall(input: FinishCallInput) {
   // Contact de campagne : statut final + issue.
   const contactId = input.metadata?.contactId;
   if (contactId) {
-    const voicemail = input.outcome === "Message laissé sur répondeur";
+    const voicemail = Boolean(input.voicemail);
     const status =
       input.status === "completed" || input.status === "transferred"
         ? "completed"

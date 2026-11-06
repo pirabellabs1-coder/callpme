@@ -227,6 +227,8 @@ model Campaign {
   status         String       @default("draft") // draft | running | paused | completed
   /// JSON : CampaignSettings (plages horaires, fuseau, simultanéité, relances).
   settings       String?
+  /// Verrou de tour : un seul moteur à la fois compose pour cette campagne.
+  tickUntil      DateTime?
   contacts       Contact[]
   createdAt      DateTime     @default(now())
 
@@ -253,6 +255,7 @@ model Contact {
   @@index([campaignId])
   @@index([status])
   @@index([campaignId, status, nextAttemptAt])
+  @@index([phone])
 }
 
 // ----- Liste d'opposition : numéros à ne jamais appeler (par organisation) -----

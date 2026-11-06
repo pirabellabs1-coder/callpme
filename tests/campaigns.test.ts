@@ -61,3 +61,19 @@ describe("import CSV", () => {
     expect(splitCsvLine('"Dupont; fils";"+33 6 00 00 00 00"', ";")).toEqual(["Dupont; fils", "+33 6 00 00 00 00"]);
   });
 });
+
+import { toE164 } from "@/lib/telephony/e164";
+
+describe("numéros de campagne", () => {
+  it("normalise les formats français courants", () => {
+    expect(toE164("06 12 34 56 78")).toBe("+33612345678");
+    expect(toE164("+33 (0)6 12 34 56 78")).toBe("+33612345678");
+  });
+
+  it("annonce la reprise même un jour de changement d'heure", () => {
+    const s = campaignSettings(null);
+    // samedi 28 mars 2026, 23 h 30 à Paris : le dimanche fait 23 h.
+    const next = nextWindowStart(new Date("2026-03-28T22:30:00Z"), s)!;
+    expect(next.toISOString()).toBe("2026-03-30T08:00:00.000Z"); // lundi 10 h (heure d'été)
+  });
+});

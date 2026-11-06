@@ -2,6 +2,7 @@
 import { prisma } from "./client";
 import { telephonyConfigured } from "@/lib/telephony/provider";
 import { canUseMinutes } from "@/lib/billing/limits";
+import { toE164 } from "@/lib/telephony/e164";
 import { campaignSettings, type CampaignSettings } from "@/lib/campaigns/settings";
 
 export interface CampaignRecord {
@@ -115,7 +116,8 @@ export async function addContacts(
     .map((c) => ({
       campaignId,
       name: c.name?.trim() || "Contact",
-      phone: c.phone.trim(),
+      // Format international : « 06 12… » devient « +33612… » (sinon refusé à l'appel).
+      phone: toE164(c.phone) ?? c.phone.trim(),
       data: c.data && Object.keys(c.data).length ? JSON.stringify(Object.fromEntries(Object.entries(c.data).slice(0, 20))) : null,
     }));
   if (clean.length === 0) return 0;

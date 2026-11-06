@@ -66,9 +66,12 @@ export function inCallingWindow(now: Date, s: CampaignSettings): boolean {
 
 /** Prochain début de plage autorisée (pour l'affichage « reprend à… »). */
 export function nextWindowStart(now: Date, s: CampaignSettings): Date | null {
+  const today = utcToZoned(now, s.timezone).ymd;
   for (let d = 0; d <= 8; d++) {
-    const day = new Date(now.getTime() + d * 86_400_000);
-    const z = utcToZoned(day, s.timezone);
+    // Par dates calendaires (midi local) : robuste aux jours de 23 h / 25 h.
+    const [y, m, dd] = today.split("-").map(Number);
+    const ymd = new Date(Date.UTC(y, m - 1, dd + d)).toISOString().slice(0, 10);
+    const z = utcToZoned(zonedToUtc(ymd, "12:00", s.timezone), s.timezone);
     if (!s.days.includes(z.weekday)) continue;
     for (const [a] of [...s.windows].sort((x, y) => minutesOf(x[0]) - minutesOf(y[0]))) {
       const start = zonedToUtc(z.ymd, a, s.timezone);

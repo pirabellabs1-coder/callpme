@@ -35,8 +35,19 @@ function isAppOrigin(req: NextRequest, origin: string): boolean {
   return origin === req.nextUrl.origin || (!!process.env.PUBLIC_URL && origin === new URL(process.env.PUBLIC_URL).origin);
 }
 
-export async function widgetAccess(req: NextRequest, agentId: string | null | undefined): Promise<WidgetAccess> {
+/**
+ * Origine de la page. Les navigateurs n'envoient pas « Origin » sur un GET
+ * de même origine (aperçu dans le tableau de bord) : on se fie alors à
+ * « Sec-Fetch-Site », posé par le navigateur et non modifiable par une page.
+ */
+export function requestOrigin(req: NextRequest): string | null {
   const origin = req.headers.get("origin");
+  if (origin) return origin;
+  return req.headers.get("sec-fetch-site") === "same-origin" ? req.nextUrl.origin : null;
+}
+
+export async function widgetAccess(req: NextRequest, agentId: string | null | undefined): Promise<WidgetAccess> {
+  const origin = requestOrigin(req);
   // Réponse volontairement identique pour un agent inconnu, désactivé ou un site non autorisé.
   const refused = (status = 404) =>
     ({ ok: false, response: widgetJson({ error: "Assistant indisponible sur ce site." }, status, origin) }) as const;

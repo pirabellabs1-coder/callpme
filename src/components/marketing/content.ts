@@ -3,6 +3,8 @@
  * Les tarifs sont des hypothèses du cahier des charges, à valider avant publication.
  */
 
+import { PLANS as BILLING_PLANS, PLAN_ORDER, UNLIMITED } from "@/lib/billing/plans";
+
 export const MARKETS = [
   "France",
   "Belgique",
@@ -118,12 +120,25 @@ export const STEPS = [
   { n: "04", title: "Mettez en ligne", body: "Prenez un numéro local ou renvoyez votre ligne actuelle. Chaque appel est transcrit et résumé." },
 ];
 
-// Tarifs de lancement — hypothèses du cahier des charges, à valider avant publication.
-export const PLANS = [
-  { name: "Starter", price: "29", fcfa: "19 000", minutes: "100 minutes incluses", extra: "0,25 € la minute en plus", features: ["1 agent", "1 numéro local", "Prise de rendez-vous"], highlight: false },
-  { name: "Pro", price: "99", fcfa: "65 000", minutes: "500 minutes incluses", extra: "0,20 € la minute en plus", features: ["5 agents", "Campagnes sortantes", "Intégrations CRM"], highlight: true },
-  { name: "Agence", price: "499", fcfa: "327 000", minutes: "3 000 minutes incluses", extra: "0,14 € la minute en plus", features: ["Marque blanche", "Clients illimités", "Refacturation à marge"], highlight: false },
-];
+// Offres affichées sur le site : dérivées du catalogue de facturation
+// (src/lib/billing/plans.ts), seule source de vérité pour les prix et limites.
+const XOF_PER_EUR = 655.957;
+const fmt = (n: number) => new Intl.NumberFormat("fr-FR").format(n);
+
+export const PLANS = PLAN_ORDER.map((id) => {
+  const p = BILLING_PLANS[id];
+  const price = p.priceMonthly;
+  return {
+    id,
+    name: p.name,
+    tagline: p.tagline,
+    price: price === null ? null : String(price),
+    fcfa: price === null ? null : fmt(Math.round((price * XOF_PER_EUR) / 500) * 500),
+    minutes: p.minutes >= UNLIMITED ? "Volume de minutes sur mesure" : `${fmt(p.minutes)} minutes incluses par mois`,
+    features: p.features,
+    highlight: Boolean(p.highlight),
+  };
+});
 
 export const FAQ = [
   { q: "Mes clients sauront-ils qu'ils parlent à une IA ?", a: "Oui. L'agent se présente comme un assistant IA en début d'appel, comme l'exige l'AI Act européen." },

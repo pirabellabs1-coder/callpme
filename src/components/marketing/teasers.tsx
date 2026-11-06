@@ -85,7 +85,13 @@ export function PricingTeaser() {
           >
             <span className="text-sm font-medium text-foreground">{p.name}</span>
             <span className="text-sm text-muted-foreground">
-              <span className="text-xl font-semibold text-foreground tabular">{p.price} €</span> / mois
+              {p.price ? (
+                <>
+                  <span className="text-xl font-semibold text-foreground tabular">{p.price} €</span> / mois
+                </>
+              ) : (
+                <span className="text-base font-semibold text-foreground">Sur devis</span>
+              )}
             </span>
           </Link>
         ))}

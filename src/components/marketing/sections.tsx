@@ -274,21 +274,27 @@ export function PricingCards() {
                   <h3 className="text-base font-semibold text-foreground">{p.name}</h3>
                   {p.highlight && <span className="rounded-full bg-brand/15 px-2.5 py-1 text-[11px] font-medium text-brand">Recommandé</span>}
                 </div>
-                <p className="mt-6 flex items-baseline gap-1.5">
-                  <span className="text-5xl font-semibold tracking-tight text-foreground tabular">{p.price} €</span>
-                  <span className="text-sm text-muted-foreground">HT / mois</span>
-                </p>
-                <p className="mt-1 text-xs text-muted-foreground">soit {p.fcfa} FCFA</p>
+                <p className="mt-2 text-sm text-muted-foreground">{p.tagline}</p>
+                {p.price ? (
+                  <>
+                    <p className="mt-6 flex items-baseline gap-1.5">
+                      <span className="text-5xl font-semibold tracking-tight text-foreground tabular">{p.price} €</span>
+                      <span className="text-sm text-muted-foreground">HT / mois</span>
+                    </p>
+                    <p className="mt-1 text-xs text-muted-foreground">soit environ {p.fcfa} FCFA</p>
+                  </>
+                ) : (
+                  <p className="mt-6 text-4xl font-semibold tracking-tight text-foreground">Sur devis</p>
+                )}
                 <p className="mt-6 text-sm text-foreground">{p.minutes}</p>
-                <p className="text-sm text-muted-foreground">{p.extra}</p>
                 <ul className="mt-6 space-y-2.5 border-t border-border pt-6">
                   {p.features.map((f) => (
                     <Bullet key={f}>{f}</Bullet>
                   ))}
                 </ul>
                 <div className="mt-auto pt-8">
-                  <PrimaryCta href="/register" variant={p.highlight ? "brand" : "ghost"} full>
-                    Commencer
+                  <PrimaryCta href={p.price ? "/register" : "/partenaires"} variant={p.highlight ? "brand" : "ghost"} full>
+                    {p.price ? "Commencer" : "Nous contacter"}
                   </PrimaryCta>
                 </div>
               </div>

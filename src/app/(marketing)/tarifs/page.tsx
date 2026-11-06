@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Check, Minus } from "lucide-react";
+import { PLANS as BILLING_PLANS, PLAN_ORDER, UNLIMITED } from "@/lib/billing/plans";
 import { BlurFade } from "@/components/magicui/blur-fade";
 import {
   CtaBand,
@@ -17,47 +18,43 @@ export const metadata: Metadata = {
 };
 
 type Cell = boolean | string;
+const fmt = (n: number) => (n >= UNLIMITED ? "Illimité" : new Intl.NumberFormat("fr-FR").format(n));
+const [S, P, A] = PLAN_ORDER.map((id) => BILLING_PLANS[id]);
+
+// Comparatif dérivé du catalogue de facturation (limites réellement appliquées).
 const COMPARISON: { group: string; rows: { label: string; values: [Cell, Cell, Cell] }[] }[] = [
   {
     group: "Usage",
     rows: [
-      { label: "Minutes incluses par mois", values: ["100", "500", "3 000"] },
-      { label: "Minute supplémentaire", values: ["0,25 €", "0,20 €", "0,14 €"] },
-      { label: "Agents", values: ["1", "5", "Illimités"] },
-      { label: "Numéros locaux", values: ["1", "3", "10"] },
+      { label: "Minutes incluses par mois", values: [fmt(S.minutes), fmt(P.minutes), "Sur mesure"] },
+      { label: "Agents vocaux", values: [fmt(S.maxAgents), fmt(P.maxAgents), fmt(A.maxAgents)] },
+      { label: "Numéros inclus", values: [fmt(S.maxNumbers), fmt(P.maxNumbers), "Au volume"] },
     ],
   },
   {
     group: "Fonctionnalités",
     rows: [
-      { label: "Prise de rendez-vous", values: [true, true, true] },
-      { label: "Base de connaissances", values: [true, true, true] },
-      { label: "Campagnes sortantes", values: [false, true, true] },
-      { label: "Intégrations CRM", values: [false, true, true] },
-      { label: "API et webhooks", values: [false, true, true] },
+      { label: "Statistiques", values: ["De base", "Avancées", "Avancées"] },
+      { label: "Clés d'API", values: [true, true, true] },
+      { label: "Webhooks et API complète", values: [false, true, true] },
+      { label: "Tous les outils et garde-fous", values: [false, true, true] },
     ],
   },
   {
     group: "Agences",
     rows: [
-      { label: "Marque blanche", values: [false, false, true] },
-      { label: "Espaces clients illimités", values: [false, false, true] },
-      { label: "Refacturation à marge", values: [false, false, true] },
-    ],
-  },
-  {
-    group: "Support",
-    rows: [
-      { label: "Support", values: ["E-mail", "Prioritaire", "Dédié"] },
+      { label: "Espaces clients (multi-organisations)", values: [false, false, true] },
+      { label: "Support dédié", values: [false, false, true] },
+      { label: "Engagement de service (SLA)", values: [false, false, true] },
     ],
   },
 ];
 
 const BILLING_FAQ = [
-  { q: "Puis-je changer de forfait à tout moment ?", a: "Oui. Le changement prend effet immédiatement et la différence est calculée au prorata." },
-  { q: "Que se passe-t-il si je dépasse mes minutes ?", a: "Les minutes supplémentaires sont facturées au tarif de votre forfait. Vous pouvez fixer un plafond dans vos réglages." },
+  { q: "Puis-je changer de forfait ?", a: "Oui, depuis la page Facturation de votre tableau de bord. L'offre Agence se fait sur devis : envoyez une demande et l'équipe vous recontacte." },
+  { q: "Que se passe-t-il si j'approche de ma limite ?", a: "Votre tableau de bord affiche votre consommation et vous alerte à 80 % puis à 100 % de votre forfait. Vous pouvez alors passer à l'offre supérieure." },
   { q: "Quels moyens de paiement acceptez-vous ?", a: "Carte bancaire, Orange Money, MTN Mobile Money, Wave et Moov Money. La facturation est possible en euros ou en FCFA." },
-  { q: "Y a-t-il un engagement ?", a: "Non. Les forfaits sont mensuels et résiliables à tout moment. Une remise de 20 % s'applique au paiement annuel." },
+  { q: "Y a-t-il un engagement ?", a: "Non. Starter et Pro sont des forfaits mensuels, sans engagement." },
   { q: "Les prix incluent-ils la TVA ?", a: "Les prix sont indiqués hors taxes. La TVA applicable dans votre pays est ajoutée à la facture." },
 ];
 
@@ -127,7 +124,7 @@ export default function TarifsPage() {
           </div>
         </BlurFade>
         <p className="mt-6 text-center text-xs text-muted-foreground">
-          Prix hors taxes. Tarifs de lancement susceptibles d'évoluer.
+          Prix hors taxes. Conversion en FCFA indicative.
         </p>
       </Section>
 

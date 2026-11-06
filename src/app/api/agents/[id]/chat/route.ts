@@ -1,19 +1,9 @@
 import { NextRequest } from "next/server";
-import { publicRequest } from "@/lib/net/safe-fetch";
 import { z } from "zod";
 import { getSession } from "@/lib/auth/session";
 import { getAgentById } from "@/lib/db/agents";
-import { retrieveContext } from "@/lib/db/knowledge";
-import { listCustomToolsFull } from "@/lib/db/custom-tools";
-import { getTool, resolveTools } from "@/lib/tools/registry";
-import { signPayload } from "@/lib/webhooks/dispatch";
-import {
-  generateReply,
-  anyLLMKey,
-  type ChatMessage,
-  type ResolvedTool,
-  type ToolExecutor,
-} from "@/lib/llm/chat";
+import { anyLLMKey } from "@/lib/llm/chat";
+import { agentReply } from "@/lib/voice-engine/brain";
 import {
   ok,
   badRequest,
@@ -56,103 +46,12 @@ export async function POST(
     const parsed = schema.safeParse(body);
     if (!parsed.success) return badRequest("Données invalides");
 
-    let systemContent = agent.config.systemPrompt;
-    // RAG : injecte le contexte pertinent de la base de connaissances.
-    if (agent.knowledgeBaseId) {
-      const lastUser =
-        [...parsed.data.messages].reverse().find((m) => m.role === "user")
-          ?.content ?? "";
-      const ctx = await retrieveContext(agent.knowledgeBaseId, lastUser);
-      if (ctx) {
-        systemContent += `\n\n## Base de connaissances\nUtilise ces informations pour répondre avec précision si c'est pertinent :\n${ctx}`;
-      }
-    }
-
-    const convo = [...parsed.data.messages];
-    // Garantit le contexte du message d'accueil même si le client ne l'a pas inclus.
-    if (
-      agent.config.firstSpeaker === "agent" &&
-      agent.config.firstMessage &&
-      convo[0]?.role !== "assistant"
-    ) {
-      convo.unshift({ role: "assistant", content: agent.config.firstMessage });
-    }
-
-    const messages: ChatMessage[] = [
-      { role: "system", content: systemContent },
-      ...convo,
-    ];
-
-    // Résout les outils activés (built-in + fonctions personnalisées).
-    const enabled = agent.config.tools ?? [];
-    const customs = await listCustomToolsFull(session.org.id);
-    const customByName = new Map(customs.map((c) => [c.name, c]));
-    const tools: ResolvedTool[] = [
-      ...resolveTools(enabled).map((d) => ({
-        name: d.name,
-        description: d.description,
-        parameters: d.parameters,
-      })),
-      ...customs
-        .filter((c) => enabled.includes(c.name))
-        .map((c) => ({
-          name: c.name,
-          description: c.description,
-          parameters: c.parameters,
-        })),
-    ];
-
-    const executeTool: ToolExecutor = async (name, args) => {
-      const builtin = getTool(name);
-      if (builtin) {
-        const r = await builtin.handler(args, {
-          agentId: agent.id,
-          organizationId: session.org.id,
-          callId: "test",
-          callerNumber: "navigateur",
-        });
-        return { message: r.message ?? "Outil exécuté.", data: r.data };
-      }
-      const custom = customByName.get(name);
-      if (custom?.serverUrl) {
-        try {
-          const payload = JSON.stringify({
-            tool: name,
-            arguments: args,
-            timestamp: new Date().toISOString(),
-          });
-          // Requête protégée SSRF (IP vérifiée à la connexion, pas de redirection).
-    const res = await publicRequest(custom.serverUrl, {
-            method: custom.method || "POST",
-            headers: {
-              "Content-Type": "application/json",
-              "X-Callpme-Event": "function.call",
-              "X-Callpme-Signature": signPayload(custom.secret ?? "", payload),
-            },
-            body: payload,
-            timeoutMs: 5000,
-          });
-          return {
-            message: `Fonction « ${custom.label} » appelée — données envoyées (HTTP ${res.status}).`,
-            data: { status: res.status, delivered: res.status >= 200 && res.status < 300 },
-          };
-        } catch {
-          return {
-            message: `Fonction « ${custom.label} » appelée (endpoint non joignable en test).`,
-            data: { delivered: false },
-          };
-        }
-      }
-      return { message: `Fonction « ${name} » exécutée.`, data: {} };
-    };
-
-    const result = await generateReply({
-      model: agent.config.model,
-      role: agent.role,
-      messages,
-      tools,
-      executeTool,
-    });
+    // Même cerveau que le moteur vocal : prompt, RAG et outils partagés.
+    const result = await agentReply(
+      { agent, organizationId: session.org.id, callId: "test", callerNumber: "navigateur" },
+      parsed.data.messages,
+    );
+    const messages = result.prepared.messages;
 
     // Sans clé LLM serveur, on délègue l'inférence au cerveau Claude côté
     // client (Puter) : on renvoie les messages déjà assemblés (prompt système +

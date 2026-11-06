@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import { z } from "zod";
 import { getSession } from "@/lib/auth/session";
 import { getAgentById } from "@/lib/db/agents";
-import { placeOutboundCall, vapiConfigured } from "@/lib/telephony/vapi";
+import { placeOutboundCall, telephonyConfigured } from "@/lib/telephony/provider";
 import { checkDestination } from "@/lib/telephony/destinations";
 import { canUseMinutes } from "@/lib/billing/limits";
 import {
@@ -18,7 +18,7 @@ export const dynamic = "force-dynamic";
 
 const schema = z.object({ toNumber: z.string().min(5).max(25) });
 
-/** POST /api/agents/:id/call-real — déclenche un VRAI appel sortant via Vapi. */
+/** POST /api/agents/:id/call-real — déclenche un VRAI appel sortant via le moteur vocal Callpme. */
 export async function POST(
   req: NextRequest,
   { params }: { params: { id: string } },
@@ -26,7 +26,7 @@ export async function POST(
   try {
     const session = await getSession();
     if (!session) return unauthorized();
-    if (!vapiConfigured()) {
+    if (!telephonyConfigured()) {
       return forbidden("La téléphonie réelle n'est pas encore connectée.");
     }
     const agent = await getAgentById(params.id);
@@ -43,11 +43,7 @@ export async function POST(
     const quota = await canUseMinutes(session.org.id, session.org.plan);
     if (!quota.ok) return forbidden(quota.message);
 
-    const result = await placeOutboundCall({
-      agent,
-      organizationName: session.org.name,
-      toNumber: parsed.data.toNumber,
-    });
+    const result = await placeOutboundCall({ agent, toNumber: parsed.data.toNumber });
     if (!result.ok) return badRequest(result.error ?? "Appel impossible");
     return ok({ callId: result.callId, status: result.status });
   } catch {

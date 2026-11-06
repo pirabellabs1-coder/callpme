@@ -1,7 +1,7 @@
 /** Dépôt « Campagnes » — appels sortants par lot. */
 import { prisma } from "./client";
 import { getAgentById } from "./agents";
-import { placeOutboundCall, vapiConfigured } from "@/lib/telephony/vapi";
+import { placeOutboundCall, telephonyConfigured } from "@/lib/telephony/provider";
 import { checkDestination } from "@/lib/telephony/destinations";
 import { canUseMinutes } from "@/lib/billing/limits";
 
@@ -155,9 +155,9 @@ function pickOutcome(seed: number) {
 }
 
 /**
- * Lance la campagne. Si la téléphonie réelle (Vapi) est configurée, on
- * compose VRAIMENT chaque contact en attente : l'appel est lancé via Vapi,
- * le contact passe à « calling » et son `vapiCallId` est mémorisé. Le webhook
+ * Lance la campagne. Si la téléphonie réelle est configurée, on
+ * compose VRAIMENT chaque contact en attente : l'appel est lancé par le moteur vocal Callpme,
+ * le contact passe à « calling » et son `providerCallId` est mémorisé. Le moteur vocal
  * de fin d'appel mettra ensuite à jour le contact (issue, statut, appel
  * enregistré dans l'historique).
  *
@@ -181,16 +181,15 @@ export async function runCampaign(orgId: string, id: string) {
   // Une campagne en pause ne doit jamais composer, même via un appel API direct.
   if (camp.status === "paused") throw new CampaignPausedError();
 
-  /* ---------------------------- Mode RÉEL (Vapi) ---------------------------- */
-  if (vapiConfigured()) {
-    // Charge l'agent complet (prompt, voix, modèle) — indispensable à Vapi.
+  /* ------------------- Mode RÉEL (moteur vocal Callpme) ------------------- */
+  if (telephonyConfigured()) {
+    // Charge l'agent complet (prompt, voix, modèle) pour le moteur vocal.
     const agent = await getAgentById(camp.agentId);
     if (!agent) return null;
     const org = await prisma.organization.findUnique({
       where: { id: camp.organizationId },
-      select: { name: true, plan: true },
+      select: { plan: true },
     });
-    const organizationName = org?.name ?? "Callpme";
     // Appels payés par la plateforme : quota de l'offre vérifié avant de composer.
     const quota = await canUseMinutes(camp.organizationId, org?.plan ?? "starter");
     if (!quota.ok) throw new CampaignQuotaError(quota.message);
@@ -218,7 +217,6 @@ export async function runCampaign(orgId: string, id: string) {
 
       const result = await placeOutboundCall({
         agent,
-        organizationName,
         toNumber: c.phone,
         metadata: { contactId: c.id, campaignId: camp.id },
       });
@@ -227,7 +225,7 @@ export async function runCampaign(orgId: string, id: string) {
           where: { id: c.id },
           data: {
             status: "calling",
-            vapiCallId: result.callId,
+            providerCallId: result.callId,
             calledAt: new Date(),
           },
         });

@@ -91,7 +91,7 @@ function Toggle({
 }
 
 /**
- * Constructeur de fonction (style Vapi), présenté en modale.
+ * Constructeur de fonction, présenté en modale.
  * Réutilisable depuis l'assistant de création d'agent et le hub Développeurs.
  */
 export function ToolBuilder({

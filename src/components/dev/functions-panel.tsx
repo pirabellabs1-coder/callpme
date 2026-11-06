@@ -46,7 +46,7 @@ export interface FunctionView {
   createdAt: string;
 }
 
-/** Petit interrupteur réutilisable (style Vapi). */
+/** Petit interrupteur réutilisable. */
 function Toggle({
   checked,
   onChange,

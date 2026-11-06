@@ -16,7 +16,7 @@ export const dynamic = "force-dynamic";
 /**
  * POST /api/dev/functions/:id/test
  * Envoie réellement un exemple d'arguments vers l'URL de destination de la
- * fonction (signé HMAC), pour valider l'intégration façon Vapi.
+ * fonction (signé HMAC), pour valider l'intégration.
  */
 export async function POST(
   _req: NextRequest,

@@ -44,6 +44,12 @@ export const configSchema = z.object({
     })
     .optional(),
   maxDurationSec: z.number().min(0).max(7200).optional(),
+  // Numéro de transfert vers un humain (format international), vide = aucun.
+  transferNumber: z
+    .string()
+    .trim()
+    .regex(/^(\+\d[\d ]{7,18})?$/, "Numéro au format international, ex. +33 1 23 45 67 89")
+    .optional(),
 });
 
 export const createAgentSchema = z.object({

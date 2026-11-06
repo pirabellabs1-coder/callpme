@@ -155,6 +155,8 @@ export interface AgentConfig {
   customRole?: { label: string; description: string };
   /** Durée maximale d'un appel en secondes (0 = illimité). */
   maxDurationSec?: number;
+  /** Numéro (E.164) vers lequel transférer l'appel quand un humain est demandé. */
+  transferNumber?: string;
 }
 
 export interface Agent {

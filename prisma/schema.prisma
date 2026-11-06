@@ -107,7 +107,6 @@ model Agent {
   status          String         @default("draft") // active | paused | draft
   config          String // JSON: AgentConfig (voice, model, prompt, tools, guardrails)
   phoneNumber     String?        @unique
-  vapiAssistantId String? // assistant Vapi miroir (déployé sur un vrai numéro)
   calls           Call[]
   campaigns       Campaign[]
   createdAt        DateTime      @default(now())
@@ -129,6 +128,7 @@ model Call {
   durationSec  Int      @default(0)
   transcript   String // JSON: TranscriptTurn[]
   audioUrl     String? // enregistrement réel de l'appel (data URL), si capté
+  providerCallId String? @unique // identifiant de l'appel chez l'opérateur téléphonique
   summary      String?
   outcome      String?
   satisfaction Int? // 1..5
@@ -141,7 +141,7 @@ model Call {
 }
 
 // Fonction personnalisée (function calling) — connectable aux agents.
-// Les arguments collectés peuvent être POSTés vers `serverUrl` (façon Vapi).
+// Les arguments collectés peuvent être POSTés vers `serverUrl` (endpoint du client).
 model CustomTool {
   id             String       @id @default(cuid())
   organizationId String
@@ -236,7 +236,7 @@ model Contact {
   outcome     String?
   data        String? // JSON champs additionnels
   calledAt    DateTime?
-  vapiCallId  String?   @unique // identifiant Vapi pour relier le webhook au contact
+  providerCallId String? @unique // appel chez l'opérateur (Twilio CallSid, Telnyx) lié au contact
   createdAt   DateTime  @default(now())
 
   @@index([campaignId])

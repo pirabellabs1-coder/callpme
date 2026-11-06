@@ -118,7 +118,9 @@ export default async function TestAgentPage({
             <Card className="p-5">
               <h2 className="text-[0.95rem] font-semibold tracking-tight">Test vocal en direct</h2>
               <p className="mt-1 text-sm text-muted-foreground">
-                Pour parler à l'agent au micro avec le moteur vocal Callpme, configurez : {voiceEngineMissing().join(", ")}.
+                {session.user.isAdmin
+                  ? `Moteur vocal à configurer sur le serveur : ${voiceEngineMissing().join(", ")}.`
+                  : "Le test vocal au micro sera disponible très bientôt. En attendant, discutez avec votre agent par écrit ci-contre : il répond exactement comme au téléphone."}
               </p>
             </Card>
           )}

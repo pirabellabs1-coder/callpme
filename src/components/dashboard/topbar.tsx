@@ -9,31 +9,38 @@ import { NotificationsBell } from "./notifications-bell";
 import { CommandPalette } from "./command-palette";
 
 export interface ServiceStatus {
-  /** Prêt pour de vrais appels (moteur vocal + opérateur). */
-  ready: boolean;
-  /** Ce qui manque, en clair. */
-  missing: string[];
+  tone: "ok" | "warn" | "danger";
+  /** Libellé court, compréhensible par un client. */
+  label: string;
+  href: string;
+  /** Détail en infobulle (détails techniques réservés à l'équipe Callpme). */
+  detail?: string;
 }
 
-/** Indicateur d'état du service vocal (vert = prêt, ambre = à configurer). */
+/** État du compte : abonnement et disponibilité des appels. */
 function ServiceChip({ status }: { status: ServiceStatus }) {
-  const label = status.ready ? "Appels réels actifs" : "Mode test : appels réels à configurer";
+  const ok = status.tone === "ok";
   return (
     <Link
-      href="/numbers"
-      title={status.ready ? label : `Manque : ${status.missing.join(", ")}`}
+      href={status.href}
+      title={status.detail ?? status.label}
       className={cn(
         "mx-auto hidden items-center gap-2 rounded-full border px-3 py-1 text-xs font-medium transition-colors md:inline-flex",
-        status.ready
-          ? "border-emerald-500/25 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/15"
-          : "border-amber-500/25 bg-amber-500/10 text-amber-400 hover:bg-amber-500/15",
+        ok && "border-emerald-500/25 bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/15 dark:text-emerald-400",
+        status.tone === "warn" && "border-amber-500/25 bg-amber-500/10 text-amber-700 hover:bg-amber-500/15 dark:text-amber-400",
+        status.tone === "danger" && "border-rose-500/30 bg-rose-500/10 text-rose-700 hover:bg-rose-500/15 dark:text-rose-400",
       )}
     >
       <span className="relative flex size-2" aria-hidden>
-        {status.ready && <span className="absolute inline-flex size-full animate-ping rounded-full bg-emerald-400 opacity-60 motion-reduce:animate-none" />}
-        <span className={cn("relative inline-flex size-2 rounded-full", status.ready ? "bg-emerald-400" : "bg-amber-400")} />
+        {ok && <span className="absolute inline-flex size-full animate-ping rounded-full bg-emerald-400 opacity-60 motion-reduce:animate-none" />}
+        <span
+          className={cn(
+            "relative inline-flex size-2 rounded-full",
+            ok ? "bg-emerald-400" : status.tone === "warn" ? "bg-amber-400" : "bg-rose-500",
+          )}
+        />
       </span>
-      {label}
+      {status.label}
     </Link>
   );
 }

@@ -79,7 +79,23 @@ export default async function DashboardLayout({
       activeClientColor={activeClientColor}
       badges={{ "/leads": pendingLeads, "/appointments": upcomingAppointments }}
       usage={{ used: minutesUsed, total: sub.minutesIncluded }}
-      status={{ ready: telephonyConfigured(), missing }}
+      status={
+        sub.status === "expired"
+          ? { tone: "danger", label: "Abonnement expiré : renouveler", href: "/billing" }
+          : !telephonyConfigured()
+            ? {
+                tone: "warn",
+                label: "Appels téléphoniques bientôt disponibles",
+                href: "/numbers",
+                // Les noms de variables ne parlent qu'à l'équipe Callpme.
+                detail: session.user.isAdmin
+                  ? `Manque : ${missing.join(", ")}`
+                  : "Testez vos agents au micro et sur votre site ; les appels téléphoniques arrivent bientôt.",
+              }
+            : sub.status === "trial"
+              ? { tone: "warn", label: `Essai gratuit : ${sub.daysLeft} jour${sub.daysLeft > 1 ? "s" : ""}`, href: "/billing" }
+              : { tone: "ok", label: "Appels actifs", href: "/calls" }
+      }
     >
       {children}
     </DashboardShell>

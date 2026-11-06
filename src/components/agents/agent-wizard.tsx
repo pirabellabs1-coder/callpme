@@ -259,6 +259,7 @@ export function AgentWizard({
 
   return (
     <div className="space-y-6">
+      {!isEdit && (
       <div>
         <Link
           href={isEdit ? `/agents/${agent!.id}` : "/agents"}
@@ -276,6 +277,7 @@ export function AgentWizard({
             : `${LAST_STEP} étapes, environ 3 minutes. Vous pourrez tout modifier ensuite.`}
         </p>
       </div>
+      )}
 
       <Stepper step={step} maxReached={maxReached} onStepClick={goTo} />
 

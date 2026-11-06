@@ -85,23 +85,10 @@ export default async function TestAgentPage({
     <div className="space-y-6">
       {/* Cerveau Claude (Puter) chargé côté client — aucune clé API requise. */}
       <Script src="https://js.puter.com/v2/" strategy="afterInteractive" />
-      <Link
-        href={`/agents/${agent.id}`}
-        className="inline-flex items-center gap-1.5 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
-      >
-        <ArrowLeft className="size-4" />
-        Retour à l'agent
-      </Link>
-
-      <div>
-        <h1 className="text-display-sm font-semibold tracking-tight">
-          Tester {agent.name}
-        </h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Parlez en direct avec votre agent dans le navigateur, avant de le
-          déployer sur un vrai numéro.
-        </p>
-      </div>
+      <p className="text-sm text-muted-foreground">
+        Parlez en direct avec votre agent dans le navigateur, avant de le déployer sur un vrai numéro. Les
+        rendez-vous et fiches créés pendant un test sont marqués « test » et ne déclenchent ni SMS ni e-mail.
+      </p>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-5">
         <div className="lg:col-span-3">

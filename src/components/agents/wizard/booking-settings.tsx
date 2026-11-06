@@ -33,7 +33,7 @@ const DAYS = [
 type DayKey = (typeof DAYS)[number][0];
 
 const timeInput =
-  "h-9 w-[6.5rem] rounded-md border border-input bg-card px-2 text-sm tabular-nums focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/15";
+  "h-9 w-[7.25rem] rounded-md border border-input bg-card px-2 text-sm tabular-nums focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/15";
 
 /** Horaires d'ouverture, durée des rendez-vous, fuseau et confirmation SMS. */
 export function BookingSettings({
@@ -108,16 +108,18 @@ export function BookingSettings({
               setDay(day, next);
             };
             return (
-              <li key={day} className="flex flex-wrap items-center gap-3 px-3 py-2">
+              <li key={day} className="flex items-start gap-3 px-3 py-2.5">
+                <span className="pt-1">
                 <Switch
                   id={`bk-day-${day}`}
                   checked={open}
                   onCheckedChange={(on) => setDay(day, on ? [["09:00", "12:00"], ["14:00", "18:00"]] : undefined)}
                   aria-label={`${label} : ${open ? "ouvert" : "fermé"}`}
                 />
-                <span className="w-20 text-sm">{label}</span>
+                </span>
+                <span className="w-20 shrink-0 pt-1.5 text-sm">{label}</span>
                 {open ? (
-                  <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+                  <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1.5 text-sm text-muted-foreground">
                     <input type="time" aria-label={`${label}, début du matin`} className={timeInput} value={morning?.[0] ?? ""} onChange={(e) => update(0, 0, e.target.value)} />
                     <span aria-hidden="true">–</span>
                     <input type="time" aria-label={`${label}, fin du matin`} className={timeInput} value={morning?.[1] ?? ""} onChange={(e) => update(0, 1, e.target.value)} />
@@ -138,7 +140,7 @@ export function BookingSettings({
                     )}
                   </div>
                 ) : (
-                  <span className="text-sm text-muted-foreground">Fermé</span>
+                  <span className="pt-1.5 text-sm text-muted-foreground">Fermé</span>
                 )}
               </li>
             );

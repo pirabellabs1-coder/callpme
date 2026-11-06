@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { formatDistanceToNow } from "date-fns";
 import { fr } from "date-fns/locale";
 import {
@@ -11,10 +11,12 @@ import {
   Check,
   Loader2,
   TriangleAlert,
-  X,
+  AlertCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { EmptyState } from "@/components/ui/empty-state";
 
 export interface ApiKeyView {
   id: string;
@@ -32,18 +34,26 @@ export function ApiKeysPanel({ initialKeys }: { initialKeys: ApiKeyView[] }) {
   const [error, setError] = useState<string | null>(null);
   const [secret, setSecret] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [revoking, setRevoking] = useState<string | null>(null);
+  const copyRef = useRef<HTMLButtonElement>(null);
+
+  // Move focus to the copy button when a new secret is revealed.
+  useEffect(() => {
+    if (secret) copyRef.current?.focus();
+  }, [secret]);
 
   async function create(e: React.FormEvent) {
     e.preventDefault();
     if (!name.trim() || creating) return;
     setCreating(true);
     setError(null);
+    setCopied(false);
     const res = await fetch("/api/dev/api-keys", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ name: name.trim() }),
     });
-    const data = await res.json();
+    const data = await res.json().catch(() => ({}));
     if (res.ok) {
       setKeys((k) => [{ ...data.apiKey, lastUsedAt: null }, ...k]);
       setSecret(data.secret);
@@ -54,22 +64,26 @@ export function ApiKeysPanel({ initialKeys }: { initialKeys: ApiKeyView[] }) {
     setCreating(false);
   }
 
-  async function revoke(id: string) {
+  async function revoke(k: ApiKeyView) {
     if (
       !window.confirm(
-        "Révoquer cette clé ? Les intégrations qui l'utilisent cesseront de fonctionner.",
+        `Révoquer la clé « ${k.name} » ? Les intégrations qui l'utilisent cesseront de fonctionner immédiatement.`,
       )
     )
       return;
-    const res = await fetch(`/api/dev/api-keys/${id}`, { method: "DELETE" });
-    if (res.ok) setKeys((k) => k.filter((x) => x.id !== id));
+    setError(null);
+    setRevoking(k.id);
+    const res = await fetch(`/api/dev/api-keys/${k.id}`, { method: "DELETE" });
+    if (res.ok) setKeys((list) => list.filter((x) => x.id !== k.id));
+    else setError("Révocation impossible. Réessayez.");
+    setRevoking(null);
   }
 
   function copySecret() {
     if (!secret) return;
     navigator.clipboard?.writeText(secret).then(() => {
       setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
+      setTimeout(() => setCopied(false), 2000);
     });
   }
 
@@ -78,85 +92,118 @@ export function ApiKeysPanel({ initialKeys }: { initialKeys: ApiKeyView[] }) {
       <div>
         <h2 className="text-[0.95rem] font-semibold tracking-tight">Clés API</h2>
         <p className="text-sm text-muted-foreground">
-          Authentifiez vos appels à l'API Callpme avec une clé secrète.
+          Authentifiez vos appels à l&apos;API Callpme avec l&apos;en-tête{" "}
+          <code className="rounded bg-secondary px-1 py-0.5 font-mono text-xs text-foreground">
+            Authorization: Bearer &lt;clé&gt;
+          </code>
+          . Chaque clé donne accès aux données de votre organisation : gardez-la côté
+          serveur.
         </p>
       </div>
 
-      {/* Secret nouvellement créé */}
+      {/* Newly created secret — shown once */}
       {secret && (
-        <div className="rounded-xl border border-brand/30 bg-brand-50/40 p-4">
-          <div className="flex items-start justify-between gap-3">
-            <div className="flex items-start gap-2.5">
-              <TriangleAlert className="mt-0.5 size-4 shrink-0 text-brand-700" />
-              <div>
-                <p className="text-sm font-medium text-foreground">
-                  Copiez votre clé maintenant
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  Pour des raisons de sécurité, elle ne sera plus jamais affichée.
-                </p>
-              </div>
+        <div
+          role="status"
+          className="rounded-xl border border-brand/40 bg-brand-50 p-4"
+        >
+          <div className="flex items-start gap-2.5">
+            <TriangleAlert className="mt-0.5 size-4 shrink-0 text-brand-400" aria-hidden="true" />
+            <div>
+              <p className="text-sm font-medium text-foreground">
+                Copiez votre clé maintenant
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Elle ne sera plus jamais affichée. En cas de perte, révoquez-la et créez-en
+                une nouvelle.
+              </p>
             </div>
-            <button
-              type="button"
-              onClick={() => setSecret(null)}
-              className="text-muted-foreground hover:text-foreground"
-              aria-label="Fermer"
-            >
-              <X className="size-4" />
-            </button>
           </div>
-          <div className="mt-3 flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-2">
-            <code className="flex-1 truncate font-mono text-sm text-foreground">
+          <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center">
+            <code
+              className="min-w-0 flex-1 break-all rounded-lg border border-border bg-background px-3 py-2 font-mono text-sm text-foreground"
+              aria-label="Clé API secrète"
+            >
               {secret}
             </code>
-            <Button size="sm" variant="outline" onClick={copySecret}>
-              {copied ? <Check className="size-4 text-emerald-600" /> : <Copy className="size-4" />}
-              {copied ? "Copié" : "Copier"}
-            </Button>
+            <div className="flex gap-2">
+              <Button size="sm" variant="outline" onClick={copySecret} ref={copyRef}>
+                {copied ? (
+                  <Check className="size-4 text-emerald-600" aria-hidden="true" />
+                ) : (
+                  <Copy className="size-4" aria-hidden="true" />
+                )}
+                {copied ? "Copiée" : "Copier"}
+              </Button>
+              <Button size="sm" variant="ghost" onClick={() => setSecret(null)}>
+                J&apos;ai copié ma clé
+              </Button>
+            </div>
           </div>
+          <span className="sr-only" aria-live="polite">
+            {copied ? "Clé copiée dans le presse-papiers" : ""}
+          </span>
         </div>
       )}
 
-      {/* Création */}
-      <form onSubmit={create} className="flex items-end gap-2">
+      {/* Creation */}
+      <form
+        onSubmit={create}
+        className="flex flex-col gap-2 rounded-xl border border-border bg-card p-4 sm:flex-row sm:items-end"
+      >
         <div className="flex-1 space-y-1.5">
-          <label className="text-xs font-medium text-muted-foreground">
-            Nom de la clé
-          </label>
+          <Label htmlFor="api-key-name">Nom de la clé</Label>
           <Input
+            id="api-key-name"
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="Ex : Intégration n8n"
             maxLength={60}
+            autoComplete="off"
           />
         </div>
         <Button type="submit" variant="default" disabled={creating || !name.trim()}>
-          {creating ? <Loader2 className="size-4 animate-spin" /> : <Plus className="size-4" />}
+          {creating ? (
+            <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+          ) : (
+            <Plus className="size-4" aria-hidden="true" />
+          )}
           Créer une clé
         </Button>
       </form>
-      {error && <p className="text-sm text-destructive">{error}</p>}
-
-      {/* Liste */}
-      {keys.length === 0 ? (
-        <p className="rounded-lg border border-dashed border-border bg-card/50 px-4 py-8 text-center text-sm text-muted-foreground">
-          Aucune clé API. Créez-en une pour commencer.
+      {error && (
+        <p role="alert" className="flex items-center gap-2 text-sm text-destructive">
+          <AlertCircle className="size-4 shrink-0" aria-hidden="true" />
+          {error}
         </p>
+      )}
+
+      {/* List */}
+      {keys.length === 0 ? (
+        <EmptyState
+          icon={KeyRound}
+          title="Aucune clé API"
+          description="Créez une clé pour appeler l'API Callpme depuis votre backend, n8n ou Make."
+          className="py-10"
+        />
       ) : (
-        <div className="divide-y divide-border overflow-hidden rounded-xl border border-border bg-card">
+        <ul className="divide-y divide-border overflow-hidden rounded-xl border border-border bg-card">
           {keys.map((k) => (
-            <div key={k.id} className="flex items-center gap-3 px-4 py-3">
-              <span className="inline-flex size-9 shrink-0 items-center justify-center rounded-lg bg-secondary text-foreground/55 ring-1 ring-inset ring-border">
+            <li key={k.id} className="flex items-center gap-3 px-4 py-3">
+              <span
+                aria-hidden="true"
+                className="inline-flex size-9 shrink-0 items-center justify-center rounded-lg bg-secondary text-foreground/60 ring-1 ring-inset ring-border"
+              >
                 <KeyRound className="size-4" strokeWidth={1.75} />
               </span>
               <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-medium text-foreground">
-                  {k.name}
-                </p>
+                <p className="truncate text-sm font-medium text-foreground">{k.name}</p>
                 <p className="truncate font-mono text-xs text-muted-foreground">
-                  {k.prefix}
-                  {"•".repeat(8)}
+                  <span className="sr-only">Clé masquée, se termine par </span>
+                  <span aria-hidden="true">
+                    {k.prefix}
+                    {"•".repeat(8)}
+                  </span>
                   {k.lastFour}
                 </p>
               </div>
@@ -176,15 +223,20 @@ export function ApiKeysPanel({ initialKeys }: { initialKeys: ApiKeyView[] }) {
               </div>
               <button
                 type="button"
-                onClick={() => revoke(k.id)}
-                className="inline-flex size-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-destructive/5 hover:text-destructive"
-                aria-label="Révoquer"
+                onClick={() => revoke(k)}
+                disabled={revoking === k.id}
+                className="inline-flex size-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive disabled:opacity-50"
+                aria-label={`Révoquer la clé ${k.name}`}
               >
-                <Trash2 className="size-4" />
+                {revoking === k.id ? (
+                  <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+                ) : (
+                  <Trash2 className="size-4" aria-hidden="true" />
+                )}
               </button>
-            </div>
+            </li>
           ))}
-        </div>
+        </ul>
       )}
     </div>
   );

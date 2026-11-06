@@ -21,7 +21,7 @@ export default async function NumbersPage() {
     <div className="space-y-6">
       <PageHeader
         title="Numéros"
-        description="Connectez vos opérateurs et gérez les numéros reliés à vos agents."
+        description="Vos opérateurs téléphoniques, vos numéros et leur lien avec vos agents."
       >
         <Badge variant="muted">
           {numbers.length}/{limitLabel(plan.maxNumbers)} numéros

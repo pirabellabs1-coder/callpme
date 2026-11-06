@@ -25,31 +25,38 @@ export function CodeBlock({
   return (
     <div
       className={cn(
-        "relative min-w-0 overflow-hidden rounded-lg border border-[hsl(24_10%_22%)] bg-[hsl(24_14%_9%)]",
+        "relative min-w-0 overflow-hidden rounded-lg border border-border bg-background shadow-inner-top",
         className,
       )}
     >
-      <div className="flex items-center justify-between border-b border-white/[0.08] px-3 py-2">
-        <span className="font-mono text-[0.7rem] uppercase tracking-wider text-white/40">
+      <div className="flex items-center justify-between border-b border-border bg-foreground/[0.02] px-3 py-1.5">
+        <span className="font-mono text-[0.7rem] uppercase tracking-wider text-muted-foreground">
           {language ?? "code"}
         </span>
         <button
           type="button"
           onClick={copy}
-          className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs text-white/60 transition-colors hover:bg-white/10 hover:text-white"
+          aria-label={copied ? "Code copié" : `Copier le code${language ? ` ${language}` : ""}`}
+          className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/55"
         >
           {copied ? (
             <>
-              <Check className="size-3.5 text-emerald-400" /> Copié
+              <Check className="size-3.5 text-emerald-600" aria-hidden="true" /> Copié
             </>
           ) : (
             <>
-              <Copy className="size-3.5" /> Copier
+              <Copy className="size-3.5" aria-hidden="true" /> Copier
             </>
           )}
         </button>
+        <span className="sr-only" aria-live="polite">
+          {copied ? "Code copié dans le presse-papiers" : ""}
+        </span>
       </div>
-      <pre className="overflow-x-auto px-4 py-3.5 text-[0.78rem] leading-relaxed text-white/90">
+      <pre
+        tabIndex={0}
+        className="overflow-x-auto px-4 py-3.5 font-mono text-[0.78rem] leading-relaxed text-foreground/90"
+      >
         <code>{code}</code>
       </pre>
     </div>
@@ -65,12 +72,13 @@ export function CodeTabs({
   const current = samples[active];
   return (
     <div className="min-w-0">
-      <div className="mb-2 flex items-center gap-1">
+      <div className="mb-2 flex items-center gap-1" role="group" aria-label="Langage">
         {samples.map((s, i) => (
           <button
             key={s.label}
             type="button"
             onClick={() => setActive(i)}
+            aria-pressed={i === active}
             className={cn(
               "rounded-md px-2.5 py-1 text-xs font-medium transition-colors",
               i === active

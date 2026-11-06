@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 import {
   AudioLines,
   Plus,
@@ -34,6 +34,7 @@ import { Select } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Slider } from "@/components/ui/slider";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { EmptyState } from "@/components/ui/empty-state";
 import { VoicePreview } from "@/components/agents/wizard/voice-preview";
 import {
   TTS_PROVIDERS,
@@ -59,6 +60,12 @@ function externalVoiceId(raw: string | null): string | undefined {
     return undefined;
   }
 }
+
+const STATUS_LABELS: Record<string, string> = {
+  ready: "Prête",
+  training: "En préparation",
+  failed: "Échec",
+};
 
 const GENDER_LABELS: Record<string, string> = {
   feminine: "Féminine",
@@ -104,11 +111,18 @@ function Waveform({
     if (!ctx) return;
     let raf = 0;
 
+    // Read theme tokens so the canvas follows the (dark/light) theme.
+    const root = getComputedStyle(document.documentElement);
+    const token = (name: string, fallback: string) =>
+      root.getPropertyValue(name).trim() || fallback;
+    const lineColor = `hsl(${token("--foreground", "36 20% 95%")} / 0.18)`;
+    const waveColor = `hsl(${token("--brand", "14 84% 57%")})`;
+
     const drawFlat = () => {
       const w = canvas.width;
       const h = canvas.height;
       ctx.clearRect(0, 0, w, h);
-      ctx.strokeStyle = "rgba(120,110,105,0.25)";
+      ctx.strokeStyle = lineColor;
       ctx.lineWidth = 1.5;
       ctx.beginPath();
       ctx.moveTo(0, h / 2);
@@ -129,7 +143,7 @@ function Waveform({
       analyser.getByteTimeDomainData(buf);
       ctx.clearRect(0, 0, w, h);
       ctx.lineWidth = 2;
-      ctx.strokeStyle = "#E8572A";
+      ctx.strokeStyle = waveColor;
       ctx.beginPath();
       const slice = w / buf.length;
       for (let i = 0; i < buf.length; i++) {
@@ -153,7 +167,11 @@ function Waveform({
       ref={ref}
       width={640}
       height={96}
-      className={cn("h-24 w-full rounded-lg bg-secondary/40", className)}
+      aria-hidden="true"
+      className={cn(
+        "h-24 w-full rounded-lg border border-border bg-background",
+        className,
+      )}
     />
   );
 }
@@ -179,18 +197,19 @@ function Fader({
   format: (v: number) => string;
   onChange: (v: number) => void;
 }) {
+  const id = useId();
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between">
-        <span className="flex items-center gap-1.5 text-xs font-medium text-foreground">
-          <Icon className="size-3.5 text-muted-foreground" strokeWidth={1.75} />
+        <label htmlFor={id} className="flex items-center gap-1.5 text-xs font-medium text-foreground">
+          <Icon className="size-3.5 text-muted-foreground" strokeWidth={1.75} aria-hidden="true" />
           {label}
-        </span>
-        <span className="font-mono text-[0.7rem] tabular-nums text-muted-foreground">
+        </label>
+        <output htmlFor={id} className="font-mono text-[0.7rem] tabular-nums text-muted-foreground">
           {format(value)}
-        </span>
+        </output>
       </div>
-      <Slider value={value} min={min} max={max} step={step} onValueChange={onChange} />
+      <Slider id={id} value={value} min={min} max={max} step={step} onValueChange={onChange} />
     </div>
   );
 }
@@ -237,32 +256,35 @@ function VoiceCard({
   }
 
   return (
-    <Card className="flex flex-col p-5">
+    <Card className="flex h-full flex-col p-5">
       <div className="flex items-start justify-between">
-        <span className="inline-flex size-11 items-center justify-center rounded-xl bg-brand-50 text-brand-600 ring-1 ring-inset ring-brand-600/15">
+        <span
+          aria-hidden="true"
+          className="inline-flex size-11 items-center justify-center rounded-xl bg-brand-50 text-brand-400 ring-1 ring-inset ring-brand-600/20"
+        >
           <AudioLines className="size-5" strokeWidth={1.75} />
         </span>
         <div className="flex items-center gap-1.5">
           {voice.status === "ready" ? (
             <Badge variant="success">Prête</Badge>
           ) : (
-            <Badge variant="muted">{voice.status}</Badge>
+            <Badge variant="muted">{STATUS_LABELS[voice.status] ?? voice.status}</Badge>
           )}
           <button
             type="button"
             onClick={() => onEdit(voice)}
             className="inline-flex size-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-            aria-label="Éditer"
+            aria-label={`Éditer la voix ${voice.name}`}
           >
-            <Pencil className="size-4" />
+            <Pencil className="size-4" aria-hidden="true" />
           </button>
           <button
             type="button"
             onClick={() => onDelete(voice.id)}
-            className="inline-flex size-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-destructive/5 hover:text-destructive"
-            aria-label="Supprimer"
+            className="inline-flex size-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
+            aria-label={`Supprimer la voix ${voice.name}`}
           >
-            <Trash2 className="size-4" />
+            <Trash2 className="size-4" aria-hidden="true" />
           </button>
         </div>
       </div>
@@ -299,12 +321,12 @@ function VoiceCard({
           </span>
         )}
         {voice.sampleUrl && (
-          <span className="rounded bg-brand-50 px-1.5 py-0.5 font-mono text-[0.65rem] text-brand-700">
+          <span className="rounded bg-brand-50 px-1.5 py-0.5 font-mono text-[0.65rem] text-brand-400">
             échantillon
           </span>
         )}
         {isProvider && (
-          <span className="rounded bg-foreground px-1.5 py-0.5 font-mono text-[0.65rem] text-background">
+          <span className="rounded px-1.5 py-0.5 font-mono text-[0.65rem] text-foreground/80 ring-1 ring-inset ring-border">
             {voice.provider}
           </span>
         )}
@@ -325,7 +347,13 @@ function VoiceCard({
             />
           </div>
         ) : (
-          <Button variant="outline" size="sm" onClick={preview} className="w-full">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={preview}
+            className="w-full"
+            aria-label={speaking ? `Arrêter l'écoute de ${voice.name}` : `Écouter ${voice.name}`}
+          >
             {speaking ? (
               <>
                 <Pause className="size-4" /> Arrêter
@@ -354,6 +382,12 @@ export function VoiceStudio({
   const [voices, setVoices] = useState(initial);
   const [open, setOpen] = useState(initial.length === 0);
   const [byId, setById] = useState(false);
+  // Edit requests are passed as a prop (with a nonce) so they also work when the
+  // console was closed and mounts in the same render.
+  const [editRequest, setEditRequest] = useState<{ voice: VoiceRecord; nonce: number } | null>(
+    null,
+  );
+  const consoleRef = useRef<HTMLDivElement>(null);
   const engineRef = useRef<StudioEngine | null>(null);
   const getEngine = useCallback(() => {
     if (!engineRef.current) engineRef.current = new StudioEngine();
@@ -364,122 +398,167 @@ export function VoiceStudio({
     return () => engineRef.current?.dispose();
   }, []);
 
+  // Bring the console into view and focus the name field when editing.
+  useEffect(() => {
+    if (!editRequest) return;
+    const el = consoleRef.current;
+    if (!el) return;
+    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    el.scrollIntoView({ behavior: reduce ? "auto" : "smooth", block: "start" });
+    el.querySelector<HTMLInputElement>("[data-voice-name]")?.focus({ preventScroll: true });
+  }, [editRequest]);
+
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between gap-4">
-        <p className="max-w-xl text-sm text-muted-foreground">
+    <div className="space-y-8">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <p className="max-w-xl text-sm text-muted-foreground text-pretty">
           Enregistrez, sculptez et synthétisez la voix de vos agents : micro réel,
-          égaliseur, réverb et compression — comme une vraie console de studio.
+          égaliseur, réverb et compression, ou une voix ElevenLabs, Cartesia ou OpenAI
+          ajoutée par son ID.
         </p>
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={() => setById((b) => !b)}>
-            {byId ? <X className="size-4" /> : <Link2 className="size-4" />}
+        <div className="flex shrink-0 flex-wrap items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setById((b) => !b)}
+            aria-expanded={byId}
+            aria-controls="voice-add-by-id"
+          >
+            {byId ? (
+              <X className="size-4" aria-hidden="true" />
+            ) : (
+              <Link2 className="size-4" aria-hidden="true" />
+            )}
             {byId ? "Fermer" : "Ajouter par ID"}
           </Button>
-          <Button variant="brand" size="sm" onClick={() => setOpen((o) => !o)}>
-            {open ? <X className="size-4" /> : <Plus className="size-4" />}
-            {open ? "Fermer" : "Nouvelle voix"}
+          <Button
+            variant="brand"
+            size="sm"
+            onClick={() => setOpen((o) => !o)}
+            aria-expanded={open}
+            aria-controls="voice-studio-console"
+          >
+            {open ? (
+              <X className="size-4" aria-hidden="true" />
+            ) : (
+              <Plus className="size-4" aria-hidden="true" />
+            )}
+            {open ? "Fermer le studio" : "Nouvelle voix"}
           </Button>
         </div>
       </div>
 
       {byId && (
-        <AddByIdForm
-          onSaved={(v) => {
-            setVoices((list) => [v, ...list]);
-            setById(false);
-          }}
-        />
+        <div id="voice-add-by-id">
+          <AddByIdForm
+            onSaved={(v) => {
+              setVoices((list) => [v, ...list]);
+              setById(false);
+            }}
+          />
+        </div>
       )}
 
       {open && (
-        <StudioConsole
-          getEngine={getEngine}
-          onSaved={(v, isEdit) => {
-            setVoices((list) =>
-              isEdit ? list.map((x) => (x.id === v.id ? v : x)) : [v, ...list],
-            );
-          }}
-        />
-      )}
-
-      {voices.length === 0 ? (
-        <Card className="p-10 text-center">
-          <AudioLines className="mx-auto size-8 text-muted-foreground/50" />
-          <p className="mt-3 text-sm font-medium text-foreground">Aucune voix</p>
-          <p className="text-sm text-muted-foreground">
-            Ouvrez le studio pour produire une voix sur-mesure.
-          </p>
-        </Card>
-      ) : (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
-          {voices.map((v) => (
-            <VoiceCard
-              key={v.id}
-              voice={v}
-              engine={getEngine()}
-              onDelete={async (id) => {
-                if (!window.confirm("Supprimer cette voix ?")) return;
-                const res = await fetch(`/api/voices/${id}`, { method: "DELETE" });
-                if (res.ok) setVoices((list) => list.filter((x) => x.id !== id));
-              }}
-              onEdit={(voice) => {
-                setOpen(true);
-                // Le panneau lit l'édition via un événement personnalisé
-                window.dispatchEvent(
-                  new CustomEvent("studio:edit", { detail: voice }),
-                );
-              }}
-            />
-          ))}
+        <div id="voice-studio-console" ref={consoleRef} className="scroll-mt-6">
+          <StudioConsole
+            getEngine={getEngine}
+            editRequest={editRequest}
+            onSaved={(v, isEdit) => {
+              setVoices((list) =>
+                isEdit ? list.map((x) => (x.id === v.id ? v : x)) : [v, ...list],
+              );
+              setEditRequest(null);
+            }}
+          />
         </div>
       )}
 
-      {/* Bibliothèque de voix de la plateforme */}
+      {/* Organisation's own voices */}
+      <section aria-labelledby="my-voices-title" className="space-y-4">
+        <h2
+          id="my-voices-title"
+          className="text-[0.95rem] font-semibold tracking-tight text-foreground"
+        >
+          Vos voix <span className="font-normal text-muted-foreground">· {voices.length}</span>
+        </h2>
+        {voices.length === 0 ? (
+          <EmptyState
+            icon={AudioLines}
+            title="Aucune voix personnalisée"
+            description="Ouvrez le studio pour enregistrer et régler une voix, ou ajoutez une voix fournisseur par son ID."
+            className="py-10"
+          />
+        ) : (
+          <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+            {voices.map((v) => (
+              <li key={v.id}>
+                <VoiceCard
+                  voice={v}
+                  engine={getEngine()}
+                  onDelete={async (id) => {
+                    if (!window.confirm(`Supprimer la voix « ${v.name} » ?`)) return;
+                    const res = await fetch(`/api/voices/${id}`, { method: "DELETE" });
+                    if (res.ok) setVoices((list) => list.filter((x) => x.id !== id));
+                  }}
+                  onEdit={(voice) => {
+                    setOpen(true);
+                    setEditRequest({ voice, nonce: Date.now() });
+                  }}
+                />
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
+      {/* Platform voice catalog */}
       {showCatalog && (
-      <div className="space-y-4 border-t border-border pt-6">
-        <div>
-          <h2 className="text-[0.95rem] font-semibold tracking-tight text-foreground">
-            Voix de la plateforme · {PRESET_VOICES.length}
-          </h2>
-          <p className="text-sm text-muted-foreground">
-            Des voix prêtes à l'emploi, toutes catégories — écoutez-les puis
-            sélectionnez-les à la création d'un agent.
-          </p>
-        </div>
-        {presetsByCategory().map((group) => (
-          <div key={group.category} className="space-y-2">
-            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground/70">
-              {group.category}
+        <section aria-labelledby="catalog-title" className="space-y-5 border-t border-border pt-8">
+          <div>
+            <h2
+              id="catalog-title"
+              className="text-[0.95rem] font-semibold tracking-tight text-foreground"
+            >
+              Voix de la plateforme{" "}
+              <span className="font-normal text-muted-foreground">· {PRESET_VOICES.length}</span>
+            </h2>
+            <p className="mt-0.5 text-sm text-muted-foreground">
+              Des voix prêtes à l&apos;emploi : écoutez-les ici, puis sélectionnez-les à la
+              création d&apos;un agent.
             </p>
-            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-3">
-              {group.voices.map((v) => (
-                <div
-                  key={v.id}
-                  className="flex items-center justify-between gap-3 rounded-lg border border-border bg-card px-3 py-2.5"
-                >
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-medium text-foreground">
-                      {v.label}
-                    </p>
-                    <p className="truncate text-xs text-muted-foreground">
-                      {v.description}
-                    </p>
-                  </div>
-                  <VoicePreview
-                    text={`Bonjour, je suis ${v.label}. Je serai ravi de vous accompagner aujourd'hui.`}
-                    language={v.language}
-                    speed={v.rate}
-                    pitch={v.pitch}
-                    gender={v.gender}
-                    label="Écouter"
-                  />
-                </div>
-              ))}
-            </div>
           </div>
-        ))}
-      </div>
+          {presetsByCategory().map((group) => (
+            <div key={group.category} className="space-y-2">
+              <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                {group.category}
+              </h3>
+              <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-3">
+                {group.voices.map((v) => (
+                  <li
+                    key={v.id}
+                    className="flex items-center justify-between gap-3 rounded-lg border border-border bg-card px-3 py-2.5 transition-colors hover:border-foreground/15"
+                  >
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium text-foreground">{v.label}</p>
+                      <p className="truncate text-xs text-muted-foreground" title={v.description}>
+                        {v.description}
+                      </p>
+                    </div>
+                    <VoicePreview
+                      text={`Bonjour, je suis ${v.label}. Je serai ravi de vous accompagner aujourd'hui.`}
+                      language={v.language}
+                      speed={v.rate}
+                      pitch={v.pitch}
+                      gender={v.gender}
+                      label="Écouter"
+                    />
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
+        </section>
       )}
     </div>
   );
@@ -488,6 +567,7 @@ export function VoiceStudio({
 /* --------------------------- Ajouter par ID ------------------------------- */
 
 function AddByIdForm({ onSaved }: { onSaved: (v: VoiceRecord) => void }) {
+  const fid = useId();
   const [provider, setProvider] = useState<TtsProvider>("elevenlabs");
   const [voiceId, setVoiceId] = useState("");
   const [name, setName] = useState("");
@@ -525,13 +605,16 @@ function AddByIdForm({ onSaved }: { onSaved: (v: VoiceRecord) => void }) {
   return (
     <div className="overflow-hidden rounded-2xl border border-border bg-card shadow-md">
       <div className="flex items-center gap-3 border-b border-border bg-secondary/40 px-5 py-4">
-        <span className="inline-flex size-9 items-center justify-center rounded-lg bg-foreground text-background">
+        <span
+          aria-hidden="true"
+          className="inline-flex size-9 items-center justify-center rounded-lg bg-secondary text-foreground/75 ring-1 ring-inset ring-border"
+        >
           <Link2 className="size-4" strokeWidth={1.75} />
         </span>
         <div>
-          <p className="text-sm font-semibold tracking-tight text-foreground">
+          <h2 className="text-sm font-semibold tracking-tight text-foreground">
             Ajouter une voix par ID
-          </p>
+          </h2>
           <p className="text-xs text-muted-foreground">
             ElevenLabs · Cartesia · OpenAI
           </p>
@@ -540,8 +623,8 @@ function AddByIdForm({ onSaved }: { onSaved: (v: VoiceRecord) => void }) {
       <div className="space-y-4 p-5">
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
           <div className="space-y-1.5">
-            <label className="text-xs font-medium text-muted-foreground">Fournisseur</label>
-            <Select
+            <label htmlFor={`${fid}-prov`} className="text-xs font-medium text-muted-foreground">Fournisseur</label>
+            <Select id={`${fid}-prov`}
               value={provider}
               onChange={(e) => {
                 setProvider(e.target.value as TtsProvider);
@@ -556,11 +639,11 @@ function AddByIdForm({ onSaved }: { onSaved: (v: VoiceRecord) => void }) {
             </Select>
           </div>
           <div className="space-y-1.5 sm:col-span-2">
-            <label className="text-xs font-medium text-muted-foreground">
+            <label htmlFor={`${fid}-vid`} className="text-xs font-medium text-muted-foreground">
               {meta.idLabel}
             </label>
             {provider === "openai" ? (
-              <Select value={voiceId} onChange={(e) => setVoiceId(e.target.value)}>
+              <Select id={`${fid}-vid`} value={voiceId} onChange={(e) => setVoiceId(e.target.value)}>
                 <option value="">— Choisir une voix —</option>
                 {OPENAI_TTS_VOICES.map((v) => (
                   <option key={v} value={v}>
@@ -570,6 +653,8 @@ function AddByIdForm({ onSaved }: { onSaved: (v: VoiceRecord) => void }) {
               </Select>
             ) : (
               <Input
+                id={`${fid}-vid`}
+                spellCheck={false}
                 value={voiceId}
                 onChange={(e) => setVoiceId(e.target.value)}
                 placeholder={meta.idPlaceholder}
@@ -579,24 +664,24 @@ function AddByIdForm({ onSaved }: { onSaved: (v: VoiceRecord) => void }) {
         </div>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
           <div className="space-y-1.5">
-            <label className="text-xs font-medium text-muted-foreground">Nom</label>
-            <Input
+            <label htmlFor={`${fid}-name`} className="text-xs font-medium text-muted-foreground">Nom</label>
+            <Input id={`${fid}-name`}
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="Voix ElevenLabs Pro"
             />
           </div>
           <div className="space-y-1.5">
-            <label className="text-xs font-medium text-muted-foreground">Genre</label>
-            <Select value={gender} onChange={(e) => setGender(e.target.value)}>
+            <label htmlFor={`${fid}-gender`} className="text-xs font-medium text-muted-foreground">Genre</label>
+            <Select value={gender} id={`${fid}-gender`} onChange={(e) => setGender(e.target.value)}>
               <option value="feminine">Féminine</option>
               <option value="masculine">Masculine</option>
               <option value="neutral">Neutre</option>
             </Select>
           </div>
           <div className="space-y-1.5">
-            <label className="text-xs font-medium text-muted-foreground">Langue</label>
-            <Input
+            <label htmlFor={`${fid}-lang`} className="text-xs font-medium text-muted-foreground">Langue</label>
+            <Input id={`${fid}-lang`}
               value={language}
               onChange={(e) => setLanguage(e.target.value)}
               placeholder="fr-FR"
@@ -612,7 +697,11 @@ function AddByIdForm({ onSaved }: { onSaved: (v: VoiceRecord) => void }) {
             navigateur.
           </span>
         </div>
-        {error && <p className="text-sm text-destructive">{error}</p>}
+        {error && (
+          <p role="alert" className="text-sm text-destructive">
+            {error}
+          </p>
+        )}
         <div className="flex flex-wrap items-center gap-3">
           <Button
             variant="brand"
@@ -649,11 +738,14 @@ type RecState = "idle" | "recording" | "recorded";
 
 function StudioConsole({
   getEngine,
+  editRequest,
   onSaved,
 }: {
   getEngine: () => StudioEngine;
+  editRequest: { voice: VoiceRecord; nonce: number } | null;
   onSaved: (v: VoiceRecord, isEdit: boolean) => void;
 }) {
+  const ids = useId();
   const [editId, setEditId] = useState<string | null>(null);
   const [meta, setMeta] = useState({
     name: "",
@@ -701,8 +793,9 @@ function StudioConsole({
 
   // Édition d'une voix existante (déclenchée depuis une carte)
   useEffect(() => {
-    const handler = (e: Event) => {
-      const v = (e as CustomEvent<VoiceRecord>).detail;
+    if (!editRequest) return;
+    {
+      const v = editRequest.voice;
       setEditId(v.id);
       setMeta({
         name: v.name,
@@ -721,10 +814,8 @@ function StudioConsole({
         setRec("idle");
       }
       setTab("mix");
-    };
-    window.addEventListener("studio:edit", handler);
-    return () => window.removeEventListener("studio:edit", handler);
-  }, []);
+    }
+  }, [editRequest]);
 
   // Minuteur d'enregistrement
   useEffect(() => {
@@ -839,19 +930,22 @@ function StudioConsole({
   return (
     <div className="overflow-hidden rounded-2xl border border-border bg-card shadow-md">
       {/* En-tête console */}
-      <div className="flex items-center gap-3 border-b border-border bg-secondary/40 px-5 py-4">
-        <span className="inline-flex size-9 items-center justify-center rounded-lg bg-foreground text-background">
+      <div className="flex flex-wrap items-center gap-3 border-b border-border bg-secondary/40 px-5 py-4">
+        <span
+          aria-hidden="true"
+          className="inline-flex size-9 items-center justify-center rounded-lg bg-brand-50 text-brand-400 ring-1 ring-inset ring-brand-600/20"
+        >
           <SlidersHorizontal className="size-4" strokeWidth={1.75} />
         </span>
         <div className="min-w-0 flex-1">
-          <p className="text-sm font-semibold tracking-tight text-foreground">
+          <h2 className="text-sm font-semibold tracking-tight text-foreground">
             {editId ? "Édition de la voix" : "Console de studio"}
-          </p>
+          </h2>
           <p className="text-xs text-muted-foreground">
             Enregistrez · Mixez · Synthétisez
           </p>
         </div>
-        <Tabs value={tab} onValueChange={setTab}>
+        <Tabs value={tab} onValueChange={setTab} className="w-full overflow-x-auto sm:w-auto">
           <TabsList>
             <TabsTrigger value="record">
               <Mic className="mr-1.5 inline size-3.5" /> Enregistrer
@@ -889,7 +983,8 @@ function StudioConsole({
               )}
               {rec === "recording" && (
                 <span className="flex items-center gap-2 font-mono text-sm tabular-nums text-foreground">
-                  <span className="inline-block size-2 animate-pulse rounded-full bg-destructive" />
+                  <span className="sr-only">Enregistrement en cours</span>
+                  <span aria-hidden="true" className="inline-block size-2 animate-pulse rounded-full bg-destructive" />
                   {fmtTime(elapsed)}
                 </span>
               )}
@@ -1026,10 +1121,11 @@ function StudioConsole({
           {/* ----- Synthèse ----- */}
           <TabsContent value="synth" className="space-y-4">
             <div className="space-y-1.5">
-              <label className="text-xs font-medium text-muted-foreground">
+              <label htmlFor={`${ids}-tts`} className="text-xs font-medium text-muted-foreground">
                 Voix de synthèse (système)
               </label>
               <Select
+                id={`${ids}-tts`}
                 value={settings.voiceURI ?? ""}
                 onChange={(e) => set({ voiceURI: e.target.value || undefined })}
               >
@@ -1042,10 +1138,11 @@ function StudioConsole({
               </Select>
             </div>
             <div className="space-y-1.5">
-              <label className="text-xs font-medium text-muted-foreground">
-                Texte d'essai
+              <label htmlFor={`${ids}-sample`} className="text-xs font-medium text-muted-foreground">
+                Texte d&apos;essai
               </label>
               <Input
+                id={`${ids}-sample`}
                 value={meta.sampleText}
                 onChange={(e) => setMeta({ ...meta, sampleText: e.target.value })}
               />
@@ -1070,18 +1167,23 @@ function StudioConsole({
       <div className="space-y-4 border-t border-border bg-secondary/30 p-5">
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
           <div className="space-y-1.5 sm:col-span-2">
-            <label className="text-xs font-medium text-muted-foreground">
+            <label htmlFor={`${ids}-name`} className="text-xs font-medium text-muted-foreground">
               Nom de la voix
             </label>
             <Input
+              id={`${ids}-name`}
+              data-voice-name
               value={meta.name}
               onChange={(e) => setMeta({ ...meta, name: e.target.value })}
               placeholder="Voix Accueil Premium"
             />
           </div>
           <div className="space-y-1.5">
-            <label className="text-xs font-medium text-muted-foreground">Genre</label>
+            <label htmlFor={`${ids}-gender`} className="text-xs font-medium text-muted-foreground">
+              Genre
+            </label>
             <Select
+              id={`${ids}-gender`}
               value={meta.gender}
               onChange={(e) => setMeta({ ...meta, gender: e.target.value })}
             >
@@ -1091,8 +1193,11 @@ function StudioConsole({
             </Select>
           </div>
           <div className="space-y-1.5">
-            <label className="text-xs font-medium text-muted-foreground">Accent</label>
+            <label htmlFor={`${ids}-accent`} className="text-xs font-medium text-muted-foreground">
+              Accent
+            </label>
             <Input
+              id={`${ids}-accent`}
               value={meta.accent}
               onChange={(e) => setMeta({ ...meta, accent: e.target.value })}
               placeholder="Français standard"
@@ -1100,17 +1205,22 @@ function StudioConsole({
           </div>
         </div>
         <div className="space-y-1.5">
-          <label className="text-xs font-medium text-muted-foreground">
+          <label htmlFor={`${ids}-desc`} className="text-xs font-medium text-muted-foreground">
             Description du timbre (optionnel)
           </label>
           <Input
+            id={`${ids}-desc`}
             value={meta.description}
             onChange={(e) => setMeta({ ...meta, description: e.target.value })}
             placeholder="Chaleureuse, posée, légèrement grave"
           />
         </div>
-        {error && <p className="text-sm text-destructive">{error}</p>}
-        <div className="flex items-center gap-3">
+        {error && (
+          <p role="alert" className="text-sm text-destructive">
+            {error}
+          </p>
+        )}
+        <div className="flex flex-wrap items-center gap-3">
           <Button variant="brand" onClick={save} disabled={saving || !meta.name.trim()}>
             {saving ? (
               <Loader2 className="size-4 animate-spin" />

@@ -14,7 +14,7 @@ export default async function IntegrationsPage() {
     <div className="space-y-6">
       <PageHeader
         title="Intégrations"
-        description="Connectez Callpme à vos outils — agenda, CRM, notifications."
+        description="Enregistrez les identifiants de vos outils — agenda, CRM, notifications."
       />
       <IntegrationsManager connected={connected} />
     </div>

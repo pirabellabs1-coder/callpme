@@ -41,7 +41,7 @@ export function PlanCards({ currentPlan }: { currentPlan: string }) {
             )}
           >
             {isCurrent && (
-              <span className="absolute -top-3 left-6 inline-flex items-center rounded-full bg-brand px-3 py-1 text-xs font-semibold text-white shadow-brand">
+              <span className="absolute -top-3 left-6 inline-flex items-center rounded-full bg-brand px-3 py-1 text-xs font-semibold text-brand-foreground shadow-brand">
                 Offre actuelle
               </span>
             )}
@@ -58,7 +58,7 @@ export function PlanCards({ currentPlan }: { currentPlan: string }) {
             <ul className="mt-5 flex-1 space-y-2.5">
               {plan.features.map((f) => (
                 <li key={f} className="flex items-start gap-2.5 text-sm">
-                  <Check className="mt-0.5 size-4 shrink-0 text-brand" />
+                  <Check className="mt-0.5 size-4 shrink-0 text-brand-400" aria-hidden="true" />
                   <span className="text-foreground/90">{f}</span>
                 </li>
               ))}

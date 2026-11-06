@@ -1,7 +1,16 @@
 "use client";
 
-import { useState } from "react";
-import { Check, Loader2, Plug, ExternalLink, X } from "lucide-react";
+import { useId, useState } from "react";
+import {
+  KeyRound,
+  Loader2,
+  Plug,
+  ExternalLink,
+  Info,
+  AlertCircle,
+  RefreshCw,
+  Unplug,
+} from "lucide-react";
 import {
   INTEGRATION_CATALOG,
   getIntegration,
@@ -13,6 +22,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { DynamicIcon } from "@/components/icon";
+import { Dialog } from "@/components/settings/dialog";
 
 type Connected = { provider: string; accountName: string | null };
 
@@ -21,211 +31,325 @@ export function IntegrationsManager({ connected }: { connected: Connected[] }) {
     Object.fromEntries(connected.map((c) => [c.provider, c.accountName])),
   );
   const [connectingId, setConnectingId] = useState<string | null>(null);
-  const [accountName, setAccountName] = useState("");
-  const [creds, setCreds] = useState<Record<string, string>>({});
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [removingId, setRemovingId] = useState<string | null>(null);
+  const [listError, setListError] = useState<string | null>(null);
 
   const connecting: IntegrationInfo | undefined = connectingId
     ? getIntegration(connectingId)
     : undefined;
 
-  function openConnect(info: IntegrationInfo) {
-    setConnectingId(info.id);
-    setAccountName("");
-    setCreds({});
-    setError(null);
+  async function disconnect(info: IntegrationInfo) {
+    if (
+      !window.confirm(
+        `Retirer les identifiants ${info.name} enregistrés ? Ils seront supprimés de Callpme.`,
+      )
+    )
+      return;
+    setListError(null);
+    setRemovingId(info.id);
+    const res = await fetch(`/api/integrations/${info.id}`, { method: "DELETE" });
+    if (res.ok) {
+      setActive((a) => {
+        const next = { ...a };
+        delete next[info.id];
+        return next;
+      });
+    } else {
+      setListError(`Impossible de retirer ${info.name}. Réessayez.`);
+    }
+    setRemovingId(null);
   }
 
-  function closeConnect() {
-    setConnectingId(null);
-    setBusy(false);
-    setError(null);
-  }
+  const savedCount = Object.keys(active).length;
 
-  async function submitConnect(e: React.FormEvent) {
+  return (
+    <div className="space-y-5">
+      {/* Honest scope: credentials are stored, not verified nor synced yet. */}
+      <div className="flex items-start gap-3 rounded-xl border border-border bg-secondary/40 p-4">
+        <Info className="mt-0.5 size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+        <div className="text-sm text-muted-foreground text-pretty">
+          <p className="font-medium text-foreground">Ce que fait cette page</p>
+          <p className="mt-0.5">
+            Vous enregistrez ici les identifiants de vos outils pour votre organisation.
+            Callpme ne teste pas encore la connexion auprès du service et aucune
+            synchronisation automatique n&apos;est active pour l&apos;instant : vérifiez
+            vos identifiants chez le fournisseur.
+          </p>
+        </div>
+      </div>
+
+      <div className="flex items-center justify-between gap-3">
+        <h2 className="text-[0.95rem] font-semibold tracking-tight text-foreground">
+          Catalogue
+        </h2>
+        <p className="text-sm text-muted-foreground" aria-live="polite">
+          {savedCount} sur {INTEGRATION_CATALOG.length} avec identifiants
+        </p>
+      </div>
+
+      {listError && (
+        <p
+          role="alert"
+          className="flex items-center gap-2 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive"
+        >
+          <AlertCircle className="size-4 shrink-0" aria-hidden="true" />
+          {listError}
+        </p>
+      )}
+
+      <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        {INTEGRATION_CATALOG.map((integ) => {
+          const on = integ.id in active;
+          const account = active[integ.id];
+          const removing = removingId === integ.id;
+          return (
+            <li key={integ.id}>
+              <Card
+                className={
+                  on
+                    ? "flex h-full flex-col border-emerald-600/25 p-5"
+                    : "flex h-full flex-col p-5"
+                }
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <span
+                    aria-hidden="true"
+                    className="inline-flex size-11 items-center justify-center rounded-xl bg-secondary text-foreground/70 ring-1 ring-inset ring-border [&_svg]:size-5"
+                  >
+                    <DynamicIcon name={integ.icon} />
+                  </span>
+                  <Badge variant="muted">{integ.category}</Badge>
+                </div>
+                <h3 className="mt-3 font-semibold tracking-tight text-foreground">
+                  {integ.name}
+                </h3>
+                <p className="mt-1 flex-1 text-sm text-muted-foreground text-pretty">
+                  {integ.description}
+                </p>
+
+                <div className="mt-3 min-h-[1.5rem]">
+                  {on ? (
+                    <p className="flex min-w-0 items-center gap-2 text-xs">
+                      <Badge variant="success">
+                        <KeyRound aria-hidden="true" />
+                        Identifiants enregistrés
+                      </Badge>
+                      {account && (
+                        <span className="truncate text-muted-foreground" title={account}>
+                          {account}
+                        </span>
+                      )}
+                    </p>
+                  ) : (
+                    <p className="text-xs text-muted-foreground">Non configurée</p>
+                  )}
+                </div>
+
+                {on ? (
+                  <div className="mt-4 flex gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="flex-1"
+                      onClick={() => setConnectingId(integ.id)}
+                      disabled={removing}
+                      aria-label={`Mettre à jour les identifiants ${integ.name}`}
+                    >
+                      <RefreshCw className="size-4" aria-hidden="true" />
+                      Mettre à jour
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => disconnect(integ)}
+                      disabled={removing}
+                      aria-label={`Retirer les identifiants ${integ.name}`}
+                      className="text-muted-foreground hover:text-destructive"
+                    >
+                      {removing ? (
+                        <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+                      ) : (
+                        <Unplug className="size-4" aria-hidden="true" />
+                      )}
+                      Retirer
+                    </Button>
+                  </div>
+                ) : (
+                  <Button
+                    variant="default"
+                    size="sm"
+                    className="mt-4"
+                    onClick={() => setConnectingId(integ.id)}
+                    aria-label={`Configurer ${integ.name}`}
+                  >
+                    <Plug className="size-4" aria-hidden="true" />
+                    Configurer
+                  </Button>
+                )}
+              </Card>
+            </li>
+          );
+        })}
+      </ul>
+
+      {connecting && (
+        <ConnectDialog
+          info={connecting}
+          isUpdate={connecting.id in active}
+          onClose={() => setConnectingId(null)}
+          onSaved={(accountName) => {
+            setActive((a) => ({ ...a, [connecting.id]: accountName }));
+            setConnectingId(null);
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+function ConnectDialog({
+  info,
+  isUpdate,
+  onClose,
+  onSaved,
+}: {
+  info: IntegrationInfo;
+  isUpdate: boolean;
+  onClose: () => void;
+  onSaved: (accountName: string | null) => void;
+}) {
+  const [accountName, setAccountName] = useState("");
+  const [creds, setCreds] = useState<Record<string, string>>({});
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const formId = useId();
+  const errId = useId();
+
+  const missingRequired = info.fields.some((f) => f.required && !creds[f.key]?.trim());
+
+  async function submit(e: React.FormEvent) {
     e.preventDefault();
-    if (!connecting) return;
     setBusy(true);
     setError(null);
     const res = await fetch("/api/integrations", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        provider: connecting.id,
+        provider: info.id,
         accountName: accountName.trim() || undefined,
         credentials: creds,
       }),
     });
     const data = await res.json().catch(() => ({}));
     if (res.ok) {
-      setActive((a) => ({
-        ...a,
-        [connecting.id]: accountName.trim() || data.accountName || connecting.accountLabel,
-      }));
-      closeConnect();
+      onSaved(accountName.trim() || data.accountName || null);
     } else {
-      setError(data.error || "Connexion impossible. Vérifiez vos identifiants.");
+      setError(data.error || "Enregistrement impossible. Vérifiez les champs requis.");
       setBusy(false);
     }
   }
 
-  async function disconnect(id: string) {
-    setBusy(true);
-    const res = await fetch(`/api/integrations/${id}`, { method: "DELETE" });
-    if (res.ok) {
-      setActive((a) => {
-        const next = { ...a };
-        delete next[id];
-        return next;
-      });
-    }
-    setBusy(false);
-  }
-
   return (
-    <>
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
-        {INTEGRATION_CATALOG.map((integ) => {
-          const on = integ.id in active;
-          const account = active[integ.id];
-          return (
-            <Card key={integ.id} className="flex flex-col p-5">
-              <div className="flex items-start justify-between">
-                <span className="inline-flex size-11 items-center justify-center rounded-xl bg-secondary text-foreground/60 ring-1 ring-inset ring-border [&_svg]:size-5">
-                  <DynamicIcon name={integ.icon} />
-                </span>
-                {on ? (
-                  <Badge variant="success">Connectée</Badge>
-                ) : (
-                  <Badge variant="muted">{integ.category}</Badge>
-                )}
-              </div>
-              <h3 className="mt-3 font-semibold tracking-tight text-foreground">
-                {integ.name}
-              </h3>
-              <p className="mt-1 flex-1 text-sm text-muted-foreground text-pretty">
-                {integ.description}
-              </p>
-              {on && account && (
-                <p className="mt-2 truncate text-xs font-medium text-emerald-600">
-                  Connecté · {account}
-                </p>
-              )}
-              <Button
-                variant={on ? "outline" : "default"}
-                size="sm"
-                className="mt-4"
-                onClick={() => (on ? disconnect(integ.id) : openConnect(integ))}
-                disabled={busy && (connectingId === integ.id || on)}
-              >
-                {on ? <Check className="size-4" /> : <Plug className="size-4" />}
-                {on ? "Déconnecter" : "Connecter"}
-              </Button>
-            </Card>
-          );
-        })}
-      </div>
-
-      {/* Fenêtre de connexion réelle (identifiants du provider) */}
-      {connecting && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/40 p-4 backdrop-blur-sm"
-          onClick={closeConnect}
-        >
-          <div
-            className="w-full max-w-md rounded-2xl border border-border bg-card p-6 shadow-2xl"
-            onClick={(e) => e.stopPropagation()}
+    <Dialog
+      title={`${isUpdate ? "Mettre à jour" : "Configurer"} ${info.name}`}
+      description="Les identifiants sont enregistrés pour votre organisation ; ils ne sont pas vérifiés auprès du service."
+      icon={<DynamicIcon name={info.icon} />}
+      onClose={onClose}
+      dismissible={!busy}
+      footer={
+        <>
+          <Button type="button" variant="ghost" size="sm" onClick={onClose} disabled={busy}>
+            Annuler
+          </Button>
+          <Button
+            type="submit"
+            form={formId}
+            variant="brand"
+            size="sm"
+            disabled={busy || missingRequired}
           >
-            <div className="flex items-start justify-between">
-              <div className="flex items-center gap-3">
-                <span className="inline-flex size-10 items-center justify-center rounded-xl bg-secondary text-foreground/70 ring-1 ring-inset ring-border [&_svg]:size-5">
-                  <DynamicIcon name={connecting.icon} />
-                </span>
-                <div>
-                  <h3 className="font-semibold tracking-tight text-foreground">
-                    Connecter {connecting.name}
-                  </h3>
-                  <p className="text-xs text-muted-foreground">{connecting.category}</p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={closeConnect}
-                className="inline-flex size-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-                aria-label="Fermer"
-              >
-                <X className="size-4" />
-              </button>
-            </div>
-
-            <form onSubmit={submitConnect} className="mt-5 space-y-3">
-              <div className="space-y-1.5">
-                <Label htmlFor="acct">{connecting.accountLabel}</Label>
-                <Input
-                  id="acct"
-                  value={accountName}
-                  onChange={(e) => setAccountName(e.target.value)}
-                  placeholder={`Mon ${connecting.accountLabel.toLowerCase()}`}
-                />
-              </div>
-              {connecting.fields.map((f) => (
-                <div key={f.key} className="space-y-1.5">
-                  <Label htmlFor={f.key}>
-                    {f.label}
-                    {f.required && <span className="text-destructive"> *</span>}
-                  </Label>
-                  <Input
-                    id={f.key}
-                    type={f.type ?? "password"}
-                    value={creds[f.key] ?? ""}
-                    onChange={(e) =>
-                      setCreds((c) => ({ ...c, [f.key]: e.target.value }))
-                    }
-                    placeholder={f.placeholder ?? (f.type === "text" ? "" : "••••••••")}
-                    autoComplete="off"
-                  />
-                </div>
-              ))}
-
-              <a
-                href={connecting.docsUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 text-xs font-medium text-brand hover:underline"
-              >
-                <ExternalLink className="size-3.5" /> Où trouver mes identifiants ?
-              </a>
-
-              {error && (
-                <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">
-                  {error}
-                </p>
-              )}
-
-              <div className="flex gap-2 pt-1">
-                <Button type="submit" variant="brand" size="sm" disabled={busy}>
-                  {busy ? (
-                    <Loader2 className="size-4 animate-spin" />
-                  ) : (
-                    <Plug className="size-4" />
-                  )}
-                  Connecter
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={closeConnect}
-                  disabled={busy}
-                >
-                  Annuler
-                </Button>
-              </div>
-            </form>
-          </div>
+            {busy ? (
+              <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+            ) : (
+              <KeyRound className="size-4" aria-hidden="true" />
+            )}
+            Enregistrer les identifiants
+          </Button>
+        </>
+      }
+    >
+      <form id={formId} onSubmit={submit} className="space-y-4" noValidate>
+        <div className="space-y-1.5">
+          <Label htmlFor={`${formId}-acct`}>
+            {info.accountLabel}{" "}
+            <span className="font-normal text-muted-foreground">(libellé, optionnel)</span>
+          </Label>
+          <Input
+            id={`${formId}-acct`}
+            value={accountName}
+            onChange={(e) => setAccountName(e.target.value)}
+            placeholder={`Mon ${info.accountLabel.toLowerCase()}`}
+            maxLength={120}
+            autoComplete="off"
+          />
         </div>
-      )}
-    </>
+        {info.fields.map((f) => (
+          <div key={f.key} className="space-y-1.5">
+            <Label htmlFor={`${formId}-${f.key}`}>
+              {f.label}
+              {f.required && (
+                <>
+                  <span aria-hidden="true" className="text-destructive">
+                    {" "}
+                    *
+                  </span>
+                  <span className="sr-only"> (requis)</span>
+                </>
+              )}
+            </Label>
+            <Input
+              id={`${formId}-${f.key}`}
+              type={f.type ?? "password"}
+              value={creds[f.key] ?? ""}
+              onChange={(e) => setCreds((c) => ({ ...c, [f.key]: e.target.value }))}
+              placeholder={f.placeholder ?? (f.type === "text" ? "" : "••••••••")}
+              autoComplete="off"
+              spellCheck={false}
+              required={f.required}
+              aria-describedby={error ? errId : undefined}
+            />
+          </div>
+        ))}
+
+        {isUpdate && (
+          <p className="text-xs text-muted-foreground">
+            Les identifiants déjà enregistrés ne sont jamais réaffichés ; saisissez-les à
+            nouveau pour les remplacer.
+          </p>
+        )}
+
+        <a
+          href={info.docsUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-1 rounded text-xs font-medium text-brand-400 hover:underline"
+        >
+          <ExternalLink className="size-3.5" aria-hidden="true" />
+          Où trouver mes identifiants ?
+          <span className="sr-only"> (nouvel onglet)</span>
+        </a>
+
+        {error && (
+          <p
+            id={errId}
+            role="alert"
+            className="flex items-center gap-2 rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive"
+          >
+            <AlertCircle className="size-4 shrink-0" aria-hidden="true" />
+            {error}
+          </p>
+        )}
+      </form>
+    </Dialog>
   );
 }

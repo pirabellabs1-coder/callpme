@@ -4,7 +4,17 @@ import { cookies } from "next/headers";
 import { revalidatePath } from "next/cache";
 import QRCode from "qrcode";
 import { prisma } from "@/lib/db/client";
-import { requireSession, SESSION_COOKIE } from "@/lib/auth/session";
+import { CLIENT_COOKIE, getClientSession, getSession, SESSION_COOKIE } from "@/lib/auth/session";
+import { redirect } from "next/navigation";
+
+/** Utilisateur connecté : tableau de bord ou portail client (chacun son cookie). */
+async function currentUser(): Promise<{ user: { id: string; email: string; name: string | null }; cookie: string }> {
+  const s = await getSession();
+  if (s) return { user: s.user, cookie: SESSION_COOKIE };
+  const c = await getClientSession();
+  if (c) return { user: c.user, cookie: CLIENT_COOKIE };
+  redirect("/login");
+}
 import { verifyPassword } from "@/lib/auth/password";
 import { decryptSecret, encryptSecret } from "@/lib/crypto/secrets";
 import { generateBackupCodes, generateTotpSecret, otpauthUri, verifyTotp } from "@/lib/auth/totp";
@@ -32,7 +42,7 @@ function notify(email: string, name: string | null, enabled: boolean) {
 
 /** Étape 1 : nouveau secret (pas encore actif) et QR code à scanner. */
 export async function startTwoFactorSetup(): Promise<TwoFactorResult> {
-  const session = await requireSession();
+  const session = await currentUser();
   if (isRateLimited(`2fa-setup:${session.user.id}`, 10, 60 * 60_000)) return { error: TOO_MANY };
   const user = await prisma.user.findUnique({ where: { id: session.user.id }, select: { twoFactorEnabled: true } });
   if (user?.twoFactorEnabled) return { error: "La double authentification est déjà active." };
@@ -47,7 +57,7 @@ export async function startTwoFactorSetup(): Promise<TwoFactorResult> {
 
 /** Étape 2 : le premier code valide active la protection et donne les codes de secours. */
 export async function confirmTwoFactorSetup(formData: FormData): Promise<TwoFactorResult> {
-  const session = await requireSession();
+  const session = await currentUser();
   if (isRateLimited(`2fa-confirm:${session.user.id}`, 10, 15 * 60_000)) return { error: TOO_MANY };
   const code = String(formData.get("code") ?? "");
   const user = await prisma.user.findUnique({
@@ -66,7 +76,7 @@ export async function confirmTwoFactorSetup(formData: FormData): Promise<TwoFact
     data: { twoFactorEnabled: true, twoFactorLastStep: step, twoFactorBackupCodes: JSON.stringify(hashes) },
   });
   // Les autres appareils connectés devront saisir un code.
-  const current = cookies().get(SESSION_COOKIE)?.value ?? "";
+  const current = cookies().get(session.cookie)?.value ?? "";
   await prisma.session.deleteMany({ where: { userId: session.user.id, NOT: { token: current } } });
   notify(session.user.email, session.user.name, true);
   revalidatePath("/settings");
@@ -75,7 +85,7 @@ export async function confirmTwoFactorSetup(formData: FormData): Promise<TwoFact
 
 /** Désactivation : mot de passe ET code (ou code de secours) exigés. */
 export async function disableTwoFactor(formData: FormData): Promise<TwoFactorResult> {
-  const session = await requireSession();
+  const session = await currentUser();
   if (isRateLimited(`2fa-disable:${session.user.id}`, 5, 15 * 60_000)) return { error: TOO_MANY };
   const user = await prisma.user.findUnique({ where: { id: session.user.id }, select: { passwordHash: true } });
   if (!user || !(await verifyPassword(String(formData.get("password") ?? ""), user.passwordHash))) {
@@ -95,7 +105,7 @@ export async function disableTwoFactor(formData: FormData): Promise<TwoFactorRes
 
 /** Nouveaux codes de secours (les anciens ne marchent plus). */
 export async function regenerateBackupCodes(formData: FormData): Promise<TwoFactorResult> {
-  const session = await requireSession();
+  const session = await currentUser();
   if (isRateLimited(`2fa-backup:${session.user.id}`, 5, 15 * 60_000)) return { error: TOO_MANY };
   const check = await checkSecondFactor(session.user.id, String(formData.get("code") ?? ""));
   if (check === "locked") return { error: "Trop de codes erronés : la vérification est bloquée temporairement. Réessayez plus tard." };

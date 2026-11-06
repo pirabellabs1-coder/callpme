@@ -199,6 +199,7 @@ export async function bookAppointment(
         data: {
           organizationId: agent.organizationId,
           agentId: agent.id,
+          clientId: agent.clientId ?? null,
           reference: newReference(),
           customerName: name,
           customerPhone: phone,

@@ -12,7 +12,9 @@ export default async function AuthLayout({
   // Portail d'une agence sur son propre domaine : sa marque, pas celle de la plateforme.
   const host = (headers().get("host") ?? "").split(":")[0].toLowerCase();
   const agency = host
-    ? await prisma.organization.findUnique({ where: { customDomain: host }, select: { brandName: true, brandLogoUrl: true, name: true } }).catch(() => null)
+    ? await prisma.organization
+        .findFirst({ where: { customDomain: host, customDomainVerifiedAt: { not: null }, plan: "agency" }, select: { brandName: true, brandLogoUrl: true, name: true } })
+        .catch(() => null)
     : null;
   if (agency) {
     const name = agency.brandName || agency.name;
@@ -20,7 +22,7 @@ export default async function AuthLayout({
       <div className="flex min-h-screen flex-col items-center justify-center bg-background px-6 py-10">
         {agency.brandLogoUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={agency.brandLogoUrl} alt={name} className="mb-8 h-10 w-auto max-w-[200px] object-contain" />
+          <img src={agency.brandLogoUrl} alt={name} referrerPolicy="no-referrer" className="mb-8 h-10 w-auto max-w-[200px] object-contain" />
         ) : (
           <p className="mb-8 text-xl font-semibold tracking-tight">{name}</p>
         )}

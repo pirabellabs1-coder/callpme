@@ -9,6 +9,7 @@ import { redirect, notFound } from "next/navigation";
 import { randomBytes } from "crypto";
 import { prisma } from "@/lib/db/client";
 import { hasAdminUnlock } from "@/lib/auth/admin-gate";
+import { PORTAL_COOKIE_NAME } from "./cookie-names";
 
 export const SESSION_COOKIE = "cpme_session";
 const MAX_AGE_SECONDS = 60 * 60 * 24 * 30; // 30 jours
@@ -70,7 +71,7 @@ export const getSession = cache(async (): Promise<SessionContext | null> => {
 /* ------------------------- Portail des clients d'agence ------------------------- */
 
 /** Cookie distinct : les routes du tableau de bord ne le lisent jamais. */
-export const CLIENT_COOKIE = "cpme_client";
+export const CLIENT_COOKIE = PORTAL_COOKIE_NAME;
 
 export interface ClientSessionContext {
   user: { id: string; email: string; name: string | null };
@@ -99,6 +100,8 @@ export const getClientSession = cache(async (): Promise<ClientSessionContext | n
   if (!session || session.expiresAt < new Date()) return null;
   const u = session.user;
   if (!u.clientId || !u.client || u.client.organizationId !== u.organizationId) return null;
+  // Accès clients réservés à l'offre Agence (coupés si l'agence change d'offre).
+  if (u.organization.plan !== "agency") return null;
   return {
     user: { id: u.id, email: u.email, name: u.name },
     client: { id: u.client.id, name: u.client.name, brandColor: u.client.brandColor, logoUrl: u.client.logoUrl },

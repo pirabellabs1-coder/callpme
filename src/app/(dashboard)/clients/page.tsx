@@ -8,6 +8,7 @@ import { PageHeader } from "@/components/dashboard/page-header";
 import { ClientsManager } from "@/components/clients/clients-manager";
 import { AgencyBrandForm, ClientAccessManager } from "@/components/clients/agency-access";
 import { prisma } from "@/lib/db/client";
+import { domainToken, txtRecordName } from "@/lib/agency/domain";
 import { Card } from "@/components/ui/card";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -56,7 +57,10 @@ export default async function ClientsPage() {
   ]);
   const usage = usageByClient(outcomes);
   const [org, accessUsers, accessInvites] = await Promise.all([
-    prisma.organization.findUnique({ where: { id: session.org.id }, select: { brandName: true, brandLogoUrl: true, customDomain: true } }),
+    prisma.organization.findUnique({
+      where: { id: session.org.id },
+      select: { brandName: true, brandLogoUrl: true, customDomain: true, customDomainVerifiedAt: true },
+    }),
     prisma.user.findMany({ where: { organizationId: session.org.id, clientId: { not: null } }, select: { id: true, email: true, name: true, clientId: true } }),
     prisma.invitation.findMany({
       where: { organizationId: session.org.id, clientId: { not: null }, acceptedAt: null, expiresAt: { gt: new Date() } },
@@ -115,6 +119,15 @@ export default async function ClientsPage() {
       <ClientAccessManager rows={accessRows} />
       <AgencyBrandForm
         initial={{ brandName: org?.brandName ?? "", brandLogoUrl: org?.brandLogoUrl ?? "", customDomain: org?.customDomain ?? "" }}
+        domain={
+          org?.customDomain
+            ? {
+                verified: Boolean(org.customDomainVerifiedAt),
+                txtName: txtRecordName(org.customDomain),
+                txtValue: domainToken(session.org.id, org.customDomain),
+              }
+            : null
+        }
       />
     </div>
   );

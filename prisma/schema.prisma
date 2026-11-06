@@ -36,6 +36,8 @@ model Organization {
   brandLogoUrl   String?
   /** Domaine personnalisé du portail (ex. espace.monagence.bj). */
   customDomain   String?              @unique
+  /** Propriété du domaine prouvée par un enregistrement DNS TXT (sinon ignoré). */
+  customDomainVerifiedAt DateTime?
   agents         Agent[]
   users          User[]
   invitations    Invitation[]
@@ -189,6 +191,8 @@ model Call {
   providerCallId String?     @unique // identifiant de l'appel chez l'opérateur téléphonique
   /** Test A/B : variante de l'agent utilisée pour cet appel (A = actuelle, B = version testée). */
   variant        String?
+  /** Client de l'agence au moment de l'appel (portail : pas de fuite si l'agent est réattribué). */
+  clientId       String?
   summary        String?
   outcome        String?
   /// JSON : données relevées en fin d'appel (champs définis sur l'agent).
@@ -500,6 +504,8 @@ model Appointment {
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   agentId        String?
   agent          Agent?       @relation(fields: [agentId], references: [id], onDelete: SetNull)
+  /** Client de l'agence au moment de la prise de rendez-vous. */
+  clientId       String?
   /// Référence courte donnée au client (ex. RDV-4K7P2).
   reference      String       @unique
   customerName   String
@@ -531,6 +537,8 @@ model Lead {
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   agentId        String?
   agent          Agent?       @relation(fields: [agentId], references: [id], onDelete: SetNull)
+  /** Client de l'agence au moment de la création. */
+  clientId       String?
   name           String
   phone          String?
   email          String?

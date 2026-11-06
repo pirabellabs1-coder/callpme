@@ -36,7 +36,7 @@ export default async function ClientPortalLayout({ children }: { children: React
           <Link href="/espace" className="flex min-w-0 items-center gap-3">
             {s.org.brandLogoUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={s.org.brandLogoUrl} alt={brand} className="h-8 w-auto max-w-[140px] object-contain" />
+              <img src={s.org.brandLogoUrl} alt={brand} referrerPolicy="no-referrer" className="h-8 w-auto max-w-[140px] object-contain" />
             ) : (
               <span className="text-base font-semibold tracking-tight">{brand}</span>
             )}

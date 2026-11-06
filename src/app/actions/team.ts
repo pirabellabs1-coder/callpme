@@ -209,8 +209,12 @@ export async function inviteClientUser(clientId: string, rawEmail: string): Prom
       },
     }),
   ]);
-  const org = await prisma.organization.findUnique({ where: { id: session.org.id }, select: { brandName: true, customDomain: true } });
-  const base = org?.customDomain ? `https://${org.customDomain}` : PUBLIC_URL;
+  const org = await prisma.organization.findUnique({
+    where: { id: session.org.id },
+    select: { brandName: true, customDomain: true, customDomainVerifiedAt: true },
+  });
+  // Domaine de l'agence seulement s'il est vérifié (pas de lien vers un domaine non prouvé).
+  const base = org?.customDomain && org.customDomainVerifiedAt ? `https://${org.customDomain}` : PUBLIC_URL;
   const link = `${base}/invitation/${token}`;
   const mail = invitationEmail({
     inviterName: session.user.name ?? session.user.email,

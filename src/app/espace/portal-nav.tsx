@@ -10,6 +10,7 @@ const ITEMS = [
   { href: "/espace/rendez-vous", label: "Rendez-vous" },
   { href: "/espace/prospects", label: "Prospects" },
   { href: "/espace/rapport", label: "Rapport du mois" },
+  { href: "/espace/securite", label: "Sécurité" },
 ];
 
 export function PortalNav() {

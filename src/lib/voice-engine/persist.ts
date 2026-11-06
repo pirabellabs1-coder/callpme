@@ -56,6 +56,7 @@ export async function finishCall(input: FinishCallInput) {
       extracted: extracted ? JSON.stringify(extracted) : null,
       providerCallId: input.providerCallId ?? null,
       variant: input.variant ?? null,
+      clientId: input.agent.clientId ?? null,
       // Évaluation enregistrée pour chaque appel où l'appelant s'est exprimé.
       ...(analysis && input.transcript.some((t) => t.speaker === "caller")
         ? {

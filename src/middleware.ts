@@ -7,6 +7,7 @@
  * plus publique par accident.
  */
 import { NextResponse, type NextRequest } from "next/server";
+import { PORTAL_COOKIE_NAME } from "@/lib/auth/cookie-names";
 
 const SESSION_COOKIE = "cpme_session";
 
@@ -58,7 +59,7 @@ function matches(path: string, prefix: string) {
 export function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
   // Portail des clients d'agence : cookie distinct.
-  if (matches(pathname, "/espace") && !req.cookies.get("cpme_client")?.value) {
+  if (matches(pathname, "/espace") && !req.cookies.get(PORTAL_COOKIE_NAME)?.value) {
     const url = req.nextUrl.clone();
     url.pathname = "/login";
     url.search = "";

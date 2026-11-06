@@ -6,6 +6,7 @@ import { CLIENT_COOKIE } from "@/lib/db/active-client";
 import { z } from "zod";
 import { prisma } from "@/lib/db/client";
 import { isOrgAdmin, requireSession } from "@/lib/auth/session";
+import { checkDomainTxt, isPlatformDomain } from "@/lib/agency/domain";
 
 /** Définit le client actif (ou « tous » si null) et rafraîchit l'UI. */
 export async function setActiveClient(clientId: string | null) {
@@ -54,13 +55,20 @@ export async function saveAgencyBrand(formData: FormData): Promise<AgencyResult>
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Données invalides." };
   const d = parsed.data;
   const platformHost = process.env.PUBLIC_URL ? new URL(process.env.PUBLIC_URL).hostname : "";
-  if (d.customDomain && (d.customDomain === platformHost || d.customDomain.endsWith(".vercel.app"))) {
+  if (d.customDomain && isPlatformDomain(d.customDomain, [platformHost, "callpme.com"])) {
     return { error: "Choisissez un domaine qui vous appartient." };
   }
+  const current = await prisma.organization.findUnique({ where: { id: session.org.id }, select: { customDomain: true } });
   try {
     await prisma.organization.update({
       where: { id: session.org.id },
-      data: { brandName: d.brandName || null, brandLogoUrl: d.brandLogoUrl || null, customDomain: d.customDomain || null },
+      data: {
+        brandName: d.brandName || null,
+        brandLogoUrl: d.brandLogoUrl || null,
+        customDomain: d.customDomain || null,
+        // Nouveau domaine : à vérifier de nouveau.
+        ...(d.customDomain !== (current?.customDomain ?? "") ? { customDomainVerifiedAt: null } : {}),
+      },
     });
   } catch (e) {
     if ((e as { code?: string }).code === "P2002") return { error: "Ce domaine est déjà utilisé par un autre compte." };
@@ -82,4 +90,18 @@ export async function revokeClientAccess(userId: string): Promise<AgencyResult> 
     : await prisma.invitation.deleteMany({ where: { id, organizationId: session.org.id, clientId: { not: null }, acceptedAt: null } });
   revalidatePath("/clients");
   return users.count || invites.count ? { ok: true } : { error: "Accès introuvable." };
+}
+
+/** Vérifie l'enregistrement DNS TXT qui prouve la propriété du domaine. */
+export async function verifyAgencyDomain(): Promise<AgencyResult> {
+  const session = await requireSession();
+  if (!isOrgAdmin(session)) return { error: "Réservé aux administrateurs." };
+  const org = await prisma.organization.findUnique({ where: { id: session.org.id }, select: { customDomain: true } });
+  if (!org?.customDomain) return { error: "Indiquez d'abord votre domaine." };
+  if (!(await checkDomainTxt(session.org.id, org.customDomain))) {
+    return { error: "Enregistrement TXT introuvable pour l'instant (la propagation DNS peut prendre jusqu'à quelques heures)." };
+  }
+  await prisma.organization.update({ where: { id: session.org.id }, data: { customDomainVerifiedAt: new Date() } });
+  revalidatePath("/clients");
+  return { ok: true };
 }

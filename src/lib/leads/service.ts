@@ -86,6 +86,9 @@ export async function recordLead(input: LeadInput) {
         data: {
           organizationId: input.organizationId,
           agentId: input.agentId ?? null,
+          clientId: input.agentId
+            ? ((await prisma.agent.findFirst({ where: { id: input.agentId, organizationId: input.organizationId }, select: { clientId: true } }))?.clientId ?? null)
+            : null,
           kind,
           isTest: Boolean(input.test),
           callRef: input.callRef ?? null,

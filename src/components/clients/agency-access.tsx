@@ -3,7 +3,8 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { AlertCircle, Check, Copy, Loader2, MailPlus, Trash2 } from "lucide-react";
-import { revokeClientAccess, saveAgencyBrand } from "@/app/actions/clients";
+import { revokeClientAccess, saveAgencyBrand, verifyAgencyDomain } from "@/app/actions/clients";
+import { Badge } from "@/components/ui/badge";
 import { inviteClientUser } from "@/app/actions/team";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -26,7 +27,14 @@ function Message({ msg }: { msg: { ok: boolean; text: string } | null }) {
   );
 }
 
-export function AgencyBrandForm({ initial }: { initial: { brandName: string; brandLogoUrl: string; customDomain: string } }) {
+export function AgencyBrandForm({
+  initial,
+  domain,
+}: {
+  initial: { brandName: string; brandLogoUrl: string; customDomain: string };
+  domain: { verified: boolean; txtName: string; txtValue: string } | null;
+}) {
+  const router = useRouter();
   const [form, setForm] = useState(initial);
   const [pending, start] = useTransition();
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
@@ -74,6 +82,41 @@ export function AgencyBrandForm({ initial }: { initial: { brandName: string; bra
           <Message msg={msg} />
         </div>
       </form>
+      {domain && (
+        <div className="space-y-2 rounded-xl border border-border bg-secondary/30 p-4 text-sm">
+          <p className="flex items-center gap-2 font-medium">
+            Domaine {initial.customDomain}{" "}
+            {domain.verified ? <Badge variant="success">Vérifié</Badge> : <Badge variant="warning">À vérifier</Badge>}
+          </p>
+          {!domain.verified && (
+            <>
+              <p className="text-muted-foreground">Prouvez qu&apos;il vous appartient : ajoutez cet enregistrement DNS de type TXT, puis vérifiez.</p>
+              <dl className="grid gap-1 font-mono text-xs sm:grid-cols-[auto_1fr]">
+                <dt className="text-muted-foreground">Nom</dt>
+                <dd className="break-all">{domain.txtName}</dd>
+                <dt className="text-muted-foreground">Valeur</dt>
+                <dd className="break-all">{domain.txtValue}</dd>
+              </dl>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={pending}
+                onClick={() => {
+                  setMsg(null);
+                  start(async () => {
+                    const r = await verifyAgencyDomain();
+                    setMsg(r.error ? { ok: false, text: r.error } : { ok: true, text: "Domaine vérifié." });
+                    if (!r.error) router.refresh();
+                  });
+                }}
+              >
+                Vérifier le domaine
+              </Button>
+            </>
+          )}
+        </div>
+      )}
     </Card>
   );
 }

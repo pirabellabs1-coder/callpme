@@ -26,6 +26,7 @@ export async function POST(req: NextRequest) {
     }
     const info = getIntegration(parsed.data.provider)!;
     if (info.oauth) return badRequest(`${info.name} se connecte via le bouton « ${info.oauth.label} ».`);
+    if (info.comingSoon) return badRequest(`${info.name} sera bientôt disponible.`);
     const creds = parsed.data.credentials ?? {};
 
     // Vérifie que les identifiants requis sont bien fournis (vraie connexion).
@@ -34,6 +35,10 @@ export async function POST(req: NextRequest) {
       .map((f) => f.label);
     if (missing.length) {
       return badRequest(`Identifiants requis manquants : ${missing.join(", ")}`);
+    }
+    for (const f of info.fields) {
+      const v = creds[f.key]?.trim();
+      if (v && f.pattern && !new RegExp(f.pattern).test(v)) return badRequest(f.patternHint ?? `${f.label} : format invalide.`);
     }
 
     await connectIntegration(session.org.id, parsed.data.provider, {

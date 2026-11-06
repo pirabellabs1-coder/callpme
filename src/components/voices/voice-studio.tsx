@@ -216,6 +216,49 @@ function Fader({
 
 /* ------------------------------ Voice library ----------------------------- */
 
+/** Clonage chez ElevenLabs : la voix enregistrée devient utilisable au téléphone. */
+function CloneForPhone({ voiceId, voiceName }: { voiceId: string; voiceName: string }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  async function clone() {
+    const ok = window.confirm(
+      `Cloner « ${voiceName} » pour l'utiliser au téléphone ?
+
+Je confirme que la personne enregistrée a donné son accord pour que sa voix soit clonée et utilisée par nos agents.`,
+    );
+    if (!ok) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/voices/${voiceId}/clone`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ consent: true }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) setError(data.error ?? "Clonage impossible.");
+      else window.location.reload();
+    } catch {
+      setError("Connexion impossible. Réessayez.");
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <div className="mt-2 space-y-1">
+      <Button type="button" variant="outline" size="sm" onClick={clone} disabled={busy}>
+        {busy ? <Loader2 className="size-4 animate-spin" aria-hidden="true" /> : <AudioLines className="size-4" aria-hidden="true" />}
+        Utiliser au téléphone (cloner)
+      </Button>
+      {error && (
+        <p role="alert" className="text-xs text-destructive">
+          {error}
+        </p>
+      )}
+    </div>
+  );
+}
+
 function VoiceCard({
   voice,
   engine,
@@ -300,6 +343,11 @@ function VoiceCard({
         <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">
           {voice.description}
         </p>
+      )}
+
+      {voice.sampleUrl && !isProvider && <CloneForPhone voiceId={voice.id} voiceName={voice.name} />}
+      {isProvider && (
+        <p className="mt-2 text-xs text-emerald-600 dark:text-emerald-400">Utilisable au téléphone par vos agents.</p>
       )}
 
       {/* Empreinte des réglages */}

@@ -151,8 +151,9 @@ export function NumbersManager({
           Comment relier un numéro à un agent
         </h2>
         <Step n={1} icon={Phone} title="Numéro">
-          Achetez un numéro ci-dessus (prêt immédiatement), ou déclarez un numéro existant :
-          l&apos;équipe Callpme vérifie qu&apos;il est bien raccordé avant de l&apos;activer.
+          Achetez un numéro ci-dessus (prêt immédiatement, avec une offre payée), ou déclarez
+          un numéro que vous avez déjà : il passe « En attente » le temps que l&apos;équipe
+          Callpme vérifie son raccordement, puis « Actif ».
         </Step>
         <Step n={2} icon={Plug} title="Agent">
           Reliez le numéro à un agent à l&apos;étape « Téléphonie » de sa configuration : les
@@ -164,157 +165,6 @@ export function NumbersManager({
           occupé / sans réponse).
         </Step>
       </section>
-
-      {/* Providers */}
-      <Card>
-        <div className="flex flex-wrap items-center justify-between gap-3 p-5 pb-3">
-          <div>
-            <h2 className="flex items-center gap-2 text-[0.95rem] font-semibold tracking-tight">
-              <Plug className="size-4 text-muted-foreground" aria-hidden="true" />
-              Opérateurs
-            </h2>
-            <p className="mt-0.5 text-sm text-muted-foreground">
-              Comptes téléphoniques dont vous utilisez les numéros.
-            </p>
-          </div>
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => setShowProvider((v) => !v)}
-            aria-expanded={showProvider}
-            aria-controls="provider-form"
-          >
-            {showProvider ? (
-              <X className="size-4" aria-hidden="true" />
-            ) : (
-              <Plus className="size-4" aria-hidden="true" />
-            )}
-            {showProvider ? "Fermer" : "Ajouter un opérateur"}
-          </Button>
-        </div>
-
-        {showProvider && (
-          <form
-            id="provider-form"
-            onSubmit={connectProvider}
-            className="mx-5 mb-4 space-y-4 rounded-xl border border-border bg-background/60 p-4"
-          >
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <div className="space-y-1.5">
-                <Label htmlFor="prov-provider">Opérateur</Label>
-                <Select
-                  id="prov-provider"
-                  value={prov.provider}
-                  onChange={(e) =>
-                    setProv({
-                      provider: e.target.value as TelephonyProvider,
-                      label: "",
-                      creds: {},
-                    })
-                  }
-                >
-                  {TELEPHONY_PROVIDERS.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.label} — {p.note}
-                    </option>
-                  ))}
-                </Select>
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="prov-label">Nom de la connexion</Label>
-                <Input
-                  id="prov-label"
-                  value={prov.label}
-                  onChange={(e) => setProv({ ...prov, label: e.target.value })}
-                  placeholder={`Compte ${providerLabel(prov.provider)}`}
-                  maxLength={80}
-                />
-              </div>
-              {providerInfo?.credentials.map((c) => (
-                <div key={c.key} className="space-y-1.5">
-                  <Label htmlFor={`prov-${c.key}`}>{c.label}</Label>
-                  <Input
-                    id={`prov-${c.key}`}
-                    type="password"
-                    autoComplete="off"
-                    spellCheck={false}
-                    value={prov.creds[c.key] ?? ""}
-                    onChange={(e) =>
-                      setProv({
-                        ...prov,
-                        creds: { ...prov.creds, [c.key]: e.target.value },
-                      })
-                    }
-                    placeholder="••••••••"
-                    maxLength={200}
-                  />
-                </div>
-              ))}
-            </div>
-            <div className="flex flex-wrap items-center gap-3">
-              <Button type="submit" variant="brand" size="sm" disabled={addingProv}>
-                {addingProv ? (
-                  <Loader2 className="size-4 animate-spin" aria-hidden="true" />
-                ) : (
-                  <KeyRound className="size-4" aria-hidden="true" />
-                )}
-                Enregistrer l&apos;opérateur
-              </Button>
-              <p className="text-xs text-muted-foreground">
-                Les identifiants sont enregistrés tels quels, sans test de connexion.
-              </p>
-            </div>
-          </form>
-        )}
-
-        {provError && <ErrorLine message={provError} className="mx-5 mb-4" />}
-
-        {providers.length === 0 ? (
-          <p className="border-t border-border px-5 py-4 text-sm text-muted-foreground">
-            Aucun opérateur enregistré. Ajoutez celui chez qui vous avez (ou achèterez) vos
-            numéros.
-          </p>
-        ) : (
-          <ul className="divide-y divide-border border-t border-border">
-            {providers.map((p) => (
-              <li key={p.id} className="flex items-center gap-3 px-5 py-3">
-                <span
-                  aria-hidden="true"
-                  className="inline-flex size-9 shrink-0 items-center justify-center rounded-lg bg-secondary text-foreground/60 ring-1 ring-inset ring-border"
-                >
-                  <Plug className="size-4" strokeWidth={1.75} />
-                </span>
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium text-foreground">{p.label}</p>
-                  <p className="text-xs text-muted-foreground">{providerLabel(p.provider)}</p>
-                </div>
-                {p.hasCredentials ? (
-                  <Badge variant="success">
-                    <KeyRound aria-hidden="true" />
-                    <span className="hidden sm:inline">Identifiants enregistrés</span>
-                    <span className="sm:hidden">Identifiants</span>
-                  </Badge>
-                ) : (
-                  <Badge variant="muted">Sans identifiants</Badge>
-                )}
-                <button
-                  type="button"
-                  onClick={() => removeProvider(p)}
-                  disabled={removing === p.id}
-                  className="inline-flex size-8 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive disabled:opacity-50"
-                  aria-label={`Retirer l'opérateur ${p.label}`}
-                >
-                  {removing === p.id ? (
-                    <Loader2 className="size-4 animate-spin" aria-hidden="true" />
-                  ) : (
-                    <Trash2 className="size-4" aria-hidden="true" />
-                  )}
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
-      </Card>
 
       {/* Numbers */}
       <Card>

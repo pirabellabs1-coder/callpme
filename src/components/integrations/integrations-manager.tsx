@@ -133,7 +133,9 @@ export function IntegrationsManager({ connected }: { connected: Connected[] }) {
                 )}
 
                 <div className="mt-3 min-h-[1.5rem]">
-                  {on ? (
+                  {integ.comingSoon ? (
+                    <Badge variant="muted">Bientôt disponible</Badge>
+                  ) : on ? (
                     <p className="flex min-w-0 items-center gap-2 text-xs">
                       <Badge variant="success">
                         <KeyRound aria-hidden="true" />
@@ -186,7 +188,7 @@ export function IntegrationsManager({ connected }: { connected: Connected[] }) {
                       Retirer
                     </Button>
                   </div>
-                ) : integ.oauth ? (
+                ) : integ.comingSoon ? null : integ.oauth ? (
                   <a href={integ.oauth.connectUrl} className={buttonVariants({ variant: "default", size: "sm", className: "mt-4" })}>
                       <Plug className="size-4" aria-hidden="true" />
                       {integ.oauth.label}

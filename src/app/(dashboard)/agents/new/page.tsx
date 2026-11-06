@@ -1,4 +1,5 @@
 import { getCurrentOrg } from "@/lib/db/context";
+import { studioVoiceOption } from "@/lib/voices/provider-voice";
 import { listAgents } from "@/lib/db/agents";
 import { listPhoneNumbers } from "@/lib/db/numbers";
 import { listCustomTools } from "@/lib/db/custom-tools";
@@ -39,7 +40,7 @@ export default async function NewAgentPage({
       availableNumbers={numbers}
       customTools={customTools}
       knowledgeBases={kbs.map((k) => ({ id: k.id, name: k.name }))}
-      studioVoices={voices.map((v) => ({ id: v.id, name: v.name, gender: v.gender, sampleUrl: v.sampleUrl, provider: v.provider }))}
+      studioVoices={voices.map(studioVoiceOption)}
       template={template}
     />
   );

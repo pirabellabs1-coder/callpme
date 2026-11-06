@@ -10,7 +10,6 @@ import { hasLLMKey } from "@/lib/llm/chat";
 import { MODELS } from "@/lib/agents/catalog";
 import { Card } from "@/components/ui/card";
 import { TestCallPanel } from "@/components/agents/test-call-panel";
-import { CloneServerConfig } from "@/components/agents/clone-server-config";
 import { RealCallCard } from "@/components/agents/real-call-card";
 import { telephonyConfigured, voiceEngineMissing } from "@/lib/telephony/provider";
 import { VoiceTestPanel } from "@/components/agents/voice-test-panel";
@@ -39,7 +38,7 @@ export default async function TestAgentPage({
       (m) => m.id === agent.config.model.modelId,
     )?.label ?? agent.config.model.modelId;
   // Le cerveau réel : clé serveur si présente, sinon Claude via Puter (client).
-  const modelLabel = hasServerKey ? configuredLabel : "Claude Sonnet 4.5 · Puter";
+  const modelLabel = hasServerKey ? configuredLabel : "Mode démonstration";
   const liveMode = true;
   const roleLabel =
     agent.role === "custom"
@@ -106,7 +105,8 @@ export default async function TestAgentPage({
             voiceProfile={voiceProfile}
             voiceGender={studioVoice?.gender ?? preset?.gender ?? null}
             studioActive={Boolean(studioVoice)}
-            voiceSampleUrl={studioVoice?.sampleUrl ?? null}
+            // Le clonage passe désormais par le Studio Voix (ElevenLabs), plus par un serveur local.
+            voiceSampleUrl={null}
             maxDurationSec={agent.config.maxDurationSec}
           />
         </div>
@@ -123,7 +123,6 @@ export default async function TestAgentPage({
             </Card>
           )}
           {telephonyConfigured() && <RealCallCard agentId={agent.id} />}
-          {studioVoice?.sampleUrl && <CloneServerConfig />}
           <Card className="p-5">
             <h2 className="text-[0.95rem] font-semibold tracking-tight">
               Comment ça marche

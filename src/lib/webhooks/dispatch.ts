@@ -6,6 +6,7 @@ import { createHmac } from "crypto";
 import { publicRequest } from "@/lib/net/safe-fetch";
 import { prisma } from "@/lib/db/client";
 import { WEBHOOK_EVENTS, type WebhookEvent } from "./events";
+import { notifyIntegrations } from "@/lib/integrations/automations";
 
 export { WEBHOOK_EVENTS };
 export type { WebhookEvent };
@@ -80,9 +81,9 @@ export async function dispatchEvent(
       return false;
     }
   });
-  await Promise.allSettled(
-    matching.map((h) =>
-      deliver({ id: h.id, url: h.url, secret: h.secret }, event, payload),
-    ),
-  );
+  await Promise.allSettled([
+    ...matching.map((h) => deliver({ id: h.id, url: h.url, secret: h.secret }, event, payload)),
+    // Slack, Zapier / Make / n8n : alertes et automatisations de l'organisation.
+    notifyIntegrations(orgId, event, payload),
+  ]);
 }

@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { getSession } from "@/lib/auth/session";
-import { runCampaign, CampaignPausedError, CampaignQuotaError } from "@/lib/db/campaigns";
+import { runCampaign, CampaignPausedError, CampaignQuotaError, CampaignUnavailableError } from "@/lib/db/campaigns";
 import { ok, unauthorized, notFound, serverError, badRequest } from "@/lib/api/respond";
 
 export const dynamic = "force-dynamic";
@@ -17,6 +17,7 @@ export async function POST(
     return result ? ok(result) : notFound("Campagne introuvable");
   } catch (e) {
     if (e instanceof CampaignQuotaError) return badRequest(e.message);
+    if (e instanceof CampaignUnavailableError) return badRequest(e.message);
     if (e instanceof CampaignPausedError) {
       return badRequest("La campagne est en pause : reprenez-la avant de la lancer.");
     }

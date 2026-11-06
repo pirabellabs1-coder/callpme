@@ -62,6 +62,8 @@ export interface VoiceConfig {
   sampleUrl?: string | null;
   /** Libellé lisible affiché dans l'UI (ex. nom de la voix Studio). */
   voiceLabel?: string;
+  /** Identifiant de la voix chez le fournisseur (voix Studio clonée ou ajoutée par ID). */
+  providerVoiceId?: string;
 }
 
 export interface ModelConfig {

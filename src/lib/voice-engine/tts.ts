@@ -42,8 +42,9 @@ export function resolveVoice(agent: Agent): TtsVoice | null {
   if (!provider) return null;
   const v = agent.config.voice;
   const language = v.language || "fr-FR";
-  if (v.provider === provider && v.voiceId && v.kind === "provider") {
-    return { provider, voiceId: v.voiceId, language };
+  // Voix Studio clonée (ou ajoutée par ID) chez le fournisseur du moteur vocal.
+  if (v.kind === "provider" && v.providerVoiceId && v.provider === provider) {
+    return { provider, voiceId: v.providerVoiceId, language };
   }
   const preset = v.voiceId ? getPresetVoice(v.voiceId) : undefined;
   const voiceId =

@@ -150,23 +150,7 @@ export async function deleteCampaign(orgId: string, id: string) {
   return true;
 }
 
-const OUTCOMES = [
-  { outcome: "Intéressé", status: "completed", weight: 30, recordCall: true },
-  { outcome: "À rappeler", status: "completed", weight: 20, recordCall: true },
-  { outcome: "Pas intéressé", status: "completed", weight: 25, recordCall: true },
-  { outcome: "Répondeur", status: "no_answer", weight: 15, recordCall: false },
-  { outcome: "Sans réponse", status: "no_answer", weight: 10, recordCall: false },
-];
 
-function pickOutcome(seed: number) {
-  const total = OUTCOMES.reduce((a, o) => a + o.weight, 0);
-  let r = seed % total;
-  for (const o of OUTCOMES) {
-    if (r < o.weight) return o;
-    r -= o.weight;
-  }
-  return OUTCOMES[0];
-}
 
 /**
  * Lance la campagne. Si la téléphonie réelle est configurée, on
@@ -175,13 +159,15 @@ function pickOutcome(seed: number) {
  * de fin d'appel mettra ensuite à jour le contact (issue, statut, appel
  * enregistré dans l'historique).
  *
- * Sans téléphonie configurée, on retombe sur un dialer simulé (utile pour la
- * démo et les tests) — chaque contact reçoit une issue plausible.
+ * Sans téléphonie configurée, la campagne n'est pas lancée : aucun appel
+ * fictif n'est enregistré (les statistiques ne montrent que de vrais appels).
  */
 /** Levée quand on tente de lancer une campagne en pause. */
 export class CampaignPausedError extends Error {}
 /** Levée quand le quota de minutes de l'offre est épuisé. */
 export class CampaignQuotaError extends Error {}
+/** Levée quand les appels sortants ne sont pas encore disponibles sur la plateforme. */
+export class CampaignUnavailableError extends Error {}
 
 export async function runCampaign(orgId: string, id: string) {
   const camp = await prisma.campaign.findUnique({
@@ -207,37 +193,7 @@ export async function runCampaign(orgId: string, id: string) {
     const report = await tickCampaign(id);
     return { processed: 0, placed: report.placed, failed: 0, real: true, scheduled: report.skipped === "hors-plage" };
   }
-  /* ------------------------- Mode SIMULÉ (démo) ----------------------------- */
-  const from = camp.agent.phoneNumber ?? "+33 1 84 80 11 04";
-  let calls = 0;
-  for (let i = 0; i < camp.contacts.length; i++) {
-    const c = camp.contacts[i];
-    const o = pickOutcome(c.id.charCodeAt(0) * 7 + i * 13 + c.phone.length);
-    await prisma.contact.update({
-      where: { id: c.id },
-      data: { status: o.status, outcome: o.outcome, calledAt: new Date() },
-    });
-    if (o.recordCall) {
-      await prisma.call.create({
-        data: {
-          agentId: camp.agentId,
-          direction: "outbound",
-          fromNumber: from,
-          toNumber: c.phone,
-          status: "completed",
-          durationSec: 40 + ((i * 17) % 120),
-          transcript: JSON.stringify([
-            { speaker: "agent", text: "Bonjour, je vous appelle au sujet de votre demande récente.", at: 0 },
-            { speaker: "caller", text: "Bonjour, oui je vous écoute.", at: 5 },
-            { speaker: "agent", text: "Super, je vous explique en deux mots…", at: 9 },
-          ]),
-          summary: `Campagne « ${camp.name} » — ${o.outcome}.`,
-          outcome: o.outcome,
-        },
-      });
-      calls += 1;
-    }
-  }
-  await prisma.campaign.update({ where: { id }, data: { status: "completed" } });
-  return { processed: camp.contacts.length, calls };
+  throw new CampaignUnavailableError(
+    "Les appels sortants ne sont pas encore activés sur la plateforme. Votre campagne est prête : elle pourra être lancée dès leur activation.",
+  );
 }

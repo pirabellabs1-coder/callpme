@@ -70,6 +70,8 @@ export interface StudioVoiceOption {
   gender: string | null;
   sampleUrl: string | null;
   provider?: string;
+  /** Voix clonée ou ajoutée par ID : utilisée telle quelle au téléphone. */
+  providerVoiceId?: string;
 }
 
 export function initialState(
@@ -209,6 +211,8 @@ export function firstInvalidStep(
 
 /* --------------------------------- Payload -------------------------------- */
 
+type VoiceConfigProvider = AgentConfig["voice"]["provider"];
+
 export function buildPayload(
   s: WizardState & { role: AgentRole },
   opts: {
@@ -220,15 +224,12 @@ export function buildPayload(
   const { studio } = opts;
   const config: AgentConfig = {
     voice: {
-      provider: s.voiceProvider,
+      provider: studio?.providerVoiceId ? (studio.provider as VoiceConfigProvider) : s.voiceProvider,
       voiceId: s.voiceId,
+      ...(studio?.providerVoiceId ? { providerVoiceId: studio.providerVoiceId } : {}),
       language: s.language,
       speed: s.speed,
-      kind: studio
-        ? studio.provider && studio.provider !== "custom"
-          ? "provider"
-          : "custom"
-        : "preset",
+      kind: studio ? (studio.providerVoiceId ? "provider" : "custom") : "preset",
       // On embarque l'enregistrement réel pour qu'il soit rejoué tel quel.
       sampleUrl: studio?.sampleUrl ?? null,
       voiceLabel: studio?.name ?? opts.presetLabel,

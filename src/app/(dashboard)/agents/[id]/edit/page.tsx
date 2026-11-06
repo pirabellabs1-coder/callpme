@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import { studioVoiceOption } from "@/lib/voices/provider-voice";
 import { getCurrentOrg } from "@/lib/db/context";
 import { getAgentById, listAgents } from "@/lib/db/agents";
 import { listPhoneNumbers } from "@/lib/db/numbers";
@@ -40,7 +41,7 @@ export default async function EditAgentPage({
       availableNumbers={numbers}
       customTools={customTools}
       knowledgeBases={kbs.map((k) => ({ id: k.id, name: k.name }))}
-      studioVoices={voices.map((v) => ({ id: v.id, name: v.name, gender: v.gender, sampleUrl: v.sampleUrl, provider: v.provider }))}
+      studioVoices={voices.map(studioVoiceOption)}
       agent={agent}
     />
   );

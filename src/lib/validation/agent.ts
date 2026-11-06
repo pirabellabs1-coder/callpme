@@ -9,7 +9,7 @@ import { widgetSchema } from "../widget/widget";
 import { z } from "zod";
 
 export const voiceSchema = z.object({
-  provider: z.enum(["elevenlabs", "azure", "playht"]),
+  provider: z.enum(["elevenlabs", "cartesia", "azure", "playht"]),
   voiceId: z.string().max(120),
   language: z.string().min(2).max(12),
   speed: z.number().min(0.5).max(2),
@@ -17,6 +17,7 @@ export const voiceSchema = z.object({
   // n'est PAS copié dans l'agent : il est relu depuis la table Voice par son id.
   kind: z.enum(["preset", "custom", "provider"]).optional(),
   voiceLabel: z.string().max(120).optional(),
+  providerVoiceId: z.string().regex(/^[A-Za-z0-9_-]{6,64}$/).optional(),
 });
 
 export const modelSchema = z.object({

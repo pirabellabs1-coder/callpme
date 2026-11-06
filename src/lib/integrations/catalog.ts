@@ -6,6 +6,9 @@ export interface IntegrationField {
   /** « password » masque la saisie (jetons/clés). Défaut : password. */
   type?: "text" | "password";
   required?: boolean;
+  /** Format attendu (expression régulière) et message si la saisie ne correspond pas. */
+  pattern?: string;
+  patternHint?: string;
 }
 
 export interface IntegrationInfo {
@@ -24,6 +27,8 @@ export interface IntegrationInfo {
   oauth?: { connectUrl: string; label: string };
   /** Ce que Callpme fait réellement avec l'intégration (absent = identifiants stockés seulement). */
   live?: string;
+  /** Pas encore disponible : affichée mais non connectable. */
+  comingSoon?: boolean;
 }
 
 export const INTEGRATION_CATALOG: IntegrationInfo[] = [
@@ -63,6 +68,7 @@ export const INTEGRATION_CATALOG: IntegrationInfo[] = [
     name: "Salesforce",
     category: "CRM",
     description: "Poussez les leads qualifiés vers votre CRM.",
+    comingSoon: true,
     icon: "Cloud",
     accountLabel: "Org Salesforce",
     fields: [
@@ -95,34 +101,39 @@ export const INTEGRATION_CATALOG: IntegrationInfo[] = [
     name: "Slack",
     category: "Notifications",
     description: "Recevez les alertes d'appels dans vos canaux.",
+    live: "Chaque appel terminé, prospect et rendez-vous est publié dans le canal choisi.",
     icon: "Hash",
-    accountLabel: "Espace de travail Slack",
-    fields: [
-      {
-        key: "bot_token",
-        label: "Jeton Bot",
-        placeholder: "xoxb-…",
-        type: "password",
-        required: true,
-      },
-      { key: "channel", label: "Canal par défaut", placeholder: "#appels", type: "text" },
-    ],
-    docsUrl: "https://api.slack.com/apps",
-  },
-  {
-    id: "zapier",
-    name: "Zapier",
-    category: "Automatisation",
-    description: "Connectez Callpme à plus de 6000 applications.",
-    icon: "Zap",
-    accountLabel: "Compte Zapier",
+    accountLabel: "Canal Slack",
     fields: [
       {
         key: "webhook_url",
-        label: "URL du webhook Zapier",
-        placeholder: "https://hooks.zapier.com/hooks/catch/…",
-        type: "text",
+        label: "URL du webhook entrant",
+        placeholder: "https://hooks.slack.com/services/…",
+        type: "password",
         required: true,
+        pattern: "^https://hooks\\.slack\\.com/services/[A-Za-z0-9/_-]+$",
+        patternHint: "L'adresse doit commencer par https://hooks.slack.com/services/",
+      },
+    ],
+    docsUrl: "https://api.slack.com/messaging/webhooks",
+  },
+  {
+    id: "zapier",
+    name: "Zapier · Make · n8n",
+    category: "Automatisation",
+    description: "Connectez Callpme à des milliers d'applications (Google Sheets, WhatsApp Business, e-mail…).",
+    live: "Chaque appel terminé, prospect et rendez-vous déclenche votre scénario, avec toutes ses données.",
+    icon: "Zap",
+    accountLabel: "Scénario",
+    fields: [
+      {
+        key: "webhook_url",
+        label: "URL du webhook (Zapier « Catch Hook », Make « Custom webhook », n8n « Webhook »)",
+        placeholder: "https://hooks.zapier.com/hooks/catch/…",
+        type: "password",
+        required: true,
+        pattern: "^https://[^\\s]+$",
+        patternHint: "L'adresse doit commencer par https://",
       },
     ],
     docsUrl: "https://zapier.com/app/zaps",

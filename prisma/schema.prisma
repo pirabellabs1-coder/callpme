@@ -225,6 +225,8 @@ model Campaign {
   agent          Agent        @relation(fields: [agentId], references: [id], onDelete: Cascade)
   name           String
   status         String       @default("draft") // draft | running | paused | completed
+  /// JSON : CampaignSettings (plages horaires, fuseau, simultanéité, relances).
+  settings       String?
   contacts       Contact[]
   createdAt      DateTime     @default(now())
 
@@ -243,10 +245,25 @@ model Contact {
   data           String? // JSON champs additionnels
   calledAt       DateTime?
   providerCallId String?   @unique // appel chez l'opérateur (Twilio CallSid, Telnyx) lié au contact
+  /// Tentatives d'appel effectuées, et date de la prochaine relance prévue.
+  attempts       Int       @default(0)
+  nextAttemptAt  DateTime?
   createdAt      DateTime  @default(now())
 
   @@index([campaignId])
   @@index([status])
+  @@index([campaignId, status, nextAttemptAt])
+}
+
+// ----- Liste d'opposition : numéros à ne jamais appeler (par organisation) -----
+model DoNotCall {
+  id             String   @id @default(cuid())
+  organizationId String
+  phone          String // E.164
+  reason         String? // demande de l'appelant, import, saisie manuelle
+  createdAt      DateTime @default(now())
+
+  @@unique([organizationId, phone])
 }
 
 // ----- Base de connaissances / RAG (Track 4) -----

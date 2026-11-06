@@ -18,6 +18,7 @@ import { sendSms } from "../telephony/sms";
 import { sendEmail } from "../email/resend";
 import { prisma } from "../db/client";
 import { containsLink, takeDailyQuota } from "../security/daily-quota";
+import { addOptOut } from "../campaigns/engine";
 import type { ToolContext, ToolResult } from "../shared/types";
 
 type Handler = (args: Record<string, unknown>, ctx: ToolContext) => Promise<ToolResult>;
@@ -87,6 +88,16 @@ const HANDLERS: Record<string, Handler> = {
     const org = await prisma.organization.findUnique({ where: { id: ctx.organizationId }, select: { name: true } });
     const r = await sendSms(to, `${org?.name ?? "Message"} : ${text}`, { callId: ctx.callId, organizationId: ctx.organizationId });
     return r.ok ? { ok: true, message: "SMS envoyé." } : { ok: false, message: `SMS non envoyé : ${r.error}` };
+  },
+
+  optOut: async (args, ctx) => {
+    const phone = callerPhone(ctx);
+    if (!phone) return { ok: false, message: "Numéro de l'appelant inconnu." };
+    if (ctx.test) return { ok: true, message: "Opposition simulée (conversation de test)." };
+    const done = await addOptOut(ctx.organizationId, phone, str(args.reason, 200) ?? "Demande de l'appelant");
+    return done
+      ? { ok: true, message: "Numéro inscrit sur la liste d'opposition : il ne sera plus appelé." }
+      : { ok: false, message: "Numéro invalide : inscription impossible." };
   },
 
   /* ------------------------------- Agenda ------------------------------- */

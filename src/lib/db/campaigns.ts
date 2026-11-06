@@ -1,9 +1,8 @@
 /** Dépôt « Campagnes » — appels sortants par lot. */
 import { prisma } from "./client";
-import { getAgentById } from "./agents";
-import { placeOutboundCall, telephonyConfigured } from "@/lib/telephony/provider";
-import { checkDestination } from "@/lib/telephony/destinations";
+import { telephonyConfigured } from "@/lib/telephony/provider";
 import { canUseMinutes } from "@/lib/billing/limits";
+import { campaignSettings, type CampaignSettings } from "@/lib/campaigns/settings";
 
 export interface CampaignRecord {
   id: string;
@@ -24,6 +23,8 @@ export interface ContactRecord {
   status: string;
   outcome: string | null;
   calledAt: string | null;
+  attempts?: number;
+  nextAttemptAt?: string | null;
 }
 
 export async function listCampaigns(orgId: string): Promise<CampaignRecord[]> {
@@ -67,11 +68,14 @@ export async function getCampaign(orgId: string, id: string) {
     status: c.status,
     outcome: c.outcome,
     calledAt: c.calledAt ? c.calledAt.toISOString() : null,
+    attempts: c.attempts,
+    nextAttemptAt: c.nextAttemptAt ? c.nextAttemptAt.toISOString() : null,
   }));
   return {
     id: r.id,
     name: r.name,
     status: r.status,
+    settings: campaignSettings(r.settings),
     agentId: r.agentId,
     agentName: r.agent.name,
     createdAt: r.createdAt.toISOString(),
@@ -98,7 +102,7 @@ export const MAX_CONTACTS_PER_CAMPAIGN = 5000;
 export async function addContacts(
   orgId: string,
   campaignId: string,
-  contacts: { name: string; phone: string }[],
+  contacts: { name: string; phone: string; data?: Record<string, string> }[],
 ): Promise<number> {
   const camp = await prisma.campaign.findUnique({ where: { id: campaignId } });
   if (!camp || camp.organizationId !== orgId) return 0;
@@ -112,10 +116,18 @@ export async function addContacts(
       campaignId,
       name: c.name?.trim() || "Contact",
       phone: c.phone.trim(),
+      data: c.data && Object.keys(c.data).length ? JSON.stringify(Object.fromEntries(Object.entries(c.data).slice(0, 20))) : null,
     }));
   if (clean.length === 0) return 0;
   await prisma.contact.createMany({ data: clean });
   return clean.length;
+}
+
+export async function setCampaignSettings(orgId: string, id: string, settings: CampaignSettings) {
+  const camp = await prisma.campaign.findUnique({ where: { id }, select: { organizationId: true } });
+  if (!camp || camp.organizationId !== orgId) return false;
+  await prisma.campaign.update({ where: { id }, data: { settings: JSON.stringify(campaignSettings(settings)) } });
+  return true;
 }
 
 export async function setCampaignStatus(
@@ -182,69 +194,17 @@ export async function runCampaign(orgId: string, id: string) {
   if (camp.status === "paused") throw new CampaignPausedError();
 
   /* ------------------- Mode RÉEL (moteur vocal Callpme) ------------------- */
+  // Les appels sont composés par lots, dans les plages horaires, par le moteur
+  // de campagnes (src/lib/campaigns/engine.ts) ; on lance le premier tour ici.
   if (telephonyConfigured()) {
-    // Charge l'agent complet (prompt, voix, modèle) pour le moteur vocal.
-    const agent = await getAgentById(camp.agentId);
-    if (!agent) return null;
-    const org = await prisma.organization.findUnique({
-      where: { id: camp.organizationId },
-      select: { plan: true },
-    });
-    // Appels payés par la plateforme : quota de l'offre vérifié avant de composer.
+    const org = await prisma.organization.findUnique({ where: { id: camp.organizationId }, select: { plan: true } });
     const quota = await canUseMinutes(camp.organizationId, org?.plan ?? "starter");
     if (!quota.ok) throw new CampaignQuotaError(quota.message);
     await prisma.campaign.update({ where: { id }, data: { status: "running" } });
-
-    let placed = 0;
-    let failed = 0;
-    for (const c of camp.contacts) {
-      // Réservation atomique : un second lancement simultané ne rappelle pas ce contact.
-      const claimed = await prisma.contact.updateMany({
-        where: { id: c.id, status: "pending" },
-        data: { status: "calling" },
-      });
-      if (claimed.count === 0) continue;
-
-      const dest = checkDestination(c.phone);
-      if (!dest.ok) {
-        await prisma.contact.update({
-          where: { id: c.id },
-          data: { status: "failed", outcome: dest.reason ?? "Destination non autorisée", calledAt: new Date() },
-        });
-        failed += 1;
-        continue;
-      }
-
-      const result = await placeOutboundCall({
-        agent,
-        toNumber: c.phone,
-        metadata: { contactId: c.id, campaignId: camp.id },
-      });
-      if (result.ok && result.callId) {
-        await prisma.contact.update({
-          where: { id: c.id },
-          data: {
-            status: "calling",
-            providerCallId: result.callId,
-            calledAt: new Date(),
-          },
-        });
-        placed += 1;
-      } else {
-        await prisma.contact.update({
-          where: { id: c.id },
-          data: {
-            status: "failed",
-            outcome: result.error ?? "Appel impossible",
-            calledAt: new Date(),
-          },
-        });
-        failed += 1;
-      }
-    }
-    return { processed: camp.contacts.length, placed, failed, real: true };
+    const { tickCampaign } = await import("../campaigns/engine");
+    const report = await tickCampaign(id);
+    return { processed: 0, placed: report.placed, failed: 0, real: true, scheduled: report.skipped === "hors-plage" };
   }
-
   /* ------------------------- Mode SIMULÉ (démo) ----------------------------- */
   const from = camp.agent.phoneNumber ?? "+33 1 84 80 11 04";
   let calls = 0;

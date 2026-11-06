@@ -27,6 +27,7 @@ export const CONTACT_STATUS: Record<string, { label: string; text: string; bar: 
   calling: { label: "Appel en cours", text: "text-brand", bar: "bg-brand" },
   completed: { label: "Joint", text: "text-emerald-600", bar: "bg-emerald-500" },
   no_answer: { label: "Sans réponse", text: "text-amber-600", bar: "bg-amber-500" },
+  voicemail: { label: "Messagerie", text: "text-sky-600", bar: "bg-sky-500" },
   failed: { label: "Échec", text: "text-rose-600", bar: "bg-rose-500" },
   opted_out: { label: "Opposition", text: "text-rose-600", bar: "bg-rose-400" },
 };
@@ -34,6 +35,7 @@ export const CONTACT_STATUS: Record<string, { label: string; text: string; bar: 
 export const CONTACT_STATUS_ORDER = [
   "completed",
   "no_answer",
+  "voicemail",
   "calling",
   "failed",
   "opted_out",

@@ -12,6 +12,7 @@ const schema = z.object({
       z.object({
         name: z.string().max(120).optional(),
         phone: z.string().min(3).max(40),
+        data: z.record(z.string().max(40), z.string().max(200)).optional(),
       }),
     )
     .max(5000),
@@ -30,7 +31,7 @@ export async function POST(
     const added = await addContacts(
       session.org.id,
       params.id,
-      parsed.data.contacts.map((c) => ({ name: c.name ?? "Contact", phone: c.phone })),
+      parsed.data.contacts.map((c) => ({ name: c.name ?? "Contact", phone: c.phone, data: c.data })),
     );
     return ok({ added });
   } catch {

@@ -4,6 +4,7 @@
  * `call.completed` / `call.transferred`. Remplace l'ancien webhook Vapi.
  */
 import { prisma } from "../db/client";
+import { recordContactOutcome } from "../campaigns/engine";
 import { dispatchEvent } from "../webhooks/dispatch";
 import { anyLLMKey, generateReply } from "../llm/chat";
 import type { Agent, CallStatus, TranscriptTurn } from "../shared/types";
@@ -103,16 +104,17 @@ export async function finishCall(input: FinishCallInput) {
   // Contact de campagne : statut final + issue.
   const contactId = input.metadata?.contactId;
   if (contactId) {
-    await prisma.contact
-      .updateMany({
-        where: { id: contactId, campaign: { organizationId: input.organizationId } },
-        data: {
-          status: input.status === "completed" || input.status === "transferred" ? "completed" : input.status === "missed" ? "no_answer" : "failed",
-          outcome,
-          calledAt: new Date(),
-        },
-      })
-      .catch(() => {});
+    const voicemail = input.outcome === "Message laissé sur répondeur";
+    const status =
+      input.status === "completed" || input.status === "transferred"
+        ? "completed"
+        : voicemail
+          ? "voicemail"
+          : input.status === "missed"
+            ? "no_answer"
+            : "failed";
+    // Relance planifiée selon les réglages de la campagne (non-réponse, répondeur…).
+    await recordContactOutcome({ contactId, organizationId: input.organizationId }, status, outcome).catch(() => {});
   }
 
   await dispatchEvent(input.organizationId, input.status === "transferred" ? "call.transferred" : "call.completed", {

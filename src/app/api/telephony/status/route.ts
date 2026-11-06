@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { prisma } from "@/lib/db/client";
+import { recordContactOutcome } from "@/lib/campaigns/engine";
 import { readSignedWebhook } from "@/lib/telephony/provider";
 
 export const dynamic = "force-dynamic";
@@ -26,10 +26,11 @@ export async function POST(req: NextRequest) {
   const callId = params.CallSid ?? params.call_sid;
   const outcome = NOT_CONNECTED[(params.CallStatus ?? params.call_status ?? "").toLowerCase()];
   if (callId && outcome) {
-    await prisma.contact.updateMany({
-      where: { providerCallId: callId, status: "calling" },
-      data: { status: outcome },
-    });
+    await recordContactOutcome(
+      { providerCallId: callId },
+      outcome,
+      outcome === "no_answer" ? "Pas de réponse" : "Appel en échec",
+    );
   }
   return new Response(null, { status: 204 });
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import { useId, useMemo, useState } from "react";
+import { parseContactsCsv, phoneKey } from "@/lib/campaigns/csv";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
@@ -36,68 +37,6 @@ import {
 
 const MAX_CONTACTS = 5000;
 const PAGE_SIZE = 100;
-
-/* ------------------------------ Parsing CSV ------------------------------- */
-
-interface ParsedContact {
-  name: string;
-  phone: string;
-}
-interface ParseIssue {
-  line: number;
-  text: string;
-  reason: string;
-}
-
-const phoneDigits = (p: string) => p.replace(/[\s.\-()]/g, "");
-const isPhone = (p: string) => /^(\+|00)?\d{6,15}$/.test(phoneDigits(p));
-
-function parseContacts(raw: string, existingPhones: Set<string>) {
-  const valid: ParsedContact[] = [];
-  const issues: ParseIssue[] = [];
-  const seen = new Set(existingPhones);
-  let duplicates = 0;
-
-  raw.split(/\r?\n/).forEach((rawLine, idx) => {
-    const line = rawLine.trim();
-    if (!line) return;
-    const parts = line
-      .split(/[;,\t]/)
-      .map((p) => p.trim().replace(/^"(.*)"$/, "$1").trim());
-
-    let name = "";
-    let phone = "";
-    if (parts.length === 1) phone = parts[0];
-    else if (isPhone(parts[0]) && !isPhone(parts[1])) {
-      phone = parts[0];
-      name = parts[1];
-    } else {
-      name = parts[0];
-      phone = parts[1];
-    }
-
-    // Ligne d'en-tête (« nom;téléphone ») : ignorée silencieusement.
-    if (idx === 0 && !/\d/.test(phone)) return;
-
-    if (!phone) {
-      issues.push({ line: idx + 1, text: line, reason: "numéro manquant" });
-      return;
-    }
-    if (!isPhone(phone)) {
-      issues.push({ line: idx + 1, text: line, reason: "numéro invalide" });
-      return;
-    }
-    const key = phoneDigits(phone).replace(/^00/, "+");
-    if (seen.has(key)) {
-      duplicates += 1;
-      return;
-    }
-    seen.add(key);
-    valid.push({ name: (name || "Contact").slice(0, 120), phone: phone.replace(/\s+/g, " ") });
-  });
-
-  return { valid, issues, duplicates };
-}
 
 /* -------------------------------- Composant ------------------------------- */
 
@@ -146,11 +85,11 @@ export function CampaignDetail({
   }, [contacts]);
 
   const existingPhones = useMemo(
-    () => new Set(contacts.map((c) => phoneDigits(c.phone).replace(/^00/, "+"))),
+    () => new Set(contacts.map((c) => phoneKey(c.phone))),
     [contacts],
   );
   const parsed = useMemo(
-    () => (csv.trim() ? parseContacts(csv, existingPhones) : null),
+    () => (csv.trim() ? parseContactsCsv(csv, existingPhones) : null),
     [csv, existingPhones],
   );
   const overCapacity = parsed ? total + parsed.valid.length > MAX_CONTACTS : false;
@@ -449,8 +388,8 @@ export function CampaignDetail({
 
           <p className="mt-5 flex items-start gap-2 border-t border-border pt-3 text-xs text-muted-foreground">
             <Info className="mt-px size-3.5 shrink-0" aria-hidden />
-            Les appels partent dès le lancement : aucune plage horaire n'est programmée pour
-            cette campagne. Lancez-la pendant des horaires adaptés à vos contacts.
+            Les appels partent par petits lots, uniquement dans les plages horaires réglées
+            ci-dessous ; les contacts sans réponse sont rappelés automatiquement.
           </p>
         </Card>
       )}
@@ -495,7 +434,7 @@ export function CampaignDetail({
                 rows={7}
                 spellCheck={false}
                 className="font-mono text-xs"
-                placeholder={"nom;telephone\nMarie Durand;+33 6 12 34 56 78\nAmadou Diallo;+221 77 123 45 67"}
+                placeholder={"prenom;nom;telephone;montant\nMarie;Durand;+33 6 12 34 56 78;120 €\nAmadou;Diallo;+221 77 123 45 67;45 000 FCFA"}
                 aria-describedby={`${ids}-format ${ids}-check`}
               />
 
@@ -518,6 +457,21 @@ export function CampaignDetail({
                       </span>
                     )}
                   </p>
+                  {parsed.mapping && (
+                    <p className="text-xs text-muted-foreground">
+                      Colonnes reconnues : téléphone « {parsed.mapping.phone ?? "détecté automatiquement"} »
+                      {parsed.mapping.firstName && `, prénom « ${parsed.mapping.firstName} »`}
+                      {parsed.mapping.name && `, nom « ${parsed.mapping.name} »`}
+                      {parsed.mapping.extra.length > 0 && (
+                        <>
+                          {" "}· variables pour l&apos;agent :{" "}
+                          {parsed.mapping.extra.map((x) => (
+                            <code key={x} className="mx-0.5 rounded bg-foreground/[0.06] px-1">{`{${x}}`}</code>
+                          ))}
+                        </>
+                      )}
+                    </p>
+                  )}
                   {parsed.issues.length > 0 && (
                     <ul className="max-h-36 space-y-1 overflow-auto rounded-lg border border-destructive/25 bg-destructive/5 p-2 font-mono text-xs">
                       {parsed.issues.slice(0, 50).map((i) => (
@@ -649,6 +603,13 @@ export function CampaignDetail({
                       </td>
                       <td className="hidden max-w-[16rem] truncate px-5 py-3 text-xs text-muted-foreground sm:table-cell">
                         {c.outcome ?? "—"}
+                        {(c.attempts ?? 0) > 1 && <span className="block">{c.attempts} tentatives</span>}
+                        {c.nextAttemptAt && (
+                          <span className="block text-amber-500">
+                            Relance{" "}
+                            {new Date(c.nextAttemptAt).toLocaleString("fr-FR", { weekday: "short", hour: "2-digit", minute: "2-digit", timeZone: "Europe/Paris" })}
+                          </span>
+                        )}
                       </td>
                       <td className="hidden whitespace-nowrap px-5 py-3 text-xs text-muted-foreground md:table-cell">
                         {c.calledAt

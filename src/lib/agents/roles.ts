@@ -113,7 +113,7 @@ export const ROLE_META: Record<AgentRole, RoleMeta> = {
     description:
       "Contacte une liste de prospects ou de clients, présente l'offre, gère les objections, enregistre l'appel et envoie un e-mail de suivi. Pour les campagnes de prospection.",
     icon: "PhoneOutgoing",
-    defaultTools: ["logCall", "sendFollowUpEmail", "markInterested", "scheduleCallback", "endCall"],
+    defaultTools: ["logCall", "sendFollowUpEmail", "markInterested", "scheduleCallback", "optOut", "endCall"],
     firstMessage:
       "Bonjour, je vous appelle au sujet de votre demande récente — vous avez deux minutes ?",
     direction: "outbound",

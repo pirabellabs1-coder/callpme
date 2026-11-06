@@ -23,6 +23,7 @@ import { consumeVoiceToken, verifyVoiceToken, type VoiceTokenPayload } from "../
 import { CallSession, type VoiceTransport } from "../src/lib/voice-engine/session";
 import { transferCall } from "../src/lib/telephony/provider";
 import { frames } from "../src/lib/voice-engine/audio";
+import { tickCampaigns } from "../src/lib/campaigns/engine";
 
 // Sans secret robuste, les jetons seraient forgeables : on refuse de démarrer.
 if (!process.env.NEXTAUTH_SECRET || process.env.NEXTAUTH_SECRET.length < 32) {
@@ -266,6 +267,20 @@ function onWeb(ws: WebSocket, payload: VoiceTokenPayload) {
   ws.on("error", () => ws.close());
 }
 
+// Campagnes sortantes : ce service tourne en continu, il cadence les appels
+// (plages horaires, simultanéité, relances). Désactivable : VOICE_CAMPAIGN_TICK=0.
+let ticking = false;
+const campaignTimer =
+  process.env.VOICE_CAMPAIGN_TICK === "0"
+    ? null
+    : setInterval(() => {
+        if (ticking) return;
+        ticking = true;
+        tickCampaigns()
+          .catch((e) => console.error("[voice] campagnes :", e instanceof Error ? e.message : e))
+          .finally(() => (ticking = false));
+      }, 30_000);
+
 server.listen(PORT, () => {
   console.log(`[voice] Serveur vocal Callpme à l'écoute sur :${PORT} (max ${MAX_SESSIONS} sessions, ${MAX_PER_ORG} par organisation)`);
 });
@@ -279,6 +294,7 @@ for (const sig of ["SIGINT", "SIGTERM"] as const) {
     stopping = true;
     console.log(`[voice] Arrêt : enregistrement de ${sessions.size} appel(s) en cours…`);
     server.close();
+    if (campaignTimer) clearInterval(campaignTimer);
     // Filet de sécurité si un enregistrement reste bloqué.
     setTimeout(() => process.exit(0), 15_000).unref();
     void Promise.allSettled(Array.from(sessions).map((s) => s.end("completed"))).then(() => {

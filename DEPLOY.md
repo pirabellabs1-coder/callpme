@@ -99,6 +99,10 @@ données de l'application.
   `${PUBLIC_URL}/api/telephony/answer` avec la détection de répondeur
   (Twilio et Telnyx « DetectMessageEnd ») : l'agent parle à un humain, laisse
   un message après le bip ou raccroche, selon le réglage de l'agent.
+- **Campagnes** : le serveur vocal compose les appels par lots toutes les
+  30 s (plages horaires, appels simultanés, relances, liste d'opposition).
+  Relais facultatif : un cron sur `GET /api/cron/campaigns` avec l'en-tête
+  `Authorization: Bearer <CRON_SECRET>` (16 caractères minimum).
 - **Touches du clavier** (« tapez 1 ») : transmises à l'agent pendant l'appel.
 - **Fin d'appel** : les appels sortants déclarent `${PUBLIC_URL}/api/telephony/status`
   comme rappel de statut (non-réponse, occupé, échec) ; rien à configurer.

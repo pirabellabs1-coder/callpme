@@ -86,6 +86,20 @@ const TOOLS: AgentToolDef[] = [
     },
   },
 
+  {
+    name: "optOut",
+    label: "Ne plus appeler",
+    description:
+      "Inscrit le numéro de l'appelant sur la liste d'opposition quand il demande à ne plus être appelé. Confirme-lui ensuite poliment.",
+    category: "telephonie",
+    icon: "PhoneOff",
+    parameters: {
+      type: "object",
+      properties: { reason: { type: "string", description: "Formulation de la demande, en quelques mots." } },
+      required: [],
+    },
+  },
+
   /* ------------------------------- Agenda ------------------------------- */
   {
     name: "checkAvailability",

@@ -48,8 +48,11 @@ export function openDeepgram(language: string, events: SttEvents): SttStream {
   });
   const pending: Buffer[] = [];
   let keepAlive: NodeJS.Timeout | null = null;
+  let closed = false;
 
   ws.on("open", () => {
+    // Fermé avant même d'être ouvert : on ne garde rien en vie.
+    if (closed) return ws.terminate();
     for (const b of pending.splice(0)) ws.send(b);
     // Deepgram ferme la connexion après ~10 s sans audio : on la maintient.
     keepAlive = setInterval(() => {
@@ -87,6 +90,9 @@ export function openDeepgram(language: string, events: SttEvents): SttStream {
       else if (ws.readyState === WebSocket.CONNECTING) pending.push(mulaw);
     },
     close() {
+      if (closed) return;
+      closed = true;
+      pending.length = 0;
       if (keepAlive) clearInterval(keepAlive);
       if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: "CloseStream" }));
       setTimeout(() => ws.terminate(), 500);

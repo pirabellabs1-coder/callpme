@@ -90,7 +90,7 @@ const SEED_AGENTS: SeedAgent[] = [
     name: "Camille — Support",
     role: "support",
     status: "active",
-    phoneNumber: "+33 1 84 80 11 02",
+    phoneNumber: "+33184801102",
     modelProvider: "openai",
     modelId: "gpt-4o",
     guardrails: [
@@ -105,7 +105,7 @@ const SEED_AGENTS: SeedAgent[] = [
     name: "Léa — Rendez-vous",
     role: "appointment",
     status: "active",
-    phoneNumber: "+33 1 84 80 11 03",
+    phoneNumber: "+33184801103",
     modelProvider: "anthropic",
     modelId: "claude-sonnet-4",
     guardrails: [
@@ -119,7 +119,7 @@ const SEED_AGENTS: SeedAgent[] = [
     name: "Hugo — Ventes",
     role: "outbound_sales",
     status: "active",
-    phoneNumber: "+33 1 84 80 11 04",
+    phoneNumber: "+33184801104",
     modelProvider: "mistral",
     modelId: "mistral-large",
     guardrails: [
@@ -133,7 +133,7 @@ const SEED_AGENTS: SeedAgent[] = [
     name: "Inès — Qualification",
     role: "lead_qualification",
     status: "active",
-    phoneNumber: "+33 1 84 80 11 05",
+    phoneNumber: "+33184801105",
     modelProvider: "openai",
     modelId: "gpt-4o-mini",
     guardrails: ["Rester bref : l'objectif est de qualifier, pas de vendre"],
@@ -144,7 +144,7 @@ const SEED_AGENTS: SeedAgent[] = [
     name: "Standard — Accueil",
     role: "receptionist",
     status: "active",
-    phoneNumber: "+33 1 84 80 11 00",
+    phoneNumber: "+33184801100",
     modelProvider: "openai",
     modelId: "gpt-4o-mini",
     guardrails: ["Ne jamais divulguer l'agenda interne des collaborateurs"],
@@ -487,8 +487,8 @@ async function main() {
       calls.push({
         agentId: agent.id,
         direction: dir,
-        fromNumber: dir === "inbound" ? frMobile() : (a.phoneNumber ?? "+33 1 84 80 11 00"),
-        toNumber: dir === "inbound" ? (a.phoneNumber ?? "+33 1 84 80 11 00") : frMobile(),
+        fromNumber: dir === "inbound" ? frMobile() : (a.phoneNumber ?? "+33184801100"),
+        toNumber: dir === "inbound" ? (a.phoneNumber ?? "+33184801100") : frMobile(),
         status,
         durationSec: res.durationSec,
         transcript: JSON.stringify(res.transcript),
@@ -529,12 +529,12 @@ async function main() {
   console.log("· Numéros + provider + fonction personnalisée…");
   await prisma.phoneNumber.createMany({
     data: [
-      { organizationId: org.id, number: "+33 1 84 80 11 00", label: "Paris · Standard", provider: "twilio", monthlyPrice: 3 },
-      { organizationId: org.id, number: "+33 1 84 80 11 02", label: "Paris · Support", provider: "twilio", monthlyPrice: 3 },
-      { organizationId: org.id, number: "+33 1 84 80 11 03", label: "Paris · Rendez-vous", provider: "twilio", monthlyPrice: 3 },
-      { organizationId: org.id, number: "+33 1 84 80 11 04", label: "Paris · Ventes", provider: "twilio", monthlyPrice: 3 },
-      { organizationId: org.id, number: "+33 1 84 80 11 05", label: "Paris · Qualification", provider: "twilio", monthlyPrice: 3 },
-      { organizationId: org.id, number: "+33 9 70 80 81 82", label: "Ligne Zadarma", provider: "zadarma", monthlyPrice: 2 },
+      { organizationId: org.id, number: "+33184801100", label: "Paris · Standard", provider: "twilio", monthlyPrice: 3 },
+      { organizationId: org.id, number: "+33184801102", label: "Paris · Support", provider: "twilio", monthlyPrice: 3 },
+      { organizationId: org.id, number: "+33184801103", label: "Paris · Rendez-vous", provider: "twilio", monthlyPrice: 3 },
+      { organizationId: org.id, number: "+33184801104", label: "Paris · Ventes", provider: "twilio", monthlyPrice: 3 },
+      { organizationId: org.id, number: "+33184801105", label: "Paris · Qualification", provider: "twilio", monthlyPrice: 3 },
+      { organizationId: org.id, number: "+33970808182", label: "Ligne Zadarma", provider: "zadarma", monthlyPrice: 2 },
     ],
   });
   await prisma.providerConnection.create({

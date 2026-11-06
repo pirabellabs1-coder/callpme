@@ -3,6 +3,7 @@
  * config JSON et statistiques d'appels agrégées (sans requête N+1).
  */
 import { prisma } from "./client";
+import { toE164 } from "../telephony/e164";
 import { zonedDayStart, zonedParts } from "./calls";
 import type {
   Agent,
@@ -173,10 +174,43 @@ export async function countAgents(orgId: string): Promise<number> {
 
 /** Référence (client, base de connaissances) n'appartenant pas à l'organisation. */
 export class ForeignReferenceError extends Error {
-  constructor(field: "clientId" | "knowledgeBaseId") {
-    super(`Référence invalide : ${field}`);
+  constructor(field: "clientId" | "knowledgeBaseId" | "phoneNumber", message?: string) {
+    super(message ?? `Référence invalide : ${field}`);
     this.name = "ForeignReferenceError";
   }
+}
+
+/**
+ * Un agent ne peut recevoir qu'un numéro que son organisation possède
+ * (table « Numéros ») — sinon un client pourrait détourner les appels
+ * entrants d'un autre. Le numéro est stocké au format E.164, ce qui rend
+ * aussi l'unicité effective (« +33 1 … » et « +331… » sont le même numéro).
+ */
+export async function ownedPhoneNumber(
+  orgId: string,
+  raw: string | null | undefined,
+): Promise<string | null> {
+  if (raw == null || raw.trim() === "") return null;
+  const e164 = toE164(raw);
+  if (!e164) {
+    throw new ForeignReferenceError("phoneNumber", "Numéro invalide : format international attendu (ex. +33 1 84 80 11 02).");
+  }
+  const owned = await prisma.phoneNumber.findFirst({
+    where: { organizationId: orgId, number: { in: [e164, raw.trim()] } },
+    select: { id: true },
+  });
+  if (!owned) {
+    throw new ForeignReferenceError(
+      "phoneNumber",
+      "Ce numéro n'appartient pas à votre organisation : ajoutez-le d'abord dans « Numéros ».",
+    );
+  }
+  const taken = await prisma.agent.findFirst({
+    where: { phoneNumber: e164, organizationId: { not: orgId } },
+    select: { id: true },
+  });
+  if (taken) throw new ForeignReferenceError("phoneNumber", "Ce numéro est déjà utilisé.");
+  return e164;
 }
 
 /**
@@ -209,6 +243,7 @@ export async function createAgent(
   input: CreateAgentInput,
 ): Promise<Agent> {
   await assertOwnedRefs(orgId, input);
+  const phoneNumber = await ownedPhoneNumber(orgId, input.phoneNumber);
   const row = await prisma.agent.create({
     data: {
       organizationId: orgId,
@@ -216,7 +251,7 @@ export async function createAgent(
       role: input.role,
       status: input.status ?? "draft",
       config: JSON.stringify(input.config),
-      phoneNumber: input.phoneNumber ?? null,
+      phoneNumber,
       clientId: input.clientId ?? null,
       knowledgeBaseId: input.knowledgeBaseId ?? null,
     },
@@ -231,6 +266,10 @@ export async function updateAgent(
   const existing = await prisma.agent.findUnique({ where: { id } });
   if (!existing) return null;
   await assertOwnedRefs(existing.organizationId, patch);
+  const phoneNumber =
+    patch.phoneNumber !== undefined
+      ? await ownedPhoneNumber(existing.organizationId, patch.phoneNumber)
+      : undefined;
 
   // Fusion superficielle de la config (les sous-objets fournis remplacent).
   const mergedConfig: AgentConfig | undefined = patch.config
@@ -243,9 +282,7 @@ export async function updateAgent(
       ...(patch.name !== undefined ? { name: patch.name } : {}),
       ...(patch.role !== undefined ? { role: patch.role } : {}),
       ...(patch.status !== undefined ? { status: patch.status } : {}),
-      ...(patch.phoneNumber !== undefined
-        ? { phoneNumber: patch.phoneNumber }
-        : {}),
+      ...(phoneNumber !== undefined ? { phoneNumber } : {}),
       ...(patch.clientId !== undefined ? { clientId: patch.clientId } : {}),
       ...(patch.knowledgeBaseId !== undefined
         ? { knowledgeBaseId: patch.knowledgeBaseId }
@@ -262,8 +299,11 @@ export async function deleteAgent(id: string): Promise<void> {
 
 export async function assignNumber(
   id: string,
-  phoneNumber: string | null,
+  raw: string | null,
 ): Promise<Agent | null> {
+  const existing = await prisma.agent.findUnique({ where: { id }, select: { organizationId: true } });
+  if (!existing) return null;
+  const phoneNumber = await ownedPhoneNumber(existing.organizationId, raw);
   const row = await prisma.agent.update({
     where: { id },
     data: { phoneNumber },

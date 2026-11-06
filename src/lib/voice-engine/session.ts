@@ -21,6 +21,8 @@ import { agentReply, type Turn } from "./brain";
 import { openDeepgram, type SttStream } from "./stt";
 import { resolveVoice, streamSpeech, type TtsVoice } from "./tts";
 import { finishCall } from "./persist";
+import { checkDestination } from "../telephony/destinations";
+import { remainingMinutes } from "../billing/limits";
 import type { VoiceTokenPayload } from "./token";
 
 /** Ce que le transport doit savoir faire. */
@@ -42,6 +44,13 @@ const VOICE_STYLE =
   "pas de markdown, pas d'émojis. Annonce que tu es un assistant IA si on te le demande.";
 
 const SILENCE_HANGUP_MS = 30_000;
+/** Plafond technique d'un appel (aligné sur la validation : 7 200 s). */
+const MAX_CALL_SEC = 7200;
+/** Mots courts qui doivent suffire à couper l'agent. */
+const INTERRUPTED_MARK = "[interrompu par l'appelant]";
+const TRANSFER_UNAVAILABLE =
+  "Je ne peux pas vous mettre en relation directement pour le moment, mais je transmets votre demande : un conseiller vous recontactera.";
+const STOP_WORDS =/^(stop|non|attendez|attends|pardon|excusez|arr[eê]te[zr]?|wait|no)\b/i;
 
 export class CallSession {
   private agent!: Agent;
@@ -60,8 +69,13 @@ export class CallSession {
   private ended = false;
   private status: CallStatus = "completed";
   private hangupAfterSpeech = false;
+  /** Transfert en cours : la fermeture du flux qui suit est un transfert, pas un raccroché. */
+  private transferring = false;
+  /** Fin de tour reçue pendant que l'agent réfléchissait. */
+  private pendingTurn = false;
   private timers: NodeJS.Timeout[] = [];
   private providerCallId: string | null = null;
+  private quotaSec = MAX_CALL_SEC;
 
   constructor(
     private readonly ctx: VoiceTokenPayload,
@@ -75,12 +89,26 @@ export class CallSession {
   /** Charge l'agent, ouvre la transcription et prononce l'accueil. */
   async start(): Promise<void> {
     const agent = await getAgentById(this.ctx.agentId);
+    // L'appelant a pu raccrocher pendant le chargement : on n'ouvre rien.
+    if (this.ended) return;
     if (!agent || agent.organizationId !== this.ctx.organizationId) {
       this.transport.sendEvent?.({ type: "error", message: "Agent introuvable." });
+      this.ended = true;
       return this.transport.hangup();
     }
     this.agent = agent;
-    const org = await prisma.organization.findUnique({ where: { id: agent.organizationId }, select: { name: true } });
+    const org = await prisma.organization.findUnique({
+      where: { id: agent.organizationId },
+      select: { name: true, plan: true },
+    });
+    // Le quota est revérifié au décroché et plafonne la durée de l'appel.
+    const remaining = await remainingMinutes(agent.organizationId, org?.plan ?? "starter");
+    if (this.ended) return;
+    if (remaining <= 0) {
+      this.transport.sendEvent?.({ type: "error", message: "Quota de minutes atteint." });
+      return this.end("failed");
+    }
+    this.quotaSec = remaining * 60;
     this.organizationName = org?.name ?? "";
     this.voice = resolveVoice(agent);
     if (!this.voice) {
@@ -95,8 +123,10 @@ export class CallSession {
       onError: () => this.transport.sendEvent?.({ type: "error", message: "Transcription interrompue." }),
     });
 
-    const max = agent.config.maxDurationSec && agent.config.maxDurationSec > 0 ? agent.config.maxDurationSec : 1800;
-    this.timers.push(setTimeout(() => void this.end("completed"), Math.min(max, 3600) * 1000));
+    // 0 = pas de limite propre à l'agent, mais un plafond technique s'applique toujours.
+    const configured = agent.config.maxDurationSec ?? 0;
+    const max = Math.min(configured > 0 ? configured : MAX_CALL_SEC, MAX_CALL_SEC, this.quotaSec);
+    this.timers.push(setTimeout(() => void this.end("completed"), max * 1000));
     this.timers.push(
       setInterval(() => {
         const idle = Date.now() - Math.max(this.lastActivity, this.playbackUntil);
@@ -121,6 +151,12 @@ export class CallSession {
 
   /** Le transport s'est fermé (raccroché côté appelant). */
   async onTransportClosed() {
+    // L'opérateur coupe le flux dès qu'il applique le transfert, parfois avant
+    // que l'API de transfert ait répondu.
+    if (this.transferring) {
+      this.status = "transferred";
+      return this.end("transferred", { keepLine: true });
+    }
     await this.end(this.status);
   }
 
@@ -133,6 +169,11 @@ export class CallSession {
   /** Coupe l'agent quand l'appelant prend la parole. */
   private interrupt() {
     if (!this.isAgentAudible()) return;
+    // Le LLM doit savoir que sa dernière réponse n'a pas été entendue en entier.
+    const last = this.history[this.history.length - 1];
+    if (last?.role === "assistant" && !last.content.endsWith(INTERRUPTED_MARK)) {
+      this.history[this.history.length - 1] = { ...last, content: `${last.content} ${INTERRUPTED_MARK}` };
+    }
     this.speaking?.abort();
     this.speaking = null;
     this.playbackUntil = 0;
@@ -146,18 +187,26 @@ export class CallSession {
 
   private onTranscript(text: string, isFinal: boolean) {
     this.lastActivity = Date.now();
-    // Interruption seulement sur des mots réels (évite les bruits et l'écho).
-    if (this.isAgentAudible() && text.split(/\s+/).filter(Boolean).length >= 2) this.interrupt();
+    // Interruption seulement sur des mots réels (évite les bruits et l'écho) :
+    // deux mots, ou un mot d'arrêt (« stop », « non », « attendez »…).
+    const words = text.split(/\s+/).filter(Boolean).length;
+    if (this.isAgentAudible() && (words >= 2 || STOP_WORDS.test(text))) this.interrupt();
     this.transport.sendEvent?.({ type: "transcript", speaker: "caller", text, final: isFinal });
     if (isFinal) this.userBuffer = `${this.userBuffer} ${text}`.trim();
   }
 
   private async onUtteranceEnd() {
-    if (this.busy || this.ended) return;
+    if (this.ended) return;
+    if (this.busy) {
+      // L'appelant a fini une phrase pendant la réflexion : on la traitera ensuite.
+      this.pendingTurn = true;
+      return;
+    }
     const text = this.userBuffer.trim();
     if (!text) return;
     this.userBuffer = "";
     this.busy = true;
+    this.pendingTurn = false;
     try {
       this.history.push({ role: "user", content: text });
       this.addTurn("caller", text);
@@ -165,8 +214,9 @@ export class CallSession {
     } finally {
       this.busy = false;
     }
-    // Phrase arrivée pendant la réflexion : on y répond aussi.
-    if (this.userBuffer.trim() && !this.ended) void this.onUtteranceEnd();
+    // On ne répond à la suite que si l'appelant a réellement terminé sa phrase
+    // (sinon le prochain « fin de tour » de la transcription s'en chargera).
+    if (this.pendingTurn && this.userBuffer.trim() && !this.ended) void this.onUtteranceEnd();
   }
 
   /* ---------------------------- Réflexion ---------------------------- */
@@ -185,11 +235,17 @@ export class CallSession {
         },
         this.history,
       );
+      // Raccroché pendant la réflexion : rien à dire ni à transférer.
+      if (this.ended) return;
       reply = result.text;
       for (const call of result.toolCalls) {
         this.addTurn("tool", call.message, call.name);
         if (call.name === "endCall") this.hangupAfterSpeech = true;
-        if (call.name === "transferToHuman") await this.transferToHuman();
+        if (call.name === "transferToHuman") {
+          // Sans numéro ou hors téléphone, ne pas annoncer un transfert qui n'aura pas lieu.
+          if (!this.canTransfer()) reply = TRANSFER_UNAVAILABLE;
+          else await this.transferToHuman();
+        }
       }
     } catch {
       reply = "Je suis désolé, je rencontre un problème technique. Pouvez-vous répéter ?";
@@ -210,15 +266,26 @@ export class CallSession {
   private async transferToHuman() {
     const number = this.agent.config.transferNumber;
     if (!number || !this.transport.transfer || !this.providerCallId) return;
+    // Défense en profondeur : jamais de transfert vers une destination non autorisée.
+    if (!checkDestination(number).ok) return;
     // Annonce courte, puis transfert une fois la phrase jouée.
     await this.speak("Je vous mets en relation avec un conseiller, ne quittez pas.");
     const wait = Math.max(0, this.playbackUntil - Date.now()) + 300;
     await new Promise((r) => setTimeout(r, wait));
+    if (this.ended) return;
+    this.transferring = true;
     const ok = await this.transport.transfer(number);
     if (ok) {
       this.status = "transferred";
       await this.end("transferred", { keepLine: true });
+    } else {
+      this.transferring = false;
     }
+  }
+
+  /** Le transfert vers un humain est-il réellement possible sur cet appel ? */
+  private canTransfer() {
+    return Boolean(this.agent.config.transferNumber && this.transport.transfer && this.providerCallId);
   }
 
   /* ------------------------------ Parole ------------------------------ */
@@ -238,7 +305,9 @@ export class CallSession {
       }
     } catch (e) {
       if (!ctrl.signal.aborted) {
-        this.transport.sendEvent?.({ type: "error", message: e instanceof Error ? e.message : "Synthèse vocale impossible." });
+        // Détail technique dans les journaux serveur seulement.
+        console.error("[voice] synthèse vocale :", e instanceof Error ? e.message : e);
+        this.transport.sendEvent?.({ type: "error", message: "Synthèse vocale impossible." });
       }
     } finally {
       if (this.speaking === ctrl) this.speaking = null;
@@ -269,8 +338,14 @@ export class CallSession {
     this.speaking?.abort();
     this.timers.forEach((t) => clearTimeout(t));
     this.stt?.close();
-    if (!opts.keepLine) this.transport.hangup();
-    if (!this.agent) return;
+    // Téléphone : on raccroche tout de suite (on ne paie plus la ligne).
+    // Navigateur : on garde la connexion pour envoyer le résultat de l'enregistrement.
+    const web = this.ctx.direction === "web";
+    if (!opts.keepLine && !web) this.transport.hangup();
+    if (!this.agent) {
+      if (web) this.transport.hangup();
+      return;
+    }
     try {
       const call = await finishCall({
         agent: this.agent,
@@ -279,7 +354,7 @@ export class CallSession {
         from: this.ctx.from,
         to: this.ctx.to,
         startedAt: this.startedAt,
-        transcript: this.transcript,
+        transcript: [...this.transcript],
         status: this.hasCallerSpoken() || status === "transferred" ? status : "missed",
         metadata: this.ctx.metadata,
         providerCallId: this.providerCallId,
@@ -287,6 +362,8 @@ export class CallSession {
       this.transport.sendEvent?.({ type: "ended", callId: call.id });
     } catch {
       this.transport.sendEvent?.({ type: "error", message: "L'appel n'a pas pu être enregistré." });
+    } finally {
+      if (web && !opts.keepLine) this.transport.hangup();
     }
   }
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { createDownsampler } from "./downsample";
 import { Loader2, Mic, PhoneOff } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -61,6 +62,8 @@ export function VoiceTestPanel({ agentId, agentName }: { agentId: string; agentN
   const playheadRef = useRef(0);
   const sourcesRef = useRef<AudioBufferSourceNode[]>([]);
   const logRef = useRef<HTMLOListElement>(null);
+  /** Incrémenté à chaque arrêt : un démarrage en cours devenu obsolète s'annule. */
+  const runRef = useRef(0);
 
   useEffect(() => () => stop(), []); // nettoyage au démontage
 
@@ -106,20 +109,27 @@ export function VoiceTestPanel({ agentId, agentName }: { agentId: string; agentN
     setLines([]);
     setInterim("");
     setStatus("connecting");
+    const run = ++runRef.current;
+    const stale = () => run !== runRef.current;
     try {
       const res = await fetch(`/api/agents/${agentId}/voice-session`, { method: "POST" });
       const body = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(body?.error ?? "Session vocale indisponible.");
+      if (stale()) return;
 
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: { echoCancellation: true, noiseSuppression: true, channelCount: 1 },
       });
+      // Arrêté (ou composant démonté) pendant la demande d'accès au micro.
+      if (stale()) return stream.getTracks().forEach((t) => t.stop());
       streamRef.current = stream;
       const ctx = new AudioContext();
       ctxRef.current = ctx;
+      await ctx.resume().catch(() => {}); // Safari démarre parfois en « suspended »
       const moduleUrl = URL.createObjectURL(new Blob([WORKLET], { type: "application/javascript" }));
       await ctx.audioWorklet.addModule(moduleUrl);
       URL.revokeObjectURL(moduleUrl);
+      if (stale()) return teardown();
 
       const ws = new WebSocket(body.url as string);
       ws.binaryType = "arraybuffer";
@@ -130,16 +140,10 @@ export function VoiceTestPanel({ agentId, agentName }: { agentId: string; agentN
         const source = ctx.createMediaStreamSource(stream);
         const node = new AudioWorkletNode(ctx, "callpme-capture");
         // Rééchantillonnage vers 8 kHz (moyenne) + µ-law, envoi par trames de 20 ms.
-        const ratio = ctx.sampleRate / 8000;
+        const downsample = createDownsampler(ctx.sampleRate);
         let carry: number[] = [];
         node.port.onmessage = (e: MessageEvent<Float32Array>) => {
-          const input = e.data;
-          for (let i = 0; i + ratio <= input.length; i += ratio) {
-            let sum = 0;
-            const end = Math.floor(i + ratio);
-            for (let j = Math.floor(i); j < end; j++) sum += input[j];
-            carry.push(sum / Math.max(1, end - Math.floor(i)));
-          }
+          carry.push(...downsample(e.data));
           while (carry.length >= 160) {
             const frame = new Uint8Array(160);
             for (let k = 0; k < 160; k++) frame[k] = linearToMulaw(carry[k]);
@@ -201,6 +205,7 @@ export function VoiceTestPanel({ agentId, agentName }: { agentId: string; agentN
   }
 
   function stop() {
+    runRef.current++;
     const ws = wsRef.current;
     if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: "hangup" }));
     else ws?.close();

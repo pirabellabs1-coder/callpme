@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { assignNumber } from "@/lib/db/agents";
+import { assignNumber, ForeignReferenceError } from "@/lib/db/agents";
 import { requireOwnedAgent } from "@/lib/api/agent-access";
 import { assignNumberSchema } from "@/lib/validation/agent";
 import { ok, badRequest, serverError } from "@/lib/api/respond";
@@ -21,7 +21,8 @@ export async function POST(
     }
     const agent = await assignNumber(params.id, parsed.data.phoneNumber);
     return ok({ agent });
-  } catch {
+  } catch (e) {
+    if (e instanceof ForeignReferenceError) return badRequest(e.message);
     return serverError("Impossible d'assigner le numéro");
   }
 }

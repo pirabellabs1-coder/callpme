@@ -16,6 +16,7 @@ const PUBLIC_API_PREFIXES = [
   "/api/v1/", // API publique : clé d'API
   "/api/telephony/inbound", // signature de l'opérateur (Twilio / Telnyx)
   "/api/telephony/texml", // jeton signé Callpme
+  "/api/telephony/status", // signature de l'opérateur (Twilio / Telnyx)
   "/api/payments/geniuspay/webhook", // revérifié auprès de GeniusPay
 ];
 

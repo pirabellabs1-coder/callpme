@@ -16,6 +16,10 @@ Créez le schéma :
 DATABASE_URL="postgresql://…" npx prisma db push
 ```
 
+Une base déjà créée avec l'ancien schéma (Vapi) demande
+`npx prisma db push --accept-data-loss` : la colonne `Contact.vapiCallId` est
+remplacée par `providerCallId` (identifiants d'appels Vapi, sans usage).
+
 **Ne lancez jamais le seed en production** : il efface toutes les données. Il
 refuse de toute façon de s'exécuter si `NODE_ENV=production` ou sans
 `ALLOW_SEED=1`.
@@ -56,7 +60,11 @@ données de l'application.
    `DEEPGRAM_API_KEY`, `ELEVENLABS_API_KEY` ou `CARTESIA_API_KEY`,
    `VOICE_TTS_PROVIDER`, `VOICE_DEFAULT_FEMALE_ID`, `VOICE_DEFAULT_MALE_ID`.
    `NEXTAUTH_SECRET` doit être **le même** des deux côtés : il signe les jetons
-   qui autorisent une session vocale.
+   qui autorisent une session vocale. Sans lui (ou s'il fait moins de 32
+   caractères), le serveur vocal refuse de démarrer.
+   Capacité : `VOICE_MAX_SESSIONS` (total), `VOICE_MAX_PER_ORG` (par client).
+   **Une seule instance** pour l'instant : les jetons à usage unique sont
+   mémorisés en mémoire (passer à Redis avant de multiplier les instances).
 3. **Application** : renseignez `VOICE_SERVER_URL` (`wss://voice.votre-domaine.com`)
    côté Vercel. Vérifiez `https://voice.votre-domaine.com/health`.
 
@@ -68,6 +76,14 @@ données de l'application.
   `https://votre-domaine.com/api/telephony/inbound` (POST). Twilio : « A call
   comes in » ; Telnyx : application TeXML (renseignez `TELNYX_TEXML_APP_ID` et
   `TELNYX_PUBLIC_KEY` pour la vérification de signature).
+- **Fin d'appel** : les appels sortants déclarent `${PUBLIC_URL}/api/telephony/status`
+  comme rappel de statut (non-réponse, occupé, échec) ; rien à configurer.
+- **Numéros** : un numéro ajouté à la main par un client est « en attente »
+  tant qu'il n'a pas été vérifié. Seuls les numéros actifs reçoivent des
+  appels, et un agent ne peut recevoir qu'un numéro de sa propre organisation.
+- **Fraude** : activez les restrictions géographiques de l'opérateur (Twilio
+  *Geo Permissions*, Telnyx *Outbound Voice Profile*) et bloquez les numéros
+  surtaxés au niveau du compte, en plus des contrôles de l'application.
 - Attribuez ensuite ce numéro à un agent dans le tableau de bord.
 - **Test** : sans téléphone, la page « Tester » d'un agent permet de lui parler
   au micro via le même moteur.
@@ -94,6 +110,10 @@ pull request.
 - Le limiteur de tentatives est en mémoire : sur plusieurs instances
   serverless, remplacez le stockage par Redis (ex. Upstash) — interface dans
   `src/lib/security/rate-limit.ts`.
+- Une communication transférée vers un humain est plafonnée à 10 minutes et
+  n'est pas encore décomptée du quota du client.
+- Telnyx : le transfert et le mode audio bidirectionnel sont à valider sur un
+  vrai appel avant l'ouverture commerciale.
 - Le moteur vocal attend la réponse complète du LLM avant de parler : un
   passage au streaming LLM réduira encore la latence.
 - Les tarifs affichés viennent de `src/lib/billing/plans.ts` : modifiez-les à

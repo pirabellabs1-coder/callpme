@@ -3,6 +3,7 @@
  */
 import { prisma } from "./client";
 import { encryptSecret } from "../crypto/secrets";
+import { toE164 } from "../telephony/e164";
 import type {
   PhoneNumberRecord,
   ProviderConnectionRecord,
@@ -22,7 +23,8 @@ export async function listPhoneNumbers(
       select: { id: true, name: true, phoneNumber: true },
     }),
   ]);
-  const byNumber = new Map(assigned.map((a) => [a.phoneNumber!, a]));
+  const byNumber = new Map(assigned.map((a) => [toE164(a.phoneNumber!) ?? a.phoneNumber!, a]));
+  const key = (n: string) => toE164(n) ?? n;
 
   return rows.map((r) => ({
     id: r.id,
@@ -32,8 +34,8 @@ export async function listPhoneNumbers(
     monthlyPrice: r.monthlyPrice,
     status: r.status,
     createdAt: r.createdAt.toISOString(),
-    assignedAgentId: byNumber.get(r.number)?.id ?? null,
-    assignedAgentName: byNumber.get(r.number)?.name ?? null,
+    assignedAgentId: byNumber.get(key(r.number))?.id ?? null,
+    assignedAgentName: byNumber.get(key(r.number))?.name ?? null,
   }));
 }
 
@@ -44,12 +46,15 @@ export async function createPhoneNumber(
     label: string;
     provider: TelephonyProvider;
     monthlyPrice?: number;
+    /** « active » seulement pour un numéro acheté via la plateforme ou vérifié. */
+    status?: "active" | "pending";
   },
 ): Promise<PhoneNumberRecord> {
   const row = await prisma.phoneNumber.create({
     data: {
       organizationId: orgId,
-      number: data.number,
+      number: toE164(data.number) ?? data.number,
+      status: data.status ?? "pending",
       label: data.label,
       provider: data.provider,
       monthlyPrice: data.monthlyPrice ?? 0,

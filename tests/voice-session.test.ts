@@ -72,9 +72,19 @@ vi.mock("@/lib/db/agents", () => ({
     },
   }),
 }));
+const org = vi.hoisted(() => ({ delayMs: 0 }));
 vi.mock("@/lib/db/client", () => ({
-  prisma: { organization: { findUnique: async () => ({ name: "Cabinet Diallo" }) } },
+  prisma: {
+    organization: {
+      findUnique: async () => {
+        if (org.delayMs) await new Promise((r) => setTimeout(r, org.delayMs));
+        return { name: "Cabinet Diallo", plan: "pro" };
+      },
+    },
+  },
 }));
+const quota = vi.hoisted(() => ({ minutes: 500 }));
+vi.mock("@/lib/billing/limits", () => ({ remainingMinutes: async () => quota.minutes }));
 
 import { CallSession, type VoiceTransport } from "@/lib/voice-engine/session";
 
@@ -106,6 +116,7 @@ const ctx = {
   direction: "inbound" as const,
   from: "+33600000000",
   to: "+33100000000",
+  jti: "test",
   exp: Date.now() + 60_000,
 };
 
@@ -121,6 +132,8 @@ beforeEach(() => {
   brain.toolCalls = [];
   brain.histories = [];
   persisted.calls = [];
+  org.delayMs = 0;
+  quota.minutes = 500;
 });
 
 describe("CallSession (moteur vocal)", () => {
@@ -137,8 +150,9 @@ describe("CallSession (moteur vocal)", () => {
     // Le texte est nettoyé avant synthèse (typographie normalisée pour la voix).
     expect(tts.spoken[1]).toContain("jeudi à 16 h vous convient");
     // L'historique transmis au cerveau contient l'accueil et la demande.
+    // L'appelant a parlé pendant l'accueil : le cerveau sait qu'il a été coupé.
     expect(brain.histories[0]).toEqual([
-      { role: "assistant", content: "Cabinet Diallo, bonjour." },
+      { role: "assistant", content: "Cabinet Diallo, bonjour. [interrompu par l'appelant]" },
       { role: "user", content: "Je voudrais un rendez-vous" },
     ]);
     await s.end("completed");
@@ -203,5 +217,79 @@ describe("CallSession (moteur vocal)", () => {
     await s.start();
     await s.end("completed");
     expect((persisted.calls[0] as { status: string }).status).toBe("missed");
+  });
+
+  it("n'ouvre rien si l'appelant raccroche pendant le démarrage", async () => {
+    org.delayMs = 30;
+    const { transport } = makeTransport();
+    const s = new CallSession(ctx, transport);
+    const started = s.start();
+    await s.onTransportClosed();
+    await started;
+    expect(stt.events).toBeNull(); // aucune transcription ouverte
+    expect(tts.spoken).toHaveLength(0);
+  });
+
+  it("enregistre « transferred » si l'opérateur coupe le flux pendant le transfert", async () => {
+    brain.reply = "";
+    brain.toolCalls = [{ name: "transferToHuman", arguments: {}, message: "Transfert." }];
+    const { t, transport } = makeTransport();
+    let closeDuring: (() => Promise<void>) | null = null;
+    transport.transfer = async (n) => {
+      t.transfers.push(n);
+      await closeDuring!(); // le flux se ferme avant la réponse de l'API
+      return true;
+    };
+    const s = new CallSession(ctx, transport);
+    closeDuring = () => s.onTransportClosed();
+    s.setProviderCallId("CA123");
+    await s.start();
+    stt.events!.onTranscript!("Un conseiller s'il vous plaît", true);
+    await stt.events!.onUtteranceEnd!();
+    await new Promise((r) => setTimeout(r, 900));
+    expect(persisted.calls).toHaveLength(1);
+    expect((persisted.calls[0] as { status: string }).status).toBe("transferred");
+  });
+
+  it("n'annonce pas de transfert impossible (test navigateur, sans opérateur)", async () => {
+    brain.reply = "Je vous transfère.";
+    brain.toolCalls = [{ name: "transferToHuman", arguments: {}, message: "Transfert." }];
+    const { t, transport } = makeTransport();
+    const s = new CallSession(ctx, transport); // pas d'identifiant d'appel opérateur
+    await s.start();
+    stt.events!.onTranscript!("Je veux un humain", true);
+    await stt.events!.onUtteranceEnd!();
+    await tick();
+    expect(t.transfers).toHaveLength(0);
+    expect(tts.spoken[1]).toContain("recontactera");
+    await s.end("completed");
+  });
+
+  it("ne répond pas à une phrase encore en cours après la réflexion", async () => {
+    const { transport } = makeTransport();
+    const s = new CallSession(ctx, transport);
+    await s.start();
+    stt.events!.onTranscript!("Je voudrais", true);
+    const first = stt.events!.onUtteranceEnd!();
+    // Pendant la réflexion, un morceau arrive sans fin de tour.
+    stt.events!.onTranscript!("déplacer mon", true);
+    await first;
+    await tick();
+    expect(brain.histories).toHaveLength(1);
+    // La fin de tour suivante déclenche la réponse au reste de la phrase.
+    stt.events!.onTranscript!("rendez-vous", true);
+    await stt.events!.onUtteranceEnd!();
+    await tick();
+    expect(brain.histories).toHaveLength(2);
+    await s.end("completed");
+  });
+
+  it("refuse l'appel quand le quota de minutes est épuisé", async () => {
+    quota.minutes = 0;
+    const { t, transport } = makeTransport();
+    const s = new CallSession(ctx, transport);
+    await s.start();
+    expect(t.hungUp).toBe(true);
+    expect(tts.spoken).toHaveLength(0);
   });
 });

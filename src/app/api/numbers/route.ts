@@ -3,6 +3,7 @@ import { z } from "zod";
 import { getSession } from "@/lib/auth/session";
 import { prisma } from "@/lib/db/client";
 import { createPhoneNumber } from "@/lib/db/numbers";
+import { toE164 } from "@/lib/telephony/e164";
 import { getPlan } from "@/lib/billing/plans";
 import {
   created,
@@ -39,8 +40,10 @@ export async function POST(req: NextRequest) {
         `Limite de l'offre ${plan.name} atteinte (${plan.maxNumbers} numéros). Passez à une offre supérieure.`,
       );
     }
-    const existing = await prisma.phoneNumber.findUnique({
-      where: { number: parsed.data.number },
+    const e164 = toE164(parsed.data.number);
+    if (!e164) return badRequest("Numéro invalide : format international attendu (ex. +33 1 84 80 11 02).");
+    const existing = await prisma.phoneNumber.findFirst({
+      where: { number: { in: [e164, parsed.data.number] } },
     });
     if (existing) return badRequest("Ce numéro est déjà enregistré.");
 

@@ -8,9 +8,8 @@ import {
   streamInstructions,
   telephonyConfigured,
   telephonyProvider,
+  readSignedWebhook,
   toE164,
-  verifyTelnyxSignature,
-  verifyTwilioSignature,
 } from "@/lib/telephony/provider";
 
 export const dynamic = "force-dynamic";
@@ -32,15 +31,8 @@ export async function POST(req: NextRequest) {
   const provider = telephonyProvider();
   if (!provider) return xml(sayAndHangup("Ce service n'est pas disponible."), 503);
 
-  const raw = await req.text();
-  const params = Object.fromEntries(new URLSearchParams(raw));
-
-  const publicUrl = (process.env.PUBLIC_URL || "").replace(/\/$/, "");
-  const valid =
-    provider === "twilio"
-      ? verifyTwilioSignature(`${publicUrl}/api/telephony/inbound`, params, req.headers.get("x-twilio-signature"))
-      : verifyTelnyxSignature(raw, req.headers.get("telnyx-signature-ed25519"), req.headers.get("telnyx-timestamp"));
-  if (!valid) return xml(sayAndHangup("Requête refusée."), 403);
+  const params = await readSignedWebhook(req, "/api/telephony/inbound");
+  if (!params) return xml(sayAndHangup("Requête refusée."), 403);
 
   if (!telephonyConfigured()) {
     return xml(sayAndHangup("Le service vocal est momentanément indisponible. Merci de rappeler plus tard."));
@@ -50,14 +42,26 @@ export async function POST(req: NextRequest) {
   const from = toE164(params.From ?? params.from ?? "") ?? "inconnu";
   if (!to) return xml(sayAndHangup("Numéro inconnu."));
 
-  // Numéros stockés avec ou sans espaces : comparaison au format E.164.
-  const candidates = await prisma.agent.findMany({
-    where: { phoneNumber: { not: null }, status: "active" },
-    select: { id: true, phoneNumber: true },
+  // Le numéro doit appartenir (vérifié) à une organisation, et l'agent à cette
+  // même organisation : personne ne peut détourner les appels d'un autre client.
+  const owned = await prisma.phoneNumber.findUnique({
+    where: { number: to },
+    select: { organizationId: true, status: true },
   });
-  const match = candidates.find((a) => toE164(a.phoneNumber ?? "") === to);
+  const match =
+    owned && owned.status === "active"
+      ? await prisma.agent.findFirst({
+          where: { phoneNumber: to, organizationId: owned.organizationId, status: "active" },
+          select: { id: true },
+        })
+      : null;
   const agent = match ? await getAgentById(match.id) : null;
   if (!agent) return xml(sayAndHangup("Ce numéro n'est pas attribué pour le moment."));
+
+  // Identifiant d'appel de l'opérateur : lié au jeton, le serveur vocal
+  // refusera un flux qui en annonce un autre.
+  const providerCallId = params.CallSid ?? params.call_control_id ?? params.CallControlId;
+  if (!providerCallId) return xml(sayAndHangup("Requête refusée."), 400);
 
   const org = await prisma.organization.findUnique({ where: { id: agent.organizationId }, select: { plan: true } });
   const quota = await canUseMinutes(agent.organizationId, org?.plan ?? "starter");
@@ -70,6 +74,7 @@ export async function POST(req: NextRequest) {
     direction: "inbound",
     from,
     to,
+    providerCallId,
   });
   return xml(streamInstructions(token));
 }

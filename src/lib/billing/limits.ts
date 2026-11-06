@@ -65,3 +65,9 @@ export async function canUseMinutes(
   }
   return { ok: true };
 }
+
+/** Minutes restantes ce mois-ci (sert à plafonner la durée d'un appel). */
+export async function remainingMinutes(orgId: string, plan: string): Promise<number> {
+  const used = await monthlyMinutesUsed(orgId);
+  return Math.max(0, getPlan(plan).minutes - used);
+}

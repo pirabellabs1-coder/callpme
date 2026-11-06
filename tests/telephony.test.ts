@@ -65,10 +65,26 @@ describe("signature Telnyx (ed25519)", () => {
 describe("instructions d'appel", () => {
   it("relie l'appel au serveur vocal avec le jeton, en XML échappé", () => {
     process.env.VOICE_SERVER_URL = "wss://voice.callpme.com";
+    // Twilio : pas de paramètre dans l'URL du flux, jeton via <Parameter>.
+    process.env.TELEPHONY_PROVIDER = "twilio";
+    process.env.TWILIO_ACCOUNT_SID = "AC_test";
+    process.env.TWILIO_AUTH_TOKEN = process.env.TWILIO_AUTH_TOKEN || "secret";
     const xml = streamInstructions('a"b<c');
-    expect(xml).toContain('<Stream url="wss://voice.callpme.com/ws/telephony?t=a%22b%3Cc">');
+    expect(xml).toContain('<Stream url="wss://voice.callpme.com/ws/telephony">');
     expect(xml).toContain('<Parameter name="t" value="a&quot;b&lt;c"/>');
     expect(xml).toContain("<Hangup/>");
+  });
+
+  it("Telnyx : jeton dans l'URL et audio retour en µ-law", () => {
+    const saved = { ...process.env };
+    delete process.env.TWILIO_ACCOUNT_SID;
+    process.env.TELEPHONY_PROVIDER = "telnyx";
+    process.env.TELNYX_API_KEY = "KEY_test";
+    process.env.VOICE_SERVER_URL = "wss://voice.callpme.com";
+    const xml = streamInstructions('a"b<c');
+    expect(xml).toContain('url="wss://voice.callpme.com/ws/telephony?t=a%22b%3Cc"');
+    expect(xml).toContain('bidirectionalMode="rtp" bidirectionalCodec="PCMU"');
+    process.env = saved;
   });
 
   it("normalise les numéros au format E.164", () => {
@@ -87,5 +103,39 @@ describe("codec µ-law", () => {
     }
     const pcm = new Int16Array([0, 500, -500, 12000]);
     expect(decodeMulaw(encodeMulaw(pcm)).length).toBe(4);
+  });
+});
+
+import { consumeVoiceToken } from "@/lib/voice-engine/token";
+import { createDownsampler } from "@/components/agents/downsample";
+import { configSchema } from "@/lib/validation/agent";
+
+describe("jeton à usage unique", () => {
+  it("n'ouvre qu'une seule session par jeton", () => {
+    const p = verifyVoiceToken(
+      createVoiceToken({ callId: "c", agentId: "a", organizationId: "o", direction: "web", from: "x", to: "y" }),
+    )!;
+    expect(consumeVoiceToken(p)).toBe(true);
+    expect(consumeVoiceToken(p)).toBe(false);
+  });
+});
+
+describe("rééchantillonnage du micro", () => {
+  for (const rate of [48000, 44100]) {
+    it(`produit 8 000 échantillons par seconde depuis ${rate} Hz`, () => {
+      const push = createDownsampler(rate);
+      let total = 0;
+      for (let i = 0; i < rate; i += 128) total += push(new Float32Array(Math.min(128, rate - i))).length;
+      expect(Math.abs(total - 8000)).toBeLessThanOrEqual(1);
+    });
+  }
+});
+
+describe("numéro de transfert", () => {
+  const parse = (n: string) => configSchema.shape.transferNumber.safeParse(n).success;
+  it("accepte un numéro d'un pays couvert", () => expect(parse("+33 1 23 45 67 89")).toBe(true));
+  it("refuse un numéro surtaxé ou hors zone", () => {
+    expect(parse("+33 8 99 12 34 56")).toBe(false);
+    expect(parse("+882 1234 5678")).toBe(false);
   });
 });

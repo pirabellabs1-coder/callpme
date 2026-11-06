@@ -1,3 +1,4 @@
+import { checkDestination } from "../telephony/destinations";
 /**
  * Schémas de validation Zod pour l'API agents.
  * Les types métier (`@/lib/shared/types`) restent la source de vérité ;
@@ -49,6 +50,8 @@ export const configSchema = z.object({
     .string()
     .trim()
     .regex(/^(\+\d[\d ]{7,18})?$/, "Numéro au format international, ex. +33 1 23 45 67 89")
+    // Le transfert est payé par la plateforme : mêmes règles que les appels sortants.
+    .refine((v) => !v || checkDestination(v).ok, "Destination non autorisée (pays non couvert ou numéro surtaxé).")
     .optional(),
 });
 

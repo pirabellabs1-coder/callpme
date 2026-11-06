@@ -178,7 +178,6 @@ export default async function CallTranscriptPage({
             </Card>
           ) : (
             <CallAudio
-              callId={call.id}
               turns={call.transcript}
               agentGender={audioGender}
               language={audioLang}

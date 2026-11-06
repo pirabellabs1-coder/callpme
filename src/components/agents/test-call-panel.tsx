@@ -51,126 +51,6 @@ function clamp(v: number, lo: number, hi: number) {
   return Math.min(hi, Math.max(lo, v));
 }
 
-/** Extrait le texte de la réponse Puter (string, message.content string|blocs). */
-function puterText(r: unknown): string {
-  if (!r) return "";
-  if (typeof r === "string") return r.trim();
-  const obj = r as {
-    message?: { content?: unknown };
-    content?: unknown;
-    text?: unknown;
-  };
-  const c = obj.message?.content ?? obj.content ?? obj.text;
-  if (typeof c === "string") return c.trim();
-  if (Array.isArray(c))
-    return c
-      .map((b) => (typeof b === "string" ? b : (b?.text ?? "")))
-      .join("")
-      .trim();
-  try {
-    const s = String(r);
-    return s === "[object Object]" ? "" : s.trim();
-  } catch {
-    return "";
-  }
-}
-
-/** Accès typé à l'objet Puter (présent une fois le script chargé). */
-type Puter = {
-  ai?: {
-    chat?: (
-      messages: { role: string; content: string }[],
-      opts: { model: string; temperature?: number },
-    ) => Promise<unknown>;
-    txt2speech?: (
-      text: string,
-      opts: { voice?: string; language?: string; engine?: string },
-    ) => Promise<HTMLAudioElement>;
-  };
-  auth?: { isSignedIn?: () => boolean; signIn?: () => Promise<unknown> };
-};
-function getPuter(): Puter | undefined {
-  return (window as unknown as { puter?: Puter }).puter;
-}
-
-/** Connexion Puter — à déclencher dans un clic pour autoriser la fenêtre. */
-async function puterSignIn(): Promise<void> {
-  const p = getPuter();
-  if (!p?.auth?.signIn) return;
-  try {
-    if (p.auth.isSignedIn && p.auth.isSignedIn()) return;
-    await p.auth.signIn();
-  } catch {
-    /* refus : on retombera sur le moteur local */
-  }
-}
-
-/**
- * Inférence Claude via Puter. Essaie plusieurs ID de modèles et renvoie le
- * texte AINSI qu'un diagnostic d'erreur (affiché si on doit se replier).
- */
-async function puterChat(
-  messages: { role: string; content: string }[],
-  model: string,
-): Promise<{ text: string | null; error: string }> {
-  const p = getPuter();
-  if (!p?.ai?.chat) return { text: null, error: "Puter non chargé" };
-  const candidates = [
-    model,
-    "claude-sonnet-4-5",
-    "claude-sonnet-4",
-    "claude-3-7-sonnet",
-    "claude-3-5-sonnet",
-  ].filter((m, i, a) => Boolean(m) && a.indexOf(m) === i);
-  let lastErr = "";
-  for (const m of candidates) {
-    try {
-      const res = await p.ai.chat(messages, { model: m, temperature: 0.6 });
-      const text = puterText(res);
-      if (text) return { text, error: "" };
-      lastErr = "réponse vide";
-    } catch (e) {
-      lastErr = e instanceof Error ? e.message : String(e);
-      if (typeof console !== "undefined")
-        console.warn("[Puter] modèle refusé :", m, e);
-    }
-  }
-  return { text: null, error: lastErr || "aucun modèle accepté" };
-}
-
-/** Voix AWS Polly (fr) selon le genre. */
-function pollyVoice(gender: string | null | undefined): string {
-  return gender === "masculine" ? "Remi" : "Lea";
-}
-
-/** Synthèse vocale réelle via Puter (sans clé). Renvoie l'audio ou null. */
-async function puterSpeak(
-  text: string,
-  gender: string | null | undefined,
-  language: string,
-): Promise<HTMLAudioElement | null> {
-  const p = getPuter();
-  if (!p?.ai?.txt2speech) return null;
-  const lang = (language || "fr-FR").startsWith("fr") ? "fr-FR" : language;
-  const attempts: Array<{ voice?: string; engine?: string }> = [
-    { voice: pollyVoice(gender), engine: "neural" },
-    { voice: pollyVoice(gender) },
-    {},
-  ];
-  for (const a of attempts) {
-    try {
-      const audio = await p.ai.txt2speech(text.slice(0, 3000), {
-        language: lang,
-        ...a,
-      });
-      if (audio) return audio;
-    } catch (e) {
-      if (typeof console !== "undefined") console.warn("[Puter] TTS échec :", a, e);
-    }
-  }
-  return null;
-}
-
 /** Choisit une voix système selon le voiceURI, le genre, puis la langue. */
 function pickVoice(
   voices: SpeechSynthesisVoice[],
@@ -209,7 +89,6 @@ export function TestCallPanel({
   modelLabel,
   voiceProfile,
   voiceGender,
-  studioActive,
   voiceSampleUrl,
   maxDurationSec,
 }: {
@@ -225,8 +104,6 @@ export function TestCallPanel({
   modelLabel: string;
   voiceProfile?: VoiceProfile;
   voiceGender?: string | null;
-  /** L'agent utilise une voix du Studio : on respecte SA voix, pas Puter TTS. */
-  studioActive?: boolean;
   /** Enregistrement de la voix (data URL) → clonage via le serveur local. */
   voiceSampleUrl?: string | null;
   maxDurationSec?: number;
@@ -237,9 +114,8 @@ export function TestCallPanel({
   const [input, setInput] = useState("");
   const [savedCallId, setSavedCallId] = useState<string | null>(null);
   const [micSupported, setMicSupported] = useState(false);
-  // Diagnostic cerveau : null = inconnu, true = Claude/Puter actif, false = repli local.
+  // Diagnostic cerveau : null = inconnu, true = modèle du serveur, false = moteur local.
   const [brainOk, setBrainOk] = useState<boolean | null>(null);
-  const [brainErr, setBrainErr] = useState("");
   // Diagnostic voix clonée : null = inconnu, true = ta voix, false = repli (serveur off).
   const [cloneOk, setCloneOk] = useState<boolean | null>(null);
   const [cloneErr, setCloneErr] = useState("");
@@ -513,24 +389,6 @@ export function TestCallPanel({
       setCloneOk(false);
       setCloneErr(error);
     }
-    // Voix réelle via Puter (sans clé) — UNIQUEMENT pour les préréglages.
-    // Pour une voix du Studio, on respecte la voix/réglages choisis (ci-dessous),
-    // sinon Puter remplacerait la voix personnalisée par une voix générique.
-    if (!studioActive) {
-      try {
-        const audio = await puterSpeak(text, voiceGender, language);
-        if (audio) {
-          audioRef.current = audio;
-          routeForRecording(audio);
-          audio.onended = () => resolve();
-          audio.onerror = () => resolve();
-          await audio.play().catch(() => resolve());
-          return;
-        }
-      } catch {
-        /* repli synthèse navigateur */
-      }
-    }
     // Repli : synthèse du navigateur avec la signature de la voix.
     if (!("speechSynthesis" in window)) return resolve();
     window.speechSynthesis.cancel();
@@ -586,21 +444,8 @@ export function TestCallPanel({
       body: JSON.stringify({ messages: messagesRef.current }),
     });
     const data = await res.json();
-    // Cerveau Claude via Puter : le serveur a assemblé le prompt système + RAG
-    // + l'historique ; on lance l'inférence côté client. Repli sur data.reply.
-    if (data.usePuter && Array.isArray(data.messages)) {
-      const { text, error } = await puterChat(data.messages, data.model);
-      if (text) {
-        setBrainOk(true);
-        setBrainErr("");
-        return { reply: text, toolCalls: [] };
-      }
-      // Puter a échoué : on signale précisément pourquoi et on se replie.
-      setBrainOk(false);
-      setBrainErr(error);
-    } else if (!data.usePuter) {
-      setBrainOk(true); // réponse déjà produite par un vrai modèle serveur
-    }
+    // Sans clé de modèle sur le serveur, la réponse vient du moteur local.
+    setBrainOk(data.local !== true);
     return {
       reply: data.reply ?? "Pardon, pouvez-vous répéter ?",
       toolCalls: Array.isArray(data.toolCalls) ? data.toolCalls : [],
@@ -650,9 +495,6 @@ export function TestCallPanel({
   }
 
   async function startCall() {
-    // Autorise Puter DANS le geste du clic (sinon la fenêtre d'autorisation
-    // est bloquée par le navigateur et l'agent retombe sur le moteur local).
-    await puterSignIn();
     // Démarre la capture du VRAI audio (micro + voix de l'agent) pour la réécoute.
     await setupRecording();
     activeRef.current = true;
@@ -742,7 +584,7 @@ export function TestCallPanel({
             <RoleBadge role={role} label={roleLabel} />
             {brainOk === false ? (
               <span
-                title={brainErr ? `Puter indisponible : ${brainErr}` : undefined}
+                title="Aucune clé de modèle sur le serveur : réponses du moteur local."
                 className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-[0.7rem] font-medium text-amber-700 ring-1 ring-inset ring-amber-600/20"
               >
                 <Sparkles className="size-3" />
@@ -751,7 +593,7 @@ export function TestCallPanel({
             ) : (
               <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[0.7rem] font-medium text-emerald-700 ring-1 ring-inset ring-emerald-600/15">
                 <Sparkles className="size-3" />
-                {brainOk ? "Claude (Puter)" : modelLabel}
+                {modelLabel}
               </span>
             )}
             {voiceSampleUrl &&
@@ -774,11 +616,6 @@ export function TestCallPanel({
           {cloneOk === false && cloneErr && (
             <p className="mt-1 text-[0.7rem] text-amber-700" title={cloneErr}>
               Clonage indisponible : {cloneErr}
-            </p>
-          )}
-          {brainOk === false && brainErr && (
-            <p className="mt-1 truncate text-[0.7rem] text-amber-700" title={brainErr}>
-              Puter indisponible : {brainErr}
             </p>
           )}
         </div>

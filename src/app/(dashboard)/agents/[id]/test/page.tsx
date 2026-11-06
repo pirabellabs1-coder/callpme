@@ -1,5 +1,4 @@
 import Link from "next/link";
-import Script from "next/script";
 import { notFound } from "next/navigation";
 import { ArrowLeft, Mic, BrainCircuit, Volume2, Info } from "lucide-react";
 import { requireSession } from "@/lib/auth/session";
@@ -37,7 +36,7 @@ export default async function TestAgentPage({
     MODELS[agent.config.model.provider]?.find(
       (m) => m.id === agent.config.model.modelId,
     )?.label ?? agent.config.model.modelId;
-  // Le cerveau réel : clé serveur si présente, sinon Claude via Puter (client).
+  // Le cerveau réel : clé de modèle du serveur si présente, sinon moteur local de démonstration.
   const modelLabel = hasServerKey ? configuredLabel : "Mode démonstration";
   const liveMode = true;
   const roleLabel =
@@ -80,10 +79,12 @@ export default async function TestAgentPage({
     externalVoiceId: providerVoice?.externalVoiceId,
   };
 
+  // Moteur vocal Callpme configuré : c'est LE test (même moteur qu'au téléphone).
+  // Le test navigateur (texte et voix du navigateur) ne reste qu'en secours, tant que le moteur manque.
+  const engineReady = voiceEngineMissing().length === 0;
+
   return (
     <div className="space-y-6">
-      {/* Cerveau Claude (Puter) chargé côté client — aucune clé API requise. */}
-      <Script src="https://js.puter.com/v2/" strategy="afterInteractive" />
       <p className="text-sm text-muted-foreground">
         Parlez en direct avec votre agent dans le navigateur, avant de le déployer sur un vrai numéro. Les
         rendez-vous et fiches créés pendant un test sont marqués « test » et ne déclenchent ni SMS ni e-mail.
@@ -91,6 +92,9 @@ export default async function TestAgentPage({
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-5">
         <div className="lg:col-span-3">
+          {engineReady ? (
+            <VoiceTestPanel agentId={agent.id} agentName={agent.name} />
+          ) : (
           <TestCallPanel
             agentId={agent.id}
             agentName={agent.name}
@@ -104,17 +108,15 @@ export default async function TestAgentPage({
             modelLabel={modelLabel}
             voiceProfile={voiceProfile}
             voiceGender={studioVoice?.gender ?? preset?.gender ?? null}
-            studioActive={Boolean(studioVoice)}
             // Le clonage passe désormais par le Studio Voix (ElevenLabs), plus par un serveur local.
             voiceSampleUrl={null}
             maxDurationSec={agent.config.maxDurationSec}
           />
+          )}
         </div>
 
         <div className="space-y-5 lg:col-span-2">
-          {voiceEngineMissing().length === 0 ? (
-            <VoiceTestPanel agentId={agent.id} agentName={agent.name} />
-          ) : (
+          {!engineReady && (
             <Card className="p-5">
               <h2 className="text-[0.95rem] font-semibold tracking-tight">Test vocal en direct</h2>
               <p className="mt-1 text-sm text-muted-foreground">
@@ -152,14 +154,6 @@ export default async function TestAgentPage({
                 vous avez configuré — rôle, voix, modèle{" "}
                 <strong>{modelLabel}</strong>, prompt, outils et base de
                 connaissances — est utilisé en direct dans la conversation.
-                {!hasServerKey && (
-                  <>
-                    {" "}
-                    Le cerveau Claude est fourni par Puter : à la première
-                    réponse, autorisez l'accès dans la fenêtre Puter (gratuit,
-                    sans clé API).
-                  </>
-                )}
               </p>
             </div>
           </Card>

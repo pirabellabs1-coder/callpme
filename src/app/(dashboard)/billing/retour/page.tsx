@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { CheckCircle2, Clock, XCircle, ArrowRight } from "lucide-react";
 import { confirmAndActivatePayment } from "@/lib/payments/confirm";
 import { cn } from "@/lib/utils";
@@ -55,13 +54,14 @@ export default async function RetourPage({
           {ui.text}
         </p>
         <div className="mt-7 flex flex-col justify-center gap-3 sm:flex-row">
-          <Link href="/overview" className={cn(buttonVariants({ variant: "brand" }), "gap-1.5")}>
+          {/* Liens « pleins » : la page suivante est rechargée avec l'offre à jour. */}
+          <a href="/overview" className={cn(buttonVariants({ variant: "brand" }), "gap-1.5")}>
             Aller à mon espace
             <ArrowRight className="size-4" />
-          </Link>
-          <Link href="/billing" className={cn(buttonVariants({ variant: "outline" }))}>
+          </a>
+          <a href="/billing" className={cn(buttonVariants({ variant: "outline" }))}>
             Facturation
-          </Link>
+          </a>
         </div>
       </Card>
     </div>

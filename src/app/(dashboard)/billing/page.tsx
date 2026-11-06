@@ -24,18 +24,22 @@ function UsageRow({
   used,
   max,
   unit,
+  slots = false,
 }: {
   icon: typeof Bot;
   label: string;
   used: number;
   max: number;
   unit?: string;
+  /** Places incluses (agents, numéros) : les occuper toutes est normal, ce n'est pas un dépassement. */
+  slots?: boolean;
 }) {
   const unlimited = max >= UNLIMITED;
   const ratio = unlimited ? 0 : used / Math.max(max, 1);
   const pct = Math.min(ratio * 100, 100);
-  const over = !unlimited && used >= max;
-  const near = !unlimited && !over && ratio >= 0.8;
+  const over = !slots && !unlimited && used >= max;
+  const near = !slots && !unlimited && !over && ratio >= 0.8;
+  const full = slots && !unlimited && used >= max;
   const fmt = (n: number) => new Intl.NumberFormat("fr-FR").format(n);
   const suffix = unit ? ` ${unit}` : "";
   const valueText = unlimited
@@ -51,6 +55,8 @@ function UsageRow({
         </span>
         {over ? (
           <Badge variant="danger">Limite atteinte</Badge>
+        ) : full ? (
+          <Badge variant="muted">Tout est utilisé</Badge>
         ) : near ? (
           <Badge variant="warning">Bientôt atteinte</Badge>
         ) : null}
@@ -61,6 +67,7 @@ function UsageRow({
           {" "}
           / {unlimited ? limitLabel(max) : fmt(max)}
           {suffix}
+          {slots ? " inclus" : ""}
         </span>
       </p>
       {unlimited ? (
@@ -179,8 +186,8 @@ export default async function BillingPage() {
           </span>
         </h3>
         <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
-          <UsageRow icon={Bot} label="Agents" used={agents} max={sub.plan.maxAgents} />
-          <UsageRow icon={Hash} label="Numéros" used={numbers} max={sub.plan.maxNumbers} />
+          <UsageRow icon={Bot} label="Agents" used={agents} max={sub.plan.maxAgents} slots />
+          <UsageRow icon={Hash} label="Numéros" used={numbers} max={sub.plan.maxNumbers} slots />
           <UsageRow icon={Clock} label="Minutes" used={minutesUsed} max={sub.minutesIncluded + extraMinutes} unit="min" />
         </div>
       </Card>

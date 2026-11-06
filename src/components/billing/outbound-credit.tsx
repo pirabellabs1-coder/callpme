@@ -28,6 +28,11 @@ export function OutboundCredit({
         <p className="text-sm text-muted-foreground">
           Solde disponible : <span className="tabular text-lg font-semibold text-foreground">{formatEur(balanceCents / 100)}</span>
         </p>
+        {balanceCents === 0 && (
+          <p className="text-xs text-muted-foreground">
+            Facultatif : utile seulement pour que vos agents appellent eux-mêmes. Les appels reçus utilisent les minutes de votre offre.
+          </p>
+        )}
       </div>
 
       <div className="overflow-x-auto">
@@ -36,7 +41,7 @@ export function OutboundCredit({
             <tr className="border-b border-border text-left text-xs text-muted-foreground">
               <th scope="col" className="py-2 font-medium">Destination</th>
               <th scope="col" className="py-2 text-right font-medium">Prix par minute</th>
-              <th scope="col" className="py-2 text-right font-medium">Avec le solde actuel</th>
+              {balanceCents > 0 && <th scope="col" className="py-2 text-right font-medium">Avec le solde actuel</th>}
             </tr>
           </thead>
           <tbody>
@@ -44,9 +49,11 @@ export function OutboundCredit({
               <tr key={r.label} className="border-b border-border last:border-0">
                 <td className="py-2">{r.label}</td>
                 <td className="py-2 text-right tabular-nums">{formatEur(r.eur)}</td>
-                <td className="py-2 text-right tabular-nums text-muted-foreground">
-                  {Math.floor(balanceCents / Math.round(r.eur * 100))} min
-                </td>
+                {balanceCents > 0 && (
+                  <td className="py-2 text-right tabular-nums text-muted-foreground">
+                    {Math.floor(balanceCents / Math.round(r.eur * 100))} min
+                  </td>
+                )}
               </tr>
             ))}
           </tbody>

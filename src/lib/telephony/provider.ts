@@ -11,7 +11,7 @@
  *  - Twilio : TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_FROM_NUMBER
  *  - Telnyx : TELNYX_API_KEY, TELNYX_TEXML_APP_ID, TELNYX_FROM_NUMBER, TELNYX_PUBLIC_KEY
  */
-import { checkOutboundCredit } from "../billing/credit";
+import { attachProviderCall, releaseHold, reserveOutbound, sweepStaleHolds, type OutboundRefusal } from "../billing/credit";
 import { createHmac, createPublicKey, timingSafeEqual, verify as edVerify } from "crypto";
 import type { Agent } from "../shared/types";
 import { createVoiceToken } from "../voice-engine/token";
@@ -92,10 +92,36 @@ export interface PlaceCallResult {
   callId?: string;
   status?: string;
   error?: string;
+  /** Refus lié au crédit ou à la destination (la campagne se met en pause sur « insufficient_credit »). */
+  code?: OutboundRefusal;
 }
 
-/** Déclenche un vrai appel sortant : l'agent appelle `toNumber`. */
+/**
+ * Déclenche un vrai appel sortant : l'agent appelle `toNumber`. Le crédit de
+ * l'appel est réservé AVANT de composer, rendu si l'appel ne part pas, et
+ * réglé à la fin sur la durée facturée par l'opérateur (voir billing/credit).
+ */
 export async function placeOutboundCall(opts: {
+  agent: Agent;
+  toNumber: string;
+  metadata?: Record<string, string>;
+}): Promise<PlaceCallResult> {
+  if (!telephonyProvider() || !telephonyConfigured()) return { ok: false, error: "Téléphonie non configurée." };
+  const to = toE164(opts.toNumber);
+  if (!to) return { ok: false, error: "Numéro invalide (format attendu : +33…)." };
+  void sweepStaleHolds().catch(() => {});
+  const cap = opts.agent.config.maxDurationSec ?? 0;
+  const hold = await reserveOutbound(opts.agent.organizationId, to, cap > 0 ? cap : undefined);
+  if (!hold.ok || !hold.holdId) return { ok: false, error: hold.error, code: hold.code };
+  const result = await dialOutbound({ ...opts, toNumber: to, metadata: { ...(opts.metadata ?? {}), holdId: hold.holdId } }).catch(
+    (e): PlaceCallResult => ({ ok: false, error: e instanceof Error ? e.message : "Appel impossible." }),
+  );
+  if (!result.ok) await releaseHold(hold.holdId).catch(() => {});
+  else await attachProviderCall(hold.holdId, result.callId);
+  return result;
+}
+
+async function dialOutbound(opts: {
   agent: Agent;
   toNumber: string;
   metadata?: Record<string, string>;
@@ -105,9 +131,6 @@ export async function placeOutboundCall(opts: {
   const to = toE164(opts.toNumber);
   if (!to) return { ok: false, error: "Numéro invalide (format attendu : +33…)." };
   const from = fromNumber()!;
-  // Appel sortant payé d'avance : crédit suffisant pour au moins une minute vers cette destination.
-  const credit = await checkOutboundCredit(opts.agent.organizationId, to);
-  if (!credit.ok) return { ok: false, error: credit.error };
 
   // Passerelle SIP : session préparée puis appel lancé par Asterisk (ARI).
   if (provider === "sip") {

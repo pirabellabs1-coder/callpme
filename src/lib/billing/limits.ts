@@ -1,6 +1,8 @@
 /**
  * Application réelle des limites d'offre.
  */
+import { OUTBOUND_MIN_MINUTES } from "./credit";
+import { OUTBOUND_DESTINATIONS, outboundRateCents } from "./outbound-rates";
 import { getPlan } from "./plans";
 import { subscriptionState, type SubscriptionState } from "./subscription";
 import { extraMinutesConsumed } from "./topups";
@@ -95,7 +97,9 @@ export async function canCallOut(orgId: string): Promise<LimitCheck> {
   const sub = await orgSubscription(orgId);
   if (sub.status === "expired") return { ok: false, message: quotaMessage(sub) };
   const org = await prisma.organization.findUnique({ where: { id: orgId }, select: { callCreditCents: true } });
-  if ((org?.callCreditCents ?? 0) <= 0) {
+  // Au moins la réservation minimale vers la destination la moins chère.
+  const minimum = OUTBOUND_MIN_MINUTES * Math.min(...OUTBOUND_DESTINATIONS.map((d) => outboundRateCents(d.sample)));
+  if ((org?.callCreditCents ?? 0) < minimum) {
     return { ok: false, message: "Les appels sortants se paient sur un crédit prépayé. Rechargez-le dans Facturation (Mobile Money ou carte)." };
   }
   return { ok: true };

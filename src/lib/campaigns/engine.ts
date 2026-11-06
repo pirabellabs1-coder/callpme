@@ -173,7 +173,6 @@ async function tickLocked(
 
   const agent = await getAgentById(agentId);
   if (!agent || agent.organizationId !== organizationId) return { campaignId, placed: 0, skipped: "agent" };
-  const org = await prisma.organization.findUnique({ where: { id: organizationId }, select: { plan: true } });
   const quota = await canCallOut(organizationId);
   if (!quota.ok) {
     await prisma.campaign.update({ where: { id: campaignId }, data: { status: "paused" } });
@@ -212,6 +211,11 @@ async function tickLocked(
     if (result.ok && result.callId) {
       await prisma.contact.update({ where: { id: c.id }, data: { providerCallId: result.callId } });
       placed += 1;
+    } else if (result.code === "insufficient_credit") {
+      // Crédit épuisé : le contact retrouve sa place (tentative non comptée) et la campagne se met en pause.
+      await prisma.contact.update({ where: { id: c.id }, data: { status: c.status, attempts: c.attempts, calledAt: c.calledAt } });
+      await prisma.campaign.update({ where: { id: campaignId }, data: { status: "paused" } });
+      return { campaignId, placed, skipped: "quota" };
     } else {
       await recordContactOutcome({ contactId: c.id }, "failed", result.error ?? "Appel impossible");
     }

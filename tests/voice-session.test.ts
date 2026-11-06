@@ -100,13 +100,18 @@ vi.mock("@/lib/db/client", () => ({
 }));
 const quota = vi.hoisted(() => ({ minutes: 500 }));
 vi.mock("@/lib/billing/limits", () => ({ remainingMinutes: async () => quota.minutes }));
-const outbound = vi.hoisted(() => ({ ok: true, maxSeconds: 600, charged: [] as number[] }));
+const outbound = vi.hoisted(() => ({ ok: true, holdCents: 1000, rateCents: 100, settled: [] as number[] }));
 vi.mock("@/lib/billing/credit", () => ({
-  checkOutboundCredit: async () => (outbound.ok ? { ok: true, maxSeconds: outbound.maxSeconds } : { ok: false, error: "Crédit insuffisant" }),
-  chargeOutboundCall: async (_o: string, _t: string, sec: number) => {
-    outbound.charged.push(sec);
+  TRANSFER_PREPAID_SEC: 600,
+  getHold: async () => (outbound.ok ? { id: "h1", holdCents: outbound.holdCents, rateCents: outbound.rateCents } : null),
+  talkSecondsForHold: (h: { holdCents: number; rateCents: number }) => Math.floor(h.holdCents / h.rateCents) * 60 - 45,
+  recordSessionSeconds: async () => {},
+  settleHold: async (_w: unknown, sec: number) => {
+    outbound.settled.push(sec);
     return 0;
   },
+  extendHold: async () => true,
+  chargeNow: async () => true,
 }));
 
 import { CallSession, type VoiceTransport } from "@/lib/voice-engine/session";

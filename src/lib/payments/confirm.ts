@@ -50,6 +50,21 @@ export async function confirmAndActivatePayment(
   }
   if (!isPaid(status)) return "pending";
 
+  // Crédit d'appels sortants : paiement marqué payé ET crédit ajouté dans la même transaction.
+  if (payment.kind === "credit") {
+    const done = await prisma.$transaction(async (tx) => {
+      const c = await tx.payment.updateMany({ where: { id: payment.id, status: { not: "completed" } }, data: { status: "completed" } });
+      if (c.count !== 1) return false;
+      await tx.organization.update({
+        where: { id: payment.organizationId },
+        data: { callCreditCents: { increment: Math.max(0, Math.round(payment.amountEur * 100)) } },
+      });
+      return true;
+    });
+    if (done) await assignInvoiceNumber(payment.id);
+    return "completed";
+  }
+
   // Passage à « completed » une seule fois (page de retour et webhook peuvent arriver ensemble).
   const claimed = await prisma.payment.updateMany({
     where: { id: payment.id, status: { not: "completed" } },
@@ -57,14 +72,6 @@ export async function confirmAndActivatePayment(
   });
   if (claimed.count !== 1) return "completed";
   await assignInvoiceNumber(payment.id);
-  if (payment.kind === "credit") {
-    // Crédit d'appels sortants : le montant payé, en centimes.
-    await prisma.organization.update({
-      where: { id: payment.organizationId },
-      data: { callCreditCents: { increment: Math.max(0, Math.round(payment.amountEur * 100)) } },
-    });
-    return "completed";
-  }
   if (payment.kind === "topup") {
     await prisma.organization.update({
       where: { id: payment.organizationId },

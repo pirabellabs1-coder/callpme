@@ -30,7 +30,8 @@ import { QualityTracker } from "./quality";
 import { defaultPlatformVoice } from "../voices/platform";
 import { loadStudioExtras } from "../voices/studio";
 import { CostMeter } from "../costs/meter";
-import { chargeOutboundCall, checkOutboundCredit } from "../billing/credit";
+import { chargeNow, extendHold, getHold, recordSessionSeconds, settleHold, talkSecondsForHold, TRANSFER_PREPAID_SEC } from "../billing/credit";
+import { outboundDestinationOpen, outboundRateCents } from "../billing/outbound-rates";
 import { runWithUsage } from "../llm/usage";
 
 /** Ce que le transport doit savoir faire. */
@@ -46,9 +47,6 @@ export interface VoiceTransport {
   /** Transfère l'appel vers un numéro (téléphone uniquement). */
   transfer?(toNumber: string): Promise<boolean>;
 }
-
-/** Durée maximale d'un transfert (voir telephony/provider), prépayée hors de France. */
-const TRANSFER_PREPAID_SEC = 600;
 
 const VOICE_STYLE =
   "## Style oral\nTu parles au téléphone : phrases courtes, une idée à la fois, pas de listes, " +
@@ -75,6 +73,8 @@ export class CallSession {
   private voice: TtsVoice | null = null;
   /** Coût réel de l'appel : tokens, caractères de voix, durée. */
   private readonly costs = new CostMeter();
+  /** Réservation de crédit d'un appel sortant (réglée à la fin). */
+  private holdId: string | null = null;
   private stt: SttStream | null = null;
   private history: Turn[] = [];
   private transcript: TranscriptTurn[] = [];
@@ -133,14 +133,15 @@ export class CallSession {
       select: { name: true, plan: true },
     });
     if (this.ctx.direction === "outbound") {
-      // Appel sortant : payé sur le crédit prépayé, durée plafonnée par ce crédit.
-      const credit = await checkOutboundCredit(agent.organizationId, this.ctx.to);
+      // Appel sortant : crédit réservé avant de composer ; la durée est plafonnée par cette réservation.
+      const hold = await getHold(this.ctx.metadata?.holdId, agent.organizationId);
       if (this.ended) return;
-      if (!credit.ok) {
-        this.transport.sendEvent?.({ type: "error", message: credit.error ?? "Crédit d'appels sortants insuffisant." });
+      if (!hold) {
+        this.transport.sendEvent?.({ type: "error", message: "Crédit d'appels sortants insuffisant." });
         return this.end("failed");
       }
-      this.quotaSec = credit.maxSeconds ?? 0;
+      this.holdId = hold.id;
+      this.quotaSec = talkSecondsForHold(hold);
     } else {
       // Le quota est revérifié au décroché et plafonne la durée de l'appel.
       const remaining = await remainingMinutes(agent.organizationId, org?.plan ?? "starter");
@@ -188,7 +189,9 @@ export class CallSession {
     // 0 = pas de limite propre à l'agent, mais un plafond technique s'applique toujours.
     const configured = agent.config.maxDurationSec ?? 0;
     const max = Math.min(configured > 0 ? configured : MAX_CALL_SEC, MAX_CALL_SEC, this.quotaSec);
-    this.timers.push(setTimeout(() => void this.end("completed"), max * 1000));
+    // Compté depuis le début de l'appel (le chargement a déjà pris du temps), avec 2 s de marge.
+    const left = Math.max(0, max * 1000 - (Date.now() - this.startedAt) - 2000);
+    this.timers.push(setTimeout(() => void this.end("completed"), left));
     this.timers.push(
       setInterval(() => {
         const idle = Date.now() - Math.max(this.lastActivity, this.playbackUntil);
@@ -479,12 +482,17 @@ export class CallSession {
     if (!number || !this.transport.transfer || !this.providerCallId) return false;
     // Défense en profondeur : jamais de transfert vers une destination non autorisée.
     if (!checkDestination(number).ok) return false;
-    // Transfert hors de France : payé sur le crédit, 10 minutes (durée maximale) d'avance.
-    const international = !number.replace(/[^\d+]/g, "").startsWith("+33");
-    if (international) {
-      const credit = await checkOutboundCredit(this.agent.organizationId, number);
-      if (!credit.ok || (credit.maxSeconds ?? 0) < TRANSFER_PREPAID_SEC) return false;
-    }
+    // Ce qu'un transfert coûte, payé d'avance sur le crédit (10 minutes, durée maximale) :
+    //  - la jambe vers le conseiller, sauf vers la France sur un appel reçu (couverte par l'offre) ;
+    //  - sur un appel sortant, la ligne d'origine qui reste ouverte pendant le transfert.
+    const orgId = this.agent.organizationId;
+    const minutes = TRANSFER_PREPAID_SEC / 60;
+    const outbound = this.ctx.direction === "outbound";
+    const toFrance = number.replace(/[^\d+]/g, "").startsWith("+33");
+    const legCents = outbound || !toFrance ? (outboundDestinationOpen(number) ? minutes * outboundRateCents(number) : -1) : 0;
+    if (legCents < 0) return false;
+    if (outbound && this.holdId && !(await extendHold(this.holdId, orgId, minutes * outboundRateCents(this.ctx.to)))) return false;
+    if (legCents > 0 && !(await chargeNow(orgId, legCents))) return false;
     // Annonce courte, puis transfert une fois la phrase jouée.
     await this.speak("Je vous mets en relation avec un conseiller, ne quittez pas.");
     const wait = Math.max(0, this.playbackUntil - Date.now()) + 300;
@@ -494,7 +502,6 @@ export class CallSession {
     this.transferring = true;
     const ok = await this.transport.transfer(number);
     if (ok) {
-      if (international) await chargeOutboundCall(this.agent.organizationId, number, TRANSFER_PREPAID_SEC).catch(() => {});
       this.status = "transferred";
       await this.end("transferred", { keepLine: true });
       return true;
@@ -579,6 +586,17 @@ export class CallSession {
     if (!this.agent) {
       if (web) this.transport.hangup();
       return;
+    }
+    if (this.holdId) {
+      // Facturation d'abord (jamais bloquée par l'enregistrement de l'appel).
+      const seconds = (Date.now() - this.startedAt) / 1000;
+      try {
+        await recordSessionSeconds(this.holdId, seconds);
+        // Passerelle SIP : pas de rappel de l'opérateur, le moteur règle lui-même.
+        if (process.env.TELEPHONY_PROVIDER === "sip") await settleHold({ id: this.holdId }, seconds);
+      } catch (e) {
+        console.error("[crédit] règlement impossible :", this.agent.organizationId, this.ctx.to, e instanceof Error ? e.message : e);
+      }
     }
     try {
       const call = await runWithUsage((u) => this.costs.addLlm(u), () => finishCall({

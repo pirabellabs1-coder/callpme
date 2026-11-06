@@ -9,7 +9,6 @@ import { recordContactOutcome } from "../campaigns/engine";
 import { dispatchEvent } from "../webhooks/dispatch";
 import { analyzeCall } from "../analysis/analyze";
 import { consumeExtraMinutes } from "../billing/limits";
-import { chargeOutboundCall } from "../billing/credit";
 import type { Agent, CallStatus, TranscriptTurn } from "../shared/types";
 
 export interface FinishCallInput {
@@ -103,10 +102,8 @@ export async function finishCall(input: FinishCallInput) {
     await recordContactOutcome({ contactId, organizationId: input.organizationId }, status, outcome).catch(() => {});
   }
 
-  if (input.direction === "outbound") {
-    // Appel sortant : débité du crédit prépayé (les minutes de l'offre ne servent pas).
-    await chargeOutboundCall(input.organizationId, input.to, durationSec).catch(() => {});
-  } else {
+  // Appel sortant : réglé sur le crédit prépayé (voir billing/credit), pas sur les minutes de l'offre.
+  if (input.direction !== "outbound") {
     // Minutes rechargées : seule la partie au-delà de l'offre est décomptée.
     await consumeExtraMinutes(input.organizationId, durationSec).catch(() => {});
   }

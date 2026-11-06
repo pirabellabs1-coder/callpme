@@ -723,3 +723,23 @@ model PlatformVoice {
 
   @@index([active, sortOrder])
 }
+
+// ----- Crédit des appels sortants : réservation par appel -----
+// Avant de composer, le crédit est réservé (prélevé) ; à la fin, l'appel est
+// réglé sur la durée facturée par l'opérateur et le reste est rendu.
+model OutboundHold {
+  id             String   @id @default(cuid())
+  organizationId String
+  to             String
+  rateCents      Int
+  holdCents      Int
+  chargedCents   Int      @default(0)
+  /// Durée vue par le moteur vocal (secondes), quand une session s'est ouverte.
+  sessionSec     Int?
+  providerCallId String?  @unique
+  settled        Boolean  @default(false)
+  createdAt      DateTime @default(now())
+
+  @@index([organizationId])
+  @@index([settled, createdAt])
+}

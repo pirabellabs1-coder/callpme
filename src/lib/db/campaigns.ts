@@ -195,7 +195,6 @@ export async function runCampaign(orgId: string, id: string) {
   // Les appels sont composés par lots, dans les plages horaires, par le moteur
   // de campagnes (src/lib/campaigns/engine.ts) ; on lance le premier tour ici.
   if (telephonyConfigured()) {
-    const org = await prisma.organization.findUnique({ where: { id: camp.organizationId }, select: { plan: true } });
     const quota = await canCallOut(camp.organizationId);
     if (!quota.ok) throw new CampaignQuotaError(quota.message);
     await prisma.campaign.update({ where: { id }, data: { status: "running" } });

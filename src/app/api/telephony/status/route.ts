@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { recordContactOutcome } from "@/lib/campaigns/engine";
 import { readSignedWebhook } from "@/lib/telephony/provider";
+import { settleHold } from "@/lib/billing/credit";
 
 export const dynamic = "force-dynamic";
 
@@ -24,6 +25,14 @@ export async function POST(req: NextRequest) {
   if (!params) return new Response("Requête refusée.", { status: 403 });
 
   const callId = params.CallSid ?? params.call_sid;
+  // Règlement du crédit sur la durée FACTURÉE par l'opérateur (détection de répondeur
+  // et appels décrochés sans session compris). 0 s = appel non abouti : tout est rendu.
+  if (callId) {
+    const billed = Number(params.CallDuration ?? params.call_duration ?? 0);
+    await settleHold({ providerCallId: callId }, Number.isFinite(billed) ? billed : 0).catch((e) =>
+      console.error("[crédit] règlement opérateur impossible :", callId, e instanceof Error ? e.message : e),
+    );
+  }
   const outcome = NOT_CONNECTED[(params.CallStatus ?? params.call_status ?? "").toLowerCase()];
   if (callId && outcome) {
     await recordContactOutcome(

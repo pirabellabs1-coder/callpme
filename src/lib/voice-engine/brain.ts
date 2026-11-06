@@ -72,10 +72,18 @@ export async function prepareTurn(ctx: BrainContext, history: Turn[]): Promise<P
 
   // RAG : contexte pertinent pour la dernière question de l'appelant.
   if (agent.knowledgeBaseId) {
-    const lastUser = [...history].reverse().find((m) => m.role === "user")?.content ?? "";
-    const kb = await retrieveContext(agent.knowledgeBaseId, lastUser);
+    // Les deux dernières prises de parole : une relance (« et le samedi ? »)
+    // garde le sujet de la question précédente.
+    const query = history
+      .filter((m) => m.role === "user")
+      .slice(-2)
+      .map((m) => m.content)
+      .join(" ");
+    const kb = await retrieveContext(agent.knowledgeBaseId, query);
     if (kb) {
-      systemContent += `\n\n## Base de connaissances\nUtilise ces informations pour répondre avec précision si c'est pertinent :\n${kb}`;
+      systemContent +=
+        `\n\n## Base de connaissances\nRéponds à partir de ces informations quand elles sont pertinentes. ` +
+        `Si la réponse n'y figure pas, ne l'invente pas : dis-le simplement et propose de prendre un message.\n${kb}`;
     }
   }
 

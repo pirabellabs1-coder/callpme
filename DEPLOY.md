@@ -80,7 +80,12 @@ données de l'application.
 - **SMS** : le numéro de l'opérateur doit pouvoir envoyer des SMS
   (`TWILIO_SMS_FROM` / `TELNYX_SMS_FROM` s'il diffère du numéro d'appel).
 - **E-mails de suivi** : via Resend (`RESEND_API_KEY`).
-- Nouvelles tables (`Appointment`, `Lead`) : `npx prisma db push`.
+- Nouvelles tables (`Appointment`, `Lead`, `DailyCounter`, `KnowledgeChunk`) :
+  `npx prisma db push`. La base de connaissances utilise l'extension
+  PostgreSQL **pgvector** (activée automatiquement sur Neon par `db push`).
+- **Base de connaissances** : import de PDF, fichiers texte, pages et sites
+  web ; recherche plein texte en français sans configuration, recherche par
+  le sens si `OPENAI_API_KEY` est défini (modèle `EMBEDDING_MODEL`).
 
 ### Téléphonie (Twilio ou Telnyx)
 

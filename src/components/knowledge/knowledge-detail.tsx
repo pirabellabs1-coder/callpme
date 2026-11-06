@@ -15,6 +15,8 @@ import {
   AlertCircle,
   CheckCircle2,
   Info,
+  Globe,
+  Search,
   type LucideIcon,
 } from "lucide-react";
 import type { DocRecord } from "@/lib/db/knowledge";
@@ -27,22 +29,32 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
 
-/** Limite côté API (POST /api/knowledge/:id/documents). */
-const MAX_CHARS = 50_000;
+/** Limites côté API (POST /api/knowledge/:id/documents). */
+const MAX_CHARS = 400_000;
+const MAX_FILE_MB = 10;
 
-type Mode = "text" | "file" | "url";
+type Mode = "text" | "file" | "url" | "site";
 
 const MODES: { key: Mode; label: string; icon: LucideIcon }[] = [
+  { key: "file", label: "Fichier (PDF…)", icon: FileUp },
+  { key: "site", label: "Site entier", icon: Globe },
+  { key: "url", label: "Une page web", icon: Link2 },
   { key: "text", label: "Texte", icon: FileText },
-  { key: "file", label: "Fichier texte", icon: FileUp },
-  { key: "url", label: "Page web", icon: Link2 },
 ];
 
 const SOURCE_LABEL: Record<string, { label: string; icon: LucideIcon }> = {
   text: { label: "Texte", icon: FileText },
   url: { label: "Page web", icon: Link2 },
+  site: { label: "Site", icon: Globe },
   pdf: { label: "PDF", icon: FileText },
+  file: { label: "Fichier", icon: FileUp },
 };
+
+interface Hit {
+  documentId: string;
+  title: string;
+  content: string;
+}
 
 export function KnowledgeDetail({
   kb,
@@ -58,7 +70,12 @@ export function KnowledgeDetail({
   const router = useRouter();
   const ids = useId();
   const [docs, setDocs] = useState(kb.documents);
-  const [mode, setMode] = useState<Mode>("text");
+  const [mode, setMode] = useState<Mode>("file");
+  const [file, setFile] = useState<File | null>(null);
+  const [question, setQuestion] = useState("");
+  const [hits, setHits] = useState<Hit[] | null>(null);
+  const [searching, setSearching] = useState(false);
+  const [semantic, setSemantic] = useState<boolean | null>(null);
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
   const [fileName, setFileName] = useState<string | null>(null);
@@ -68,10 +85,12 @@ export function KnowledgeDetail({
   const [notice, setNotice] = useState<string | null>(null);
   const [deleting, setDeleting] = useState<string | null>(null);
 
-  const usesContent = mode !== "url";
+  const usesContent = mode === "text";
   const tooLong = usesContent && content.length > MAX_CHARS;
   const canSubmit =
-    !busy && !tooLong && (usesContent ? content.trim().length > 0 : url.trim().length > 0);
+    !busy &&
+    !tooLong &&
+    (mode === "text" ? content.trim().length > 0 : mode === "file" ? file !== null : url.trim().length > 0);
 
   function switchMode(m: Mode) {
     setMode(m);
@@ -79,22 +98,16 @@ export function KnowledgeDetail({
   }
 
   function onFile(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
+    const picked = e.target.files?.[0];
     e.target.value = "";
-    if (!file) return;
-    if (file.size > 1024 * 1024) {
-      setError("Fichier trop volumineux (1 Mo maximum).");
+    if (!picked) return;
+    if (picked.size > MAX_FILE_MB * 1024 * 1024) {
+      setError(`Fichier trop volumineux (${MAX_FILE_MB} Mo maximum).`);
       return;
     }
     setError(null);
-    const reader = new FileReader();
-    reader.onload = () => {
-      setContent(String(reader.result ?? ""));
-      setFileName(file.name);
-      if (!title.trim()) setTitle(file.name.replace(/\.[^.]+$/, ""));
-    };
-    reader.onerror = () => setError("Impossible de lire ce fichier.");
-    reader.readAsText(file);
+    setFile(picked);
+    setFileName(picked.name);
   }
 
   async function add(e: React.FormEvent) {
@@ -104,27 +117,42 @@ export function KnowledgeDetail({
     setError(null);
     setNotice(null);
     try {
-      const res = await fetch(`/api/knowledge/${kb.id}/documents`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(
-          mode === "url"
-            ? { source: "url", url: url.trim(), title: title.trim() || undefined }
-            : { source: "text", title: title.trim() || "Document", content },
-        ),
-      });
+      let res: Response;
+      if (mode === "file" && file) {
+        const form = new FormData();
+        form.append("file", file);
+        if (title.trim()) form.append("title", title.trim());
+        res = await fetch(`/api/knowledge/${kb.id}/documents`, { method: "POST", body: form });
+      } else {
+        res = await fetch(`/api/knowledge/${kb.id}/documents`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(
+            mode === "text"
+              ? { source: "text", title: title.trim() || "Document", content }
+              : { source: mode, url: url.trim(), title: title.trim() || undefined },
+          ),
+        });
+      }
       const data = await res.json().catch(() => ({}));
       if (res.ok) {
-        setDocs((d) => [data.document, ...d]);
-        setNotice(`« ${data.document.title} » a été ajouté à la base.`);
+        const added: DocRecord[] = data.documents ?? [data.document];
+        setDocs((d) => [...added, ...d]);
+        const passages = added.reduce((n, x) => n + (x.chunkCount ?? 0), 0);
+        setNotice(
+          added.length > 1
+            ? `${added.length} pages importées (${passages} passages indexés).`
+            : `« ${added[0].title} » a été ajouté (${passages} passage${passages > 1 ? "s" : ""} indexé${passages > 1 ? "s" : ""}).`,
+        );
         setTitle("");
         setContent("");
         setUrl("");
+        setFile(null);
         setFileName(null);
         router.refresh();
       } else {
         setError(
-          data.error === "Données invalides" && mode === "url"
+          data.error === "Données invalides" && (mode === "url" || mode === "site")
             ? "Adresse invalide : saisissez une URL complète (https://…)."
             : (data.error ?? "L'ajout du document a échoué."),
         );
@@ -174,6 +202,25 @@ export function KnowledgeDetail({
       setError("Erreur réseau pendant la suppression.");
     }
     setDeleting(null);
+  }
+
+  async function ask(e: React.FormEvent) {
+    e.preventDefault();
+    if (question.trim().length < 2) return;
+    setSearching(true);
+    try {
+      const res = await fetch(`/api/knowledge/${kb.id}/search`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ q: question.trim() }),
+      });
+      const data = await res.json().catch(() => ({}));
+      setHits(res.ok ? (data.hits ?? []) : []);
+      setSemantic(res.ok ? Boolean(data.semantic) : null);
+    } catch {
+      setHits([]);
+    }
+    setSearching(false);
   }
 
   const fmtDate = (iso: string) =>
@@ -273,7 +320,7 @@ export function KnowledgeDetail({
             />
           </div>
 
-          {mode === "url" ? (
+          {mode === "url" || mode === "site" ? (
             <div className="space-y-1.5">
               <Label htmlFor={`${ids}-url`} className="text-xs text-muted-foreground">
                 Adresse de la page
@@ -284,40 +331,42 @@ export function KnowledgeDetail({
                 inputMode="url"
                 value={url}
                 onChange={(e) => setUrl(e.target.value)}
-                placeholder="https://votre-site.fr/faq"
+                placeholder={mode === "site" ? "https://votre-site.fr" : "https://votre-site.fr/faq"}
                 maxLength={500}
                 required
                 aria-describedby={`${ids}-url-help`}
               />
               <p id={`${ids}-url-help`} className="flex items-start gap-1.5 text-xs text-muted-foreground">
                 <Info className="mt-px size-3.5 shrink-0" aria-hidden />
-                Seul le texte de cette page est extrait (pas les sous-pages). La page doit être
-                publique et répondre en moins de 10 secondes.
+                {mode === "site"
+                  ? "Callpme parcourt jusqu'à 25 pages publiques du même site (2 niveaux de liens) et importe leur texte. Comptez jusqu'à une minute."
+                  : "Seul le texte de cette page est extrait (pas les sous-pages). La page doit être publique et répondre en moins de 10 secondes."}
               </p>
             </div>
           ) : (
             <div className="space-y-1.5">
-              {mode === "file" && (
+              {mode === "file" ? (
                 <div className="flex flex-wrap items-center gap-3 pb-1">
                   <label
                     htmlFor={`${ids}-file`}
                     className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-dashed border-border bg-secondary/40 px-3 py-2 text-xs font-medium text-foreground/80 transition-colors hover:bg-secondary/70 has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring/55"
                   >
                     <FileUp className="size-3.5" aria-hidden />
-                    Choisir un fichier (.txt, .md, .csv)
+                    Choisir un fichier (PDF, TXT, MD, CSV)
                     <input
                       id={`${ids}-file`}
                       type="file"
-                      accept=".txt,.md,.markdown,.csv,text/plain,text/markdown,text/csv"
+                      accept=".pdf,.txt,.md,.markdown,.csv,application/pdf,text/plain,text/markdown,text/csv"
                       onChange={onFile}
                       className="sr-only"
                     />
                   </label>
                   <span className="text-xs text-muted-foreground">
-                    {fileName ?? "PDF et Word non pris en charge pour l'instant — copiez-collez leur texte."}
+                    {fileName ?? `${MAX_FILE_MB} Mo maximum. PDF avec du texte sélectionnable (pas un scan).`}
                   </span>
                 </div>
-              )}
+              ) : (
+              <>
               <Label htmlFor={`${ids}-content`} className="text-xs text-muted-foreground">
                 Contenu
               </Label>
@@ -325,7 +374,7 @@ export function KnowledgeDetail({
                 id={`${ids}-content`}
                 value={content}
                 onChange={(e) => setContent(e.target.value)}
-                rows={mode === "file" ? 6 : 7}
+                rows={7}
                 placeholder="Collez ici le contenu (FAQ, conditions, fiche produit, horaires…)"
                 aria-describedby={`${ids}-count`}
                 aria-invalid={tooLong || undefined}
@@ -337,20 +386,78 @@ export function KnowledgeDetail({
                 {content.length.toLocaleString("fr-FR")} / {MAX_CHARS.toLocaleString("fr-FR")} caractères
                 {tooLong && " — raccourcissez ou découpez en plusieurs documents"}
               </p>
+              </>
+              )}
             </div>
           )}
 
           <Button type="submit" variant="brand" disabled={!canSubmit}>
             {busy ? <Loader2 className="size-4 animate-spin" aria-hidden /> : <Plus className="size-4" aria-hidden />}
             {busy
-              ? mode === "url"
-                ? "Récupération de la page…"
-                : "Ajout…"
-              : mode === "url"
-                ? "Importer la page"
-                : "Ajouter le document"}
+              ? mode === "site"
+                ? "Exploration du site…"
+                : mode === "url"
+                  ? "Récupération de la page…"
+                  : mode === "file"
+                    ? "Lecture du fichier…"
+                    : "Ajout…"
+              : mode === "site"
+                ? "Importer le site"
+                : mode === "url"
+                  ? "Importer la page"
+                  : "Ajouter le document"}
           </Button>
         </form>
+      </Card>
+
+      {/* Tester une question */}
+      <Card className="p-5">
+        <h2 className="flex items-center gap-2 text-[0.95rem] font-semibold tracking-tight">
+          <Search className="size-4 text-muted-foreground" aria-hidden /> Tester une question
+        </h2>
+        <p className="mt-0.5 text-sm text-muted-foreground">
+          Voyez quels passages l&apos;agent retrouverait pour répondre à un appelant.
+        </p>
+        <form onSubmit={ask} className="mt-3 flex flex-col gap-2 sm:flex-row">
+          <Label htmlFor={`${ids}-q`} className="sr-only">
+            Question d&apos;un appelant
+          </Label>
+          <Input
+            id={`${ids}-q`}
+            value={question}
+            onChange={(e) => setQuestion(e.target.value)}
+            placeholder="Ex. : Quels sont vos horaires le samedi ?"
+            maxLength={500}
+          />
+          <Button type="submit" variant="outline" disabled={searching || question.trim().length < 2}>
+            {searching ? <Loader2 className="size-4 animate-spin" aria-hidden /> : <Search className="size-4" aria-hidden />}
+            Chercher
+          </Button>
+        </form>
+        <div aria-live="polite">
+          {hits && hits.length === 0 && (
+            <p className="mt-3 text-sm text-muted-foreground">
+              Aucun passage trouvé. L&apos;agent dira qu&apos;il n&apos;a pas l&apos;information et proposera de prendre un message.
+            </p>
+          )}
+          {hits && hits.length > 0 && (
+            <ol className="mt-3 space-y-2">
+              {hits.map((h, i) => (
+                <li key={`${h.documentId}-${i}`} className="rounded-lg border border-border bg-foreground/[0.02] p-3">
+                  <p className="text-xs font-medium text-foreground">
+                    {i + 1}. {h.title}
+                  </p>
+                  <p className="mt-1 line-clamp-4 whitespace-pre-line text-xs text-muted-foreground">{h.content}</p>
+                </li>
+              ))}
+            </ol>
+          )}
+          {semantic === false && hits !== null && (
+            <p className="mt-2 text-[0.7rem] text-muted-foreground">
+              Recherche par mots (français). Ajoutez une clé OpenAI côté serveur pour la recherche par le sens.
+            </p>
+          )}
+        </div>
       </Card>
 
       {/* Documents */}
@@ -380,13 +487,19 @@ export function KnowledgeDetail({
                         <div className="flex flex-wrap items-center gap-2">
                           <p className="truncate text-sm font-medium text-foreground">{d.title}</p>
                           <Badge variant="muted">{src.label}</Badge>
-                          <Badge variant="success">
-                            <CheckCircle2 aria-hidden /> Disponible
-                          </Badge>
+                          {d.status === "error" || d.chunkCount === 0 ? (
+                            <Badge variant="warning">Aucun texte indexé</Badge>
+                          ) : (
+                            <Badge variant="success">
+                              <CheckCircle2 aria-hidden />
+                              {d.chunkCount ? `${d.chunkCount} passage${d.chunkCount > 1 ? "s" : ""}` : "Disponible"}
+                            </Badge>
+                          )}
                         </div>
                         <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{d.content}</p>
-                        <p className="mt-1.5 text-[0.7rem] text-muted-foreground/80">
+                        <p className="mt-1.5 truncate text-[0.7rem] text-muted-foreground/80">
                           Ajouté le {fmtDate(d.createdAt)}
+                          {d.origin ? ` · ${d.origin}` : ""}
                         </p>
                       </div>
                       <Button

@@ -28,3 +28,7 @@ export function notFound(message = "Ressource introuvable") {
 export function serverError(message = "Erreur interne du serveur") {
   return NextResponse.json({ error: message }, { status: 500 });
 }
+
+export function tooMany(message = "Trop de requêtes, réessayez plus tard") {
+  return Response.json({ error: message }, { status: 429 });
+}

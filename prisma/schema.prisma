@@ -7,12 +7,14 @@
 // (`AgentConfig`, `TranscriptTurn[]`) restent la source de vérité.
 
 generator client {
-  provider = "prisma-client-js"
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  extensions = [vector]
 }
 
 model Organization {
@@ -262,15 +264,36 @@ model KnowledgeBase {
 }
 
 model Document {
-  id              String        @id @default(cuid())
+  id              String           @id @default(cuid())
   knowledgeBaseId String
-  knowledgeBase   KnowledgeBase @relation(fields: [knowledgeBaseId], references: [id], onDelete: Cascade)
+  knowledgeBase   KnowledgeBase    @relation(fields: [knowledgeBaseId], references: [id], onDelete: Cascade)
   title           String
-  source          String        @default("text") // text | url | pdf
+  source          String           @default("text") // text | url | pdf | file | site
+  /// Adresse d'origine (page web) ou nom du fichier importé.
+  origin          String?
   content         String // texte indexé
-  createdAt       DateTime      @default(now())
+  status          String           @default("ready") // processing | ready | error
+  error           String?
+  chunkCount      Int              @default(0)
+  chunks          KnowledgeChunk[]
+  createdAt       DateTime         @default(now())
 
   @@index([knowledgeBaseId])
+}
+
+/// Passage d'un document (unité de recherche). L'embedding est facultatif :
+/// sans clé d'embeddings, la recherche plein texte (français) suffit.
+model KnowledgeChunk {
+  id              String                       @id @default(cuid())
+  documentId      String
+  document        Document                     @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  knowledgeBaseId String
+  position        Int
+  content         String
+  embedding       Unsupported("vector(1536)")?
+
+  @@index([knowledgeBaseId])
+  @@index([documentId])
 }
 
 // ----- Studio Voix (entraînement de voix) -----

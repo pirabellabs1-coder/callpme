@@ -1,8 +1,8 @@
 "use server";
 
-import { headers } from "next/headers";
 import { z } from "zod";
 import { brandedEmail, sendEmail } from "@/lib/email/resend";
+import { clientIp, isRateLimited } from "@/lib/security/rate-limit";
 
 /**
  * Formulaires publics « Contact » et « Partenariat ».
@@ -48,29 +48,6 @@ const SUBJECT_LABEL: Record<string, string> = {
   autre: "Autre",
 };
 
-/* ------------------------------ Anti-abus ------------------------------ */
-
-const WINDOW_MS = 60 * 60 * 1000;
-const MAX_PER_WINDOW = 5;
-const hits = new Map<string, number[]>();
-
-function rateLimited(key: string): boolean {
-  const now = Date.now();
-  const recent = (hits.get(key) ?? []).filter((t) => now - t < WINDOW_MS);
-  if (recent.length >= MAX_PER_WINDOW) {
-    hits.set(key, recent);
-    return true;
-  }
-  recent.push(now);
-  hits.set(key, recent);
-  return false;
-}
-
-function clientIp(): string {
-  const h = headers();
-  return (h.get("x-forwarded-for")?.split(",")[0] ?? h.get("x-real-ip") ?? "unknown").trim();
-}
-
 function escapeHtml(s: string): string {
   return s
     .replace(/&/g, "&amp;")
@@ -102,7 +79,7 @@ function fieldErrors(err: z.ZodError): Record<string, string> {
 async function guard(formData: FormData): Promise<ContactResult | null> {
   // Champ piège : un robot le remplit, un humain ne le voit pas.
   if (String(formData.get("hp_website") ?? "").length > 0) return { ok: true };
-  if (rateLimited(clientIp())) {
+  if (isRateLimited(`lead:${clientIp()}`, 5, 60 * 60 * 1000)) {
     return { error: "Trop d'envois depuis votre connexion. Réessayez dans une heure." };
   }
   return null;

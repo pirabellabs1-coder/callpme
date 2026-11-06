@@ -1,18 +1,25 @@
-import { formatNumber } from "@/lib/utils";
+import { cn, formatNumber } from "@/lib/utils";
 
 export interface DonutSegment {
   label: string;
   value: number;
-  /** Couleur CSS de l'arc (ex : "hsl(142 46% 38%)"). */
-  color: string;
+  /** Couleur CSS de l'arc (ex : "hsl(var(--success))"). */
+  color?: string;
+  /**
+   * Alternative : classe Tailwind de couleur de texte (ex : "text-sky-600"),
+   * appliquée via currentColor — suit le thème sans couleur codée en dur.
+   */
+  colorClass?: string;
 }
 
 export function Donut({
   segments,
   centerLabel,
+  ariaLabel = "Répartition des issues d'appel",
 }: {
   segments: DonutSegment[];
   centerLabel: string;
+  ariaLabel?: string;
 }) {
   const size = 168;
   const stroke = 20;
@@ -28,8 +35,7 @@ export function Donut({
         height={size}
         viewBox={`0 0 ${size} ${size}`}
         className="shrink-0"
-        role="img"
-        aria-label="Répartition des issues d'appel"
+        aria-hidden="true"
       >
         <g transform={`rotate(-90 ${size / 2} ${size / 2})`}>
           <circle
@@ -49,7 +55,8 @@ export function Donut({
                 cy={size / 2}
                 r={r}
                 fill="none"
-                stroke={s.color}
+                className={s.colorClass}
+                stroke={s.color ?? "currentColor"}
                 strokeWidth={stroke}
                 strokeDasharray={`${len} ${c - len}`}
                 strokeDashoffset={-offset}
@@ -80,12 +87,13 @@ export function Donut({
         </text>
       </svg>
 
-      <div className="w-full space-y-2.5">
+      <ul className="w-full space-y-2.5" aria-label={ariaLabel}>
         {segments.map((s) => (
-          <div key={s.label} className="flex items-center gap-2.5 text-sm">
+          <li key={s.label} className="flex items-center gap-2.5 text-sm">
             <span
-              className="size-2.5 shrink-0 rounded-full"
-              style={{ background: s.color }}
+              aria-hidden="true"
+              className={cn("size-2.5 shrink-0 rounded-full", s.colorClass)}
+              style={{ background: s.color ?? "currentColor" }}
             />
             <span className="flex-1 text-foreground">{s.label}</span>
             <span className="tabular text-muted-foreground">
@@ -94,9 +102,9 @@ export function Donut({
             <span className="w-10 text-right tabular text-muted-foreground/70">
               {Math.round((s.value / sum) * 100)}%
             </span>
-          </div>
+          </li>
         ))}
-      </div>
+      </ul>
     </div>
   );
 }

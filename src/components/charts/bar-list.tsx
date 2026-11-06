@@ -18,15 +18,15 @@ export function BarList({
 }) {
   const max = Math.max(1, ...items.map((i) => i.value));
   return (
-    <div className="space-y-3.5">
+    <ul className="space-y-3.5">
       {items.map((it) => (
-        <div key={it.label}>
+        <li key={it.label}>
           <div className="mb-1.5 flex items-center justify-between gap-3 text-sm">
             <span className="inline-flex min-w-0 items-center gap-2 text-foreground">
               {it.dotClass && (
-                <span className={cn("size-2 shrink-0 rounded-full", it.dotClass)} />
+                <span aria-hidden="true" className={cn("size-2 shrink-0 rounded-full", it.dotClass)} />
               )}
-              <span className="truncate">{it.label}</span>
+              <span className="truncate" title={it.label}>{it.label}</span>
             </span>
             <span className="shrink-0 tabular text-muted-foreground">
               {formatValue ? formatValue(it.value) : it.value}
@@ -35,14 +35,14 @@ export function BarList({
               ) : null}
             </span>
           </div>
-          <div className="h-2 overflow-hidden rounded-full bg-secondary">
+          <div aria-hidden="true" className="h-2 overflow-hidden rounded-full bg-secondary">
             <div
               className="h-full rounded-full bg-foreground/85"
               style={{ width: `${(it.value / max) * 100}%` }}
             />
           </div>
-        </div>
+        </li>
       ))}
-    </div>
+    </ul>
   );
 }

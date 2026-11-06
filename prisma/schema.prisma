@@ -195,6 +195,8 @@ model Call {
   clientId       String?
   /// JSON : qualité technique (temps de réponse, interruptions, pannes). Voir voice-engine/quality.ts.
   quality        String?
+  /// JSON : coût réel de l'appel (tokens, caractères de voix, durée, coût par poste). Voir costs/meter.ts.
+  costs          String?
   summary        String?
   outcome        String?
   /// JSON : données relevées en fin d'appel (champs définis sur l'agent).

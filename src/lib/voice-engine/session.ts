@@ -29,6 +29,8 @@ import type { VoiceTokenPayload } from "./token";
 import { QualityTracker } from "./quality";
 import { defaultPlatformVoice } from "../voices/platform";
 import { loadStudioExtras } from "../voices/studio";
+import { CostMeter } from "../costs/meter";
+import { runWithUsage } from "../llm/usage";
 
 /** Ce que le transport doit savoir faire. */
 export interface VoiceTransport {
@@ -67,6 +69,8 @@ export class CallSession {
   private variant: "A" | "B" | null = null;
   private organizationName = "";
   private voice: TtsVoice | null = null;
+  /** Coût réel de l'appel : tokens, caractères de voix, durée. */
+  private readonly costs = new CostMeter();
   private stt: SttStream | null = null;
   private history: Turn[] = [];
   private transcript: TranscriptTurn[] = [];
@@ -393,7 +397,7 @@ export class CallSession {
     let reply = "";
     let streamed = false;
     try {
-      const result = await agentReply(
+      const result = await runWithUsage((u) => this.costs.addLlm(u), () => agentReply(
         {
           agent: this.agent,
           organizationId: this.agent.organizationId,
@@ -412,7 +416,7 @@ export class CallSession {
           },
         },
         this.history,
-      );
+      ));
       // Raccroché pendant la réflexion : rien à dire ni à transférer.
       if (this.ended) return;
       streamed = Boolean(result.streamed);
@@ -495,6 +499,8 @@ export class CallSession {
     const ctrl = new AbortController();
     this.speaking = ctrl;
     this.transport.sendEvent?.({ type: "speaking", text });
+    // ElevenLabs facture chaque caractère envoyé, même si la phrase est coupée.
+    this.costs.addTts(text);
     try {
       for await (const chunk of streamSpeech(text, this.voice, ctrl.signal)) {
         if (ctrl.signal.aborted || this.ended) break;
@@ -550,7 +556,7 @@ export class CallSession {
       return;
     }
     try {
-      const call = await finishCall({
+      const call = await runWithUsage((u) => this.costs.addLlm(u), () => finishCall({
         sessionCallId: this.ctx.callId,
         agent: this.agent,
         organizationId: this.agent.organizationId,
@@ -565,7 +571,14 @@ export class CallSession {
         variant: this.variant ?? undefined,
         providerCallId: this.providerCallId,
         quality: this.quality.summary(),
+      }));
+      // Coût réel (analyse de fin d'appel comprise), enregistré à part : jamais bloquant.
+      const costs = this.costs.summary({
+        durationSec: (Date.now() - this.startedAt) / 1000,
+        direction: this.ctx.direction,
+        to: this.ctx.to,
       });
+      await prisma.call.update({ where: { id: call.id }, data: { costs: JSON.stringify(costs) } }).catch(() => {});
       this.transport.sendEvent?.({ type: "ended", callId: call.id });
     } catch {
       this.transport.sendEvent?.({ type: "error", message: "L'appel n'a pas pu être enregistré." });

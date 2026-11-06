@@ -10,6 +10,7 @@
  */
 import type { AgentRole, JSONSchema, ModelConfig } from "../shared/types";
 import { pickLocalTool } from "./local-tools";
+import { anthropicUsage, reportLlmUsage, type LlmUsage } from "./usage";
 
 export interface ChatMessage {
   role: "system" | "user" | "assistant";
@@ -123,6 +124,11 @@ export function anthropicModelId(configured: string): string {
   if (/haiku/i.test(id)) return "claude-haiku-5-5";
   if (/opus/i.test(id)) return "claude-opus-5-5";
   return /^claude/i.test(id) ? "claude-sonnet-5-5" : "claude-haiku-5-5";
+}
+
+/** Prompt système en bloc mis en cache (cache éphémère de 5 minutes, relu à prix réduit). */
+function cachedSystem(system: string | undefined) {
+  return system ? [{ type: "text", text: system, cache_control: { type: "ephemeral" } }] : undefined;
 }
 
 export async function generateReply(opts: {
@@ -265,7 +271,8 @@ async function anthropic(
       },
       body: JSON.stringify({
         model: model.modelId,
-        system,
+        // Prompt système (et outils) mis en cache : 10 fois moins cher aux tours suivants.
+        system: cachedSystem(system),
         messages: conv,
         tools: toolDefs.length ? toolDefs : undefined,
         max_tokens: 500,
@@ -275,6 +282,8 @@ async function anthropic(
     });
     if (!res.ok) throw new Error(`LLM ${res.status}`);
     const data = await res.json();
+    const used = anthropicUsage(model.modelId, data.usage);
+    if (used) reportLlmUsage(used);
     const blocks = (data.content ?? []) as {
       type: string;
       text?: string;
@@ -476,7 +485,8 @@ async function anthropicStream(
       },
       body: JSON.stringify({
         model: model.modelId,
-        system,
+        // Prompt système (et outils) mis en cache : 10 fois moins cher aux tours suivants.
+        system: cachedSystem(system),
         messages: conv,
         tools: toolDefs.length ? toolDefs : undefined,
         max_tokens: 500,
@@ -488,6 +498,7 @@ async function anthropicStream(
     if (!res.ok || !res.body) throw new Error(`LLM ${res.status}`);
 
     const blocks: AnthropicBlock[] = [];
+    let roundUsage: LlmUsage | null = null;
     if (said) said += " ";
     for await (const data of sseData(res.body)) {
       let ev: {
@@ -496,6 +507,8 @@ async function anthropicStream(
         content_block?: AnthropicBlock;
         delta?: { type?: string; text?: string; partial_json?: string; thinking?: string; signature?: string };
         error?: { message?: string };
+        message?: { usage?: Record<string, unknown> };
+        usage?: Record<string, unknown>;
       };
       try {
         ev = JSON.parse(data);
@@ -503,6 +516,10 @@ async function anthropicStream(
         continue;
       }
       if (ev.type === "error") throw new Error(`LLM ${ev.error?.message ?? "erreur de flux"}`);
+      if (ev.type === "message_start" && ev.message?.usage) roundUsage = anthropicUsage(model.modelId, ev.message.usage);
+      if (ev.type === "message_delta" && ev.usage && roundUsage && typeof ev.usage.output_tokens === "number") {
+        roundUsage.output = ev.usage.output_tokens as number;
+      }
       const i = ev.index ?? 0;
       if (ev.type === "content_block_start" && ev.content_block) {
         blocks[i] = { ...ev.content_block };
@@ -527,6 +544,7 @@ async function anthropicStream(
         delete b.partial;
       } else if (ev.type === "message_stop") break;
     }
+    if (roundUsage) reportLlmUsage(roundUsage);
 
     const content = blocks.filter(Boolean).map((b) => {
       const { partial: _p, ...rest } = b;

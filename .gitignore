@@ -46,3 +46,4 @@ next-env.d.ts
 
 # Configuration Asterisk réelle (secrets, identifiants opérateur) : jamais dans git
 infra/asterisk/*.conf
+documents/

@@ -150,13 +150,13 @@ export function NumbersManager({
         <h2 id="numbers-howto" className="sr-only">
           Comment relier un numéro à un agent
         </h2>
-        <Step n={1} icon={Plug} title="Opérateur">
-          Enregistrez les identifiants de votre compte (Twilio, Zadarma, OVH…). Ils ne sont
-          pas vérifiés automatiquement.
+        <Step n={1} icon={Phone} title="Numéro">
+          Achetez un numéro ci-dessus (prêt immédiatement), ou déclarez un numéro existant :
+          l&apos;équipe Callpme vérifie qu&apos;il est bien raccordé avant de l&apos;activer.
         </Step>
-        <Step n={2} icon={Phone} title="Numéro">
-          Ajoutez le numéro acheté chez cet opérateur, puis reliez-le à un agent à l&apos;étape
-          « Téléphonie » de sa configuration.
+        <Step n={2} icon={Plug} title="Agent">
+          Reliez le numéro à un agent à l&apos;étape « Téléphonie » de sa configuration : les
+          appels reçus arrivent sur cet agent.
         </Step>
         <Step n={3} icon={PhoneForwarded} title="Renvoi d'appel">
           Pour garder votre numéro habituel, activez chez votre opérateur un renvoi
@@ -464,7 +464,14 @@ export function NumbersManager({
                   <Phone className="size-4" strokeWidth={1.75} />
                 </span>
                 <div className="min-w-0 flex-1">
-                  <p className="mono truncate text-sm font-medium text-foreground">{n.number}</p>
+                  <p className="flex items-center gap-2">
+                    <span className="mono truncate text-sm font-medium text-foreground">{n.number}</span>
+                    {n.status === "pending" && (
+                      <span className="rounded-full bg-amber-500/10 px-2 py-0.5 text-[0.7rem] font-medium text-amber-400">
+                        En attente de vérification
+                      </span>
+                    )}
+                  </p>
                   <p className="truncate text-xs text-muted-foreground">
                     {n.label} · {providerLabel(n.provider)} · {n.monthlyPrice} €/mois
                   </p>

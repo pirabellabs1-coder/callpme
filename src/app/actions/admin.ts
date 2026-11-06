@@ -367,3 +367,20 @@ export async function reloadDemoData(): Promise<AdminResult> {
     return { error: "Le rechargement a échoué." };
   }
 }
+
+/* ------------------------- Numéros déclarés -------------------------- */
+
+/** Active (raccordement vérifié) ou refuse un numéro déclaré par un client. */
+export async function reviewPhoneNumber(id: string, action: "activate" | "reject"): Promise<AdminResult> {
+  await requireAdmin();
+  const row = await prisma.phoneNumber.findUnique({ where: { id }, select: { status: true, purchased: true, number: true, organizationId: true } });
+  if (!row || row.status !== "pending" || row.purchased) return { error: "Numéro introuvable ou déjà traité." };
+  if (action === "activate") {
+    await prisma.phoneNumber.update({ where: { id }, data: { status: "active" } });
+  } else {
+    await prisma.agent.updateMany({ where: { organizationId: row.organizationId, phoneNumber: row.number }, data: { phoneNumber: null } });
+    await prisma.phoneNumber.delete({ where: { id } });
+  }
+  revalidatePath("/admin/numbers");
+  return { ok: true };
+}

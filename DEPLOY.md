@@ -106,9 +106,15 @@ données de l'application.
 - **Touches du clavier** (« tapez 1 ») : transmises à l'agent pendant l'appel.
 - **Fin d'appel** : les appels sortants déclarent `${PUBLIC_URL}/api/telephony/status`
   comme rappel de statut (non-réponse, occupé, échec) ; rien à configurer.
+- **Achat de numéros** : les clients achètent leurs numéros depuis
+  « Numéros » (compte opérateur de la plateforme, appels entrants déjà reliés).
+  Pour la France, la Belgique ou la Suisse, Twilio exige un dossier
+  réglementaire : renseignez `TWILIO_ADDRESS_SID` et `TWILIO_BUNDLE_SID`.
+  Les prix affichés sont dans `src/lib/telephony/numbers.ts`.
 - **Numéros** : un numéro ajouté à la main par un client est « en attente »
   tant qu'il n'a pas été vérifié. Seuls les numéros actifs reçoivent des
   appels, et un agent ne peut recevoir qu'un numéro de sa propre organisation.
+  Vérification par l'équipe : espace d'administration, « Numéros à vérifier ».
 - **Fraude** : activez les restrictions géographiques de l'opérateur (Twilio
   *Geo Permissions*, Telnyx *Outbound Voice Profile*) et bloquez les numéros
   surtaxés au niveau du compte, en plus des contrôles de l'application.

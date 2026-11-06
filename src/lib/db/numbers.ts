@@ -76,6 +76,14 @@ export async function createPhoneNumber(
 export async function deletePhoneNumber(orgId: string, id: string) {
   const row = await prisma.phoneNumber.findUnique({ where: { id } });
   if (!row || row.organizationId !== orgId) return false;
+  // Numéro acheté via la plateforme : rendu à l'opérateur (fin de facturation).
+  if (row.purchased && row.providerRef) {
+    const { releaseNumber } = await import("../telephony/numbers");
+    const released = await releaseNumber(row.provider, row.providerRef, row.number);
+    if (!released) throw new Error("Libération du numéro impossible chez l'opérateur.");
+  }
+  // Agent relié : il perd ce numéro.
+  await prisma.agent.updateMany({ where: { organizationId: orgId, phoneNumber: row.number }, data: { phoneNumber: null } });
   await prisma.phoneNumber.delete({ where: { id } });
   return true;
 }

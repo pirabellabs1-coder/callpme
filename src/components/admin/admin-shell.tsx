@@ -19,6 +19,7 @@ import {
   X,
   LogOut,
   Lock,
+  Hash,
 } from "lucide-react";
 import { cn, initials } from "@/lib/utils";
 import { logout } from "@/app/actions/auth";
@@ -30,6 +31,7 @@ const NAV = [
   { href: "/admin/users", label: "Utilisateurs", icon: Users },
   { href: "/admin/agents", label: "Agents", icon: Bot },
   { href: "/admin/calls", label: "Appels", icon: PhoneCall },
+  { href: "/admin/numbers", label: "Numéros à vérifier", icon: Hash },
   { href: "/admin/voices", label: "Voix", icon: AudioLines },
   { href: "/admin/promos", label: "Codes promo", icon: Ticket },
   { href: "/admin/demandes", label: "Demandes Agence", icon: Inbox },

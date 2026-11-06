@@ -182,6 +182,10 @@ model PhoneNumber {
   provider       String // twilio | zadarma | vonage | ovh | telnyx | manual
   monthlyPrice   Float        @default(0)
   status         String       @default("active") // active | pending
+  /// Numéro acheté via la plateforme : référence chez l'opérateur (Twilio SID, commande Telnyx).
+  providerRef    String?
+  /// Acheté via Callpme (true) ou ajouté à la main (à vérifier par l'équipe).
+  purchased      Boolean      @default(false)
   createdAt      DateTime     @default(now())
 
   @@index([organizationId])

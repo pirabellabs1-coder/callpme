@@ -89,10 +89,35 @@ function effectiveModelId(provider: Provider, configured: string): string {
   if (provider === "openai") return /^(gpt|o\d|chatgpt)/i.test(id) ? id : "gpt-4o-mini";
   if (provider === "mistral")
     return /mistral|ministral|codestral/i.test(id) ? id : "mistral-small-latest";
-  // anthropic — alias « -latest » stable, surchargé par ANTHROPIC_MODEL au besoin.
-  return /^claude/i.test(id)
-    ? id
-    : process.env.ANTHROPIC_MODEL || "claude-3-5-haiku-latest";
+  return anthropicModelId(id);
+}
+
+/** Modèles Claude actuels. Les anciens identifiants (retirés par Anthropic) sont redirigés. */
+const CLAUDE_CURRENT = /^claude-(opus|sonnet|haiku|fable)-5(-\d+)?$/i;
+
+/**
+ * Réglages de requête selon le modèle Claude. Les modèles actuels refusent
+ * `temperature` et réfléchissent par défaut : au téléphone, on vise la
+ * latence (réflexion coupée sur Haiku, limitée aux appels d'outils sur Sonnet,
+ * effort « low »). Les anciens modèles gardent la température.
+ */
+export function anthropicTuning(model: ModelConfig): Record<string, unknown> {
+  const id = model.modelId;
+  if (!CLAUDE_CURRENT.test(id)) return { temperature: model.temperature };
+  if (/haiku/i.test(id)) return { thinking: { type: "disabled" }, output_config: { effort: "low" } };
+  if (/sonnet/i.test(id)) return { thinking: { type: "between_tools" }, output_config: { effort: "low" } };
+  // Opus / Fable : la réflexion ne se désactive pas ; l'effort est le seul réglage.
+  return { output_config: { effort: "low" } };
+}
+
+export function anthropicModelId(configured: string): string {
+  const id = (configured || "").trim();
+  if (CLAUDE_CURRENT.test(id)) return id;
+  if (process.env.ANTHROPIC_MODEL) return process.env.ANTHROPIC_MODEL;
+  // Ancien « haiku » (rapide) -> Haiku actuel ; tout le reste -> Sonnet actuel.
+  if (/haiku/i.test(id)) return "claude-haiku-5-5";
+  if (/opus/i.test(id)) return "claude-opus-5-5";
+  return /^claude/i.test(id) ? "claude-sonnet-5-5" : "claude-haiku-5-5";
 }
 
 export async function generateReply(opts: {
@@ -230,7 +255,7 @@ async function anthropic(
         messages: conv,
         tools: toolDefs.length ? toolDefs : undefined,
         max_tokens: 500,
-        temperature: model.temperature,
+        ...anthropicTuning(model),
       }),
       signal: AbortSignal.timeout(20000),
     });
@@ -261,7 +286,12 @@ async function anthropic(
       conv.push({ role: "user", content: results });
       continue;
     }
-    const text = blocks.find((b) => b.type === "text")?.text;
+    // Les modèles actuels peuvent renvoyer plusieurs blocs (réflexion, texte) : on garde le texte.
+    const text = blocks
+      .filter((b) => b.type === "text")
+      .map((b) => b.text ?? "")
+      .join(" ")
+      .trim();
     return { text: text || "Pardon, pouvez-vous répéter ?", toolCalls: made };
   }
   return { text: "Pardon, pouvez-vous répéter ?", toolCalls: made };

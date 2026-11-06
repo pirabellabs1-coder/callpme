@@ -107,7 +107,7 @@ const SEED_AGENTS: SeedAgent[] = [
     status: "active",
     phoneNumber: "+33184801103",
     modelProvider: "anthropic",
-    modelId: "claude-sonnet-4",
+    modelId: "claude-sonnet-5-5",
     guardrails: [
       "Ne jamais réserver sans avoir vérifié la disponibilité",
       "Toujours faire confirmer la date et l'heure avant de valider",
@@ -157,7 +157,7 @@ const SEED_AGENTS: SeedAgent[] = [
     status: "paused",
     phoneNumber: null,
     modelProvider: "anthropic",
-    modelId: "claude-haiku-4",
+    modelId: "claude-haiku-5-5",
     guardrails: ["Rester strictement neutre, ne pas commenter les réponses"],
     persona: "Courtoise et discrète, ne juge jamais les réponses.",
     callVolume: 10,

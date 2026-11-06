@@ -59,8 +59,9 @@ export const MODELS: Record<string, ModelOption[]> = {
     { id: "gpt-4o-mini", label: "GPT-4o mini", note: "Rapide et économique" },
   ],
   anthropic: [
-    { id: "claude-sonnet-4", label: "Claude Sonnet 4", note: "Raisonnement solide" },
-    { id: "claude-haiku-4", label: "Claude Haiku 4", note: "Très faible latence" },
+    { id: "claude-haiku-5-5", label: "Claude Haiku 5.5", note: "Très faible latence, idéal au téléphone" },
+    { id: "claude-sonnet-5-5", label: "Claude Sonnet 5.5", note: "Raisonnement solide" },
+    { id: "claude-opus-5-5", label: "Claude Opus 5.5", note: "Le plus capable, plus lent" },
   ],
   mistral: [
     { id: "mistral-large", label: "Mistral Large", note: "Souverain et performant" },

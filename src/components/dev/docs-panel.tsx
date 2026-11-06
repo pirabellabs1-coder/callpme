@@ -107,7 +107,7 @@ export function DocsPanel({ apiBaseUrl }: { apiBaseUrl: string }) {
     '      "phoneNumber": "+33182880000",',
     '      "config": {',
     '        "voice": { "provider": "elevenlabs", "voiceId": "amelie", "language": "fr-FR", "speed": 1 },',
-    '        "model": { "provider": "anthropic", "modelId": "claude-3-5-haiku-latest", "temperature": 0.4 },',
+    '        "model": { "provider": "anthropic", "modelId": "claude-haiku-5-5", "temperature": 0.4 },',
     '        "systemPrompt": "Tu es l\'agent d\'accueil de…",',
     '        "firstMessage": "Bonjour, bienvenue chez Acme…",',
     '        "firstSpeaker": "agent",',

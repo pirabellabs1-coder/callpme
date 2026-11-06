@@ -66,7 +66,7 @@ export interface VoiceConfig {
 
 export interface ModelConfig {
   provider: ModelProvider;
-  /** ex: gpt-4o, claude-sonnet-4, mistral-large */
+  /** ex: gpt-4o, claude-sonnet-5-5, mistral-large */
   modelId: string;
   /** 0 – 1 */
   temperature: number;

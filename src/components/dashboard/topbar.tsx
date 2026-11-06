@@ -39,14 +39,25 @@ function ServiceChip({ status }: { status: ServiceStatus }) {
 }
 
 /** Barre supérieure : logo · état du service · recherche, notifications, création. */
-export function Topbar({ onMenuClick, status }: { onMenuClick: () => void; status?: ServiceStatus }) {
+export function Topbar({
+  onMenuClick,
+  status,
+  menuLabel = "Ouvrir le menu",
+  menuExpanded,
+}: {
+  onMenuClick: () => void;
+  status?: ServiceStatus;
+  menuLabel?: string;
+  menuExpanded?: boolean;
+}) {
   return (
     <header className="sticky top-0 z-40 flex h-14 items-center gap-3 border-b border-border bg-card/85 px-4 backdrop-blur-xl supports-[backdrop-filter]:bg-card/70 sm:px-6">
       <button
         type="button"
         onClick={onMenuClick}
-        className="inline-flex size-9 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-accent hover:text-foreground lg:hidden"
-        aria-label="Ouvrir le menu"
+        className="inline-flex size-9 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/55"
+        aria-label={menuLabel}
+        aria-expanded={menuExpanded}
       >
         <Menu className="size-5" />
       </button>

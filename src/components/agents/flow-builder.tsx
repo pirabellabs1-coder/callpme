@@ -7,6 +7,8 @@ import {
   GitBranch,
   LayoutGrid,
   Loader2,
+  Maximize2,
+  Minimize2,
   MessageSquare,
   PhoneForwarded,
   PhoneOff,
@@ -15,6 +17,7 @@ import {
   Trash2,
   TriangleAlert,
   Workflow,
+  X,
   Zap,
 } from "lucide-react";
 import type { AgentRole, ConversationFlow, FlowNode, FlowNodeType } from "@/lib/shared/types";
@@ -73,7 +76,8 @@ export function FlowBuilder({
   hasTransferNumber: boolean;
 }) {
   const [flow, setFlow] = useState<ConversationFlow | null>(initialFlow);
-  const [selectedId, setSelectedId] = useState<string | null>(initialFlow?.start ?? null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [fullscreen, setFullscreen] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
   const [status, setStatus] = useState<{ tone: "ok" | "error"; text: string } | null>(null);
@@ -91,6 +95,27 @@ export function FlowBuilder({
   );
   const issueIds = useMemo(() => new Set([...issues.errors, ...issues.warnings].map((i) => i.nodeId).filter(Boolean)), [issues]);
   const selected = flow?.nodes.find((n) => n.id === selectedId) ?? null;
+
+  // Échap : ferme le volet d'édition, puis quitte le plein écran.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      if (selectedId) setSelectedId(null);
+      else if (fullscreen) setFullscreen(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [selectedId, fullscreen]);
+
+  // Plein écran : la page derrière ne défile plus.
+  useEffect(() => {
+    if (!fullscreen) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, [fullscreen]);
 
   // Changements non enregistrés : prévenir avant de quitter la page.
   useEffect(() => {
@@ -301,8 +326,17 @@ export function FlowBuilder({
   const height = Math.max(...flow.nodes.map((n) => n.position.y + NODE_H), 400) + PAD;
   const byId = new Map(flow.nodes.map((n) => [n.id, n]));
 
+  const issueCount = issues.errors.length + issues.warnings.length;
+
   return (
-    <div className="space-y-4">
+    <div
+      className={cn(
+        fullscreen ? "fixed inset-0 z-[55] flex flex-col gap-3 bg-background p-3 sm:p-4" : "space-y-4",
+      )}
+      role={fullscreen ? "dialog" : undefined}
+      aria-modal={fullscreen ? true : undefined}
+      aria-label={fullscreen ? "Éditeur de parcours en plein écran" : undefined}
+    >
       {/* Barre d'outils */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <label className="flex items-center gap-3 text-sm">
@@ -319,6 +353,16 @@ export function FlowBuilder({
           </span>
         </label>
         <div className="flex flex-wrap items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setFullscreen((v) => !v)}
+            aria-pressed={fullscreen}
+            title={fullscreen ? "Revenir à la page (Échap)" : "Agrandir l'éditeur à tout l'écran"}
+          >
+            {fullscreen ? <Minimize2 aria-hidden /> : <Maximize2 aria-hidden />}
+            {fullscreen ? "Réduire" : "Plein écran"}
+          </Button>
           <Button
             variant="outline"
             size="sm"
@@ -353,20 +397,50 @@ export function FlowBuilder({
         })}
       </div>
 
-      <p aria-live="polite" className={cn("min-h-5 text-sm", status?.tone === "error" ? "text-destructive" : "text-emerald-600 dark:text-emerald-400")}>
-        {status?.text ?? (dirty ? <span className="text-muted-foreground">Modifications non enregistrées.</span> : null)}
+      <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
+        <p aria-live="polite" className={cn("min-h-5 text-sm", status?.tone === "error" ? "text-destructive" : "text-emerald-600 dark:text-emerald-400")}>
+          {status?.text ?? (dirty ? <span className="text-muted-foreground">Modifications non enregistrées.</span> : null)}
+        </p>
+        {issueCount > 0 && (
+          <details className="group relative text-sm">
+            <summary className="flex cursor-pointer list-none items-center gap-1.5 rounded-md px-2 py-1 font-medium text-amber-700 hover:bg-accent dark:text-amber-400 [&::-webkit-details-marker]:hidden">
+              <TriangleAlert className="size-4" aria-hidden />
+              {issueCount} point{issueCount > 1 ? "s" : ""} à vérifier
+            </summary>
+            <ul className="absolute right-0 z-20 mt-1 w-[min(420px,85vw)] space-y-1.5 rounded-xl border border-border bg-card p-3 text-xs shadow-xl">
+              {issues.errors.map((i, k) => (
+                <li key={`e${k}`}>
+                  <IssueLink issue={i} tone="error" onSelect={setSelectedId} />
+                </li>
+              ))}
+              {issues.warnings.map((i, k) => (
+                <li key={`w${k}`}>
+                  <IssueLink issue={i} tone="warning" onSelect={setSelectedId} />
+                </li>
+              ))}
+            </ul>
+          </details>
+        )}
+      </div>
+
+      <p id="flow-keyboard-help" className="sr-only">
+        Flèches : déplacer le bloc (Maj pour aller plus vite). Suppr : supprimer le bloc. Échap : fermer le volet.
       </p>
 
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_340px]">
-        {/* Canevas */}
+      <div className={cn("relative", fullscreen && "min-h-0 flex-1")}>
+        {/* Canevas : toute la largeur disponible */}
         <div
           ref={canvasRef}
-          className="relative h-[560px] overflow-auto rounded-2xl border border-border bg-[radial-gradient(circle,hsl(var(--border))_1px,transparent_1px)] [background-size:20px_20px]"
+          className={cn(
+            "relative overflow-auto rounded-2xl border border-border bg-[radial-gradient(circle,hsl(var(--border))_1px,transparent_1px)] [background-size:20px_20px]",
+            fullscreen ? "h-full" : "h-[max(560px,calc(100dvh-17rem))]",
+          )}
           onPointerMove={onPointerMove}
           onPointerUp={onPointerUp}
           onPointerCancel={onPointerUp}
           onClick={(e) => {
-            if (e.target === e.currentTarget) setSelectedId(null);
+            // Clic dans le vide (pas sur un bloc) : ferme le volet.
+            if (!(e.target as HTMLElement).closest("button")) setSelectedId(null);
           }}
         >
           <div className="relative" style={{ width, height }}>
@@ -464,12 +538,12 @@ export function FlowBuilder({
           </div>
         </div>
 
-        {/* Panneau d'édition */}
-        <aside className="space-y-4 rounded-2xl border border-border bg-card p-4" aria-label="Bloc sélectionné">
-          <p id="flow-keyboard-help" className="sr-only">
-            Flèches : déplacer le bloc (Maj pour aller plus vite). Suppr : supprimer le bloc.
-          </p>
-          {selected ? (
+        {/* Volet d'édition : s'ouvre au clic sur un bloc, se ferme (croix, Échap, clic dans le vide). */}
+        {selected && (
+          <aside
+            className="absolute bottom-3 right-3 top-3 z-10 w-[min(360px,calc(100%-1.5rem))] overflow-y-auto rounded-2xl border border-border bg-card p-4 shadow-xl"
+            aria-label={`Modifier le bloc « ${selected.title} »`}
+          >
             <NodeEditor
               key={selected.id}
               node={selected}
@@ -479,34 +553,22 @@ export function FlowBuilder({
               onChange={(patch) => updateNode(selected.id, patch)}
               onSetStart={() => update((f) => ({ ...f, start: selected.id }))}
               onRemove={() => removeNode(selected.id)}
+              onClose={() => {
+                const id = selected.id;
+                setSelectedId(null);
+                requestAnimationFrame(() => document.getElementById(`flow-node-${id}`)?.blur());
+              }}
             />
-          ) : (
-            <p className="text-sm text-muted-foreground">
-              Sélectionnez un bloc pour le modifier, ou ajoutez-en un. Au clavier, les flèches déplacent le bloc sélectionné.
-            </p>
-          )}
-
-          {(issues.errors.length > 0 || issues.warnings.length > 0) && (
-            <div className="space-y-2 border-t border-border pt-4">
-              <h3 className="text-sm font-semibold">À vérifier</h3>
-              <ul className="space-y-1.5 text-xs">
-                {issues.errors.map((i, k) => (
-                  <li key={`e${k}`}>
-                    <IssueLink issue={i} tone="error" onSelect={setSelectedId} />
-                  </li>
-                ))}
-                {issues.warnings.map((i, k) => (
-                  <li key={`w${k}`}>
-                    <IssueLink issue={i} tone="warning" onSelect={setSelectedId} />
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-        </aside>
+          </aside>
+        )}
+        {!selected && (
+          <p className="pointer-events-none absolute bottom-3 left-1/2 -translate-x-1/2 rounded-full border border-border bg-card/90 px-3 py-1 text-xs text-muted-foreground shadow-sm">
+            Cliquez sur un bloc pour le modifier
+          </p>
+        )}
       </div>
 
-      <div className="rounded-2xl border border-border">
+      <div className={cn("rounded-2xl border border-border", fullscreen && "hidden")}>
         <button
           type="button"
           className="flex w-full items-center justify-between rounded-2xl px-4 py-3 text-left text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/55"
@@ -552,6 +614,7 @@ function NodeEditor({
   onChange,
   onSetStart,
   onRemove,
+  onClose,
 }: {
   node: FlowNode;
   nodes: FlowNode[];
@@ -560,6 +623,7 @@ function NodeEditor({
   onChange: (patch: Partial<FlowNode>) => void;
   onSetStart: () => void;
   onRemove: () => void;
+  onClose: () => void;
 }) {
   const others = nodes.filter((n) => n.id !== node.id);
   /** Blocs pas encore reliés à celui-ci. */
@@ -571,16 +635,19 @@ function NodeEditor({
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-2">
         <h2 className="text-sm font-semibold">Modifier le bloc</h2>
-        {isStart ? (
-          <span className="inline-flex items-center gap-1 text-xs font-medium text-brand">
-            <Flag className="size-3" aria-hidden /> Départ de l&apos;appel
-          </span>
-        ) : (
-          <Button variant="ghost" size="sm" onClick={onSetStart}>
-            <Flag aria-hidden /> Définir comme départ
-          </Button>
-        )}
+        <Button variant="ghost" size="icon-sm" onClick={onClose} aria-label="Fermer le volet (Échap)" title="Fermer (Échap)">
+          <X aria-hidden />
+        </Button>
       </div>
+      {isStart ? (
+        <p className="inline-flex items-center gap-1 text-xs font-medium text-brand">
+          <Flag className="size-3" aria-hidden /> Départ de l&apos;appel
+        </p>
+      ) : (
+        <Button variant="outline" size="sm" onClick={onSetStart}>
+          <Flag aria-hidden /> Définir comme départ
+        </Button>
+      )}
 
       <div className="space-y-1.5">
         <Label htmlFor={fid("type")}>Type</Label>

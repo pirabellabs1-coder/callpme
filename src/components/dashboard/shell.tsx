@@ -1,11 +1,12 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { X } from "lucide-react";
 import { Sidebar, type NavBadges, type UsageMeter } from "./sidebar";
 import { Topbar, type ServiceStatus } from "./topbar";
 import { setActiveClient } from "@/app/actions/clients";
+import { cn } from "@/lib/utils";
 
 interface ClientLite {
   id: string;
@@ -41,6 +42,29 @@ export function DashboardShell({
   children: React.ReactNode;
 }) {
   const [open, setOpen] = useState(false);
+  // Ordinateur : menu latéral repliable (mémorisé), pour libérer de la place.
+  const [collapsed, setCollapsed] = useState(false);
+  useEffect(() => {
+    try {
+      setCollapsed(localStorage.getItem("cpme_sidebar") === "collapsed");
+    } catch {
+      /* stockage indisponible : menu déplié */
+    }
+  }, []);
+  function toggleMenu() {
+    if (window.matchMedia("(min-width: 1024px)").matches) {
+      setCollapsed((c) => {
+        try {
+          localStorage.setItem("cpme_sidebar", c ? "open" : "collapsed");
+        } catch {
+          /* ignoré */
+        }
+        return !c;
+      });
+    } else {
+      setOpen(true);
+    }
+  }
   const router = useRouter();
   const [, startTransition] = useTransition();
 
@@ -75,10 +99,20 @@ export function DashboardShell({
       >
         Aller au contenu
       </a>
-      <Topbar onMenuClick={() => setOpen(true)} status={status} />
+      <Topbar
+        onMenuClick={toggleMenu}
+        status={status}
+        menuLabel={collapsed ? "Afficher le menu" : "Menu"}
+        menuExpanded={!collapsed}
+      />
 
       <div className="flex">
-        <aside className="sticky top-14 hidden h-[calc(100dvh-3.5rem)] w-60 shrink-0 overflow-y-auto border-r border-border bg-card lg:block">
+        <aside
+          className={cn(
+            "sticky top-14 hidden h-[calc(100dvh-3.5rem)] w-60 shrink-0 overflow-y-auto border-r border-border bg-card",
+            !collapsed && "lg:block",
+          )}
+        >
           <Sidebar {...sidebarProps} />
         </aside>
 
@@ -103,7 +137,7 @@ export function DashboardShell({
         )}
 
         <main id="contenu" tabIndex={-1} className="min-w-0 flex-1 px-4 py-7 outline-none sm:px-6 lg:px-10 lg:py-9">
-          <div className="mx-auto max-w-[1240px]">
+          <div className={cn("mx-auto", collapsed ? "max-w-[1600px]" : "max-w-[1240px]")}>
             {activeClientName && (
               <div className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[hsl(var(--brand)/0.35)] bg-[hsl(var(--brand)/0.08)] px-4 py-2.5">
                 <p className="inline-flex items-center gap-2 text-sm">

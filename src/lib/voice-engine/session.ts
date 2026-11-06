@@ -345,7 +345,8 @@ export class CallSession {
           callId: this.ctx.callId,
           callerNumber: this.ctx.direction === "outbound" ? this.ctx.to : this.ctx.from,
           extraInstructions: this.contactInfo ? `${VOICE_STYLE}\n\n${this.contactInfo}` : VOICE_STYLE,
-          test: this.ctx.direction === "web",
+          // Test navigateur : outils sans effet. Widget sur un site : vraie conversation.
+          test: this.ctx.direction === "web" && this.ctx.metadata?.channel !== "widget",
           // L'agent commence à parler dès sa première phrase.
           onText: (delta) => chunker.push(delta).forEach(say),
           onToolCall: (name) => {

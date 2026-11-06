@@ -168,6 +168,17 @@ export interface AgentConfig {
   analysis?: AnalysisConfig;
   /** Parcours de conversation dessiné dans le constructeur visuel. */
   flow?: ConversationFlow;
+  /** Bouton à intégrer sur le site web du client. */
+  widget?: WidgetConfig;
+}
+
+export interface WidgetConfig {
+  enabled: boolean;
+  /** Domaines où le bouton fonctionne (sous-domaines compris). */
+  allowedDomains: string[];
+  label?: string;
+  color?: string;
+  position?: "right" | "left";
 }
 
 /** Type d'un bloc du parcours. */

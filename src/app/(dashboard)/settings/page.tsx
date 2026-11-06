@@ -7,6 +7,7 @@ import {
   Lock,
   Server,
   ArrowRight,
+  Bell,
 } from "lucide-react";
 import { requireSession } from "@/lib/auth/session";
 import { getPlan } from "@/lib/billing/plans";
@@ -20,6 +21,8 @@ import {
   PasswordForm,
 } from "@/components/settings/settings-forms";
 import { TeamManager } from "@/components/settings/team-manager";
+import { AlertsForm } from "@/components/settings/alerts-form";
+import { parseAlertSettings } from "@/lib/alerts/settings";
 import { TwoFactorCard } from "@/components/settings/two-factor-card";
 
 export const metadata = { title: "Réglages" };
@@ -39,6 +42,7 @@ const SECTIONS = [
   { id: "profil", label: "Profil", icon: User },
   { id: "organisation", label: "Organisation", icon: Building2 },
   { id: "equipe", label: "Équipe", icon: Users },
+  { id: "alertes", label: "Alertes", icon: Bell },
   { id: "securite", label: "Sécurité", icon: Lock },
   { id: "services", label: "Services", icon: Server },
 ] as const;
@@ -89,6 +93,8 @@ export default async function SettingsPage() {
       select: { twoFactorEnabled: true, twoFactorBackupCodes: true },
     }),
   ]);
+  const orgRow = await prisma.organization.findUnique({ where: { id: org.id }, select: { alerts: true } });
+  const alertSettings = parseAlertSettings(orgRow?.alerts);
   let backupRemaining = 0;
   try {
     backupRemaining = me?.twoFactorBackupCodes ? (JSON.parse(me.twoFactorBackupCodes) as string[]).length : 0;
@@ -199,6 +205,19 @@ export default async function SettingsPage() {
               members={users.map((u) => ({ id: u.id, name: u.name, email: u.email, role: u.role, twoFactor: u.twoFactorEnabled }))}
               invitations={invitations.map((i) => ({ id: i.id, email: i.email, role: i.role, expiresAt: i.expiresAt.toISOString() }))}
             />
+          </Card>
+
+          {/* Alertes */}
+          <Card id="alertes" role="region" aria-labelledby="alertes-title" className="scroll-mt-6 p-5 sm:p-6">
+            <SectionHeading
+              id="alertes"
+              icon={Bell}
+              title="Alertes"
+              description="Soyez prévenu par e-mail quand vos agents reçoivent un message, un rendez-vous ou transfèrent un appel."
+            />
+            <div className="mt-5 max-w-2xl">
+              <AlertsForm initial={alertSettings} canEdit={session.user.role === "owner" || session.user.role === "admin"} />
+            </div>
           </Card>
 
           {/* Sécurité */}

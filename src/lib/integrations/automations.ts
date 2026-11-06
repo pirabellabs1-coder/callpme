@@ -7,6 +7,7 @@
 import { publicRequest } from "@/lib/net/safe-fetch";
 import { integrationCredentials } from "./credentials";
 import type { WebhookEvent } from "@/lib/webhooks/events";
+import { sendOwnerAlert } from "@/lib/alerts/alerts";
 
 /** Événements utiles au métier (les changements d'agents ne sont pas relayés). */
 const RELAYED: WebhookEvent[] = ["call.completed", "call.transferred", "lead.created", "appointment.booked", "appointment.cancelled"];
@@ -45,7 +46,8 @@ export async function notifyIntegrations(orgId: string, event: WebhookEvent, pay
     integrationCredentials(orgId, "slack").catch(() => null),
     integrationCredentials(orgId, "zapier").catch(() => null),
   ]);
-  const jobs: Promise<unknown>[] = [];
+  // Alerte e-mail au propriétaire (selon ses réglages).
+  const jobs: Promise<unknown>[] = [sendOwnerAlert(orgId, event, describeEvent(event, payload))];
   if (slack?.webhook_url && isSlackWebhook(slack.webhook_url)) {
     jobs.push(
       publicRequest(slack.webhook_url, {

@@ -25,6 +25,8 @@ model Organization {
   paidUntil      DateTime?
   /** Fin de l'essai gratuit (défaut : création + 14 jours). */
   trialEndsAt    DateTime?
+  /** Réglages des alertes au propriétaire (JSON, voir src/lib/alerts). */
+  alerts         String?
   agents         Agent[]
   users          User[]
   invitations    Invitation[]

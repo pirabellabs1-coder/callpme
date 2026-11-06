@@ -101,3 +101,20 @@ export async function changePassword(
 
   return { ok: true };
 }
+
+/** Réglages des alertes au propriétaire (e-mail). */
+export async function saveAlertSettings(input: unknown): Promise<SettingsResult> {
+  const session = await requireSession();
+  if (session.user.role !== "owner" && session.user.role !== "admin") {
+    return { error: "Seul un administrateur peut modifier les alertes." };
+  }
+  const { alertSettingsSchema } = await import("@/lib/alerts/settings");
+  const parsed = alertSettingsSchema.safeParse(input);
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Réglages invalides." };
+  await prisma.organization.update({
+    where: { id: session.org.id },
+    data: { alerts: JSON.stringify({ ...parsed.data, recipients: Array.from(new Set(parsed.data.recipients)) }) },
+  });
+  revalidatePath("/settings");
+  return { ok: true };
+}

@@ -29,7 +29,7 @@ const TOOLS: AgentToolDef[] = [
     name: "endCall",
     label: "Terminer l'appel",
     description:
-      "Termine proprement l'appel après avoir résumé ce qui a été fait. Toujours appeler en fin de conversation.",
+      "Termine l'appel. Avant de l'appeler, dis au revoir et assure-toi d'avoir communiqué à l'appelant les informations utiles (référence de rendez-vous, prochaine étape). Ne l'appelle pas dans la même réponse qu'une réservation.",
     category: "telephonie",
     icon: "PhoneOff",
     terminal: true,
@@ -125,7 +125,7 @@ const TOOLS: AgentToolDef[] = [
     name: "bookAppointment",
     label: "Prendre un rendez-vous",
     description:
-      "Réserve un créneau après accord explicite de l'appelant sur la date et l'heure. Renvoie une référence (RDV-…) à lui communiquer.",
+      "Réserve un créneau après accord explicite de l'appelant sur la date et l'heure. Renvoie une référence (RDV-…) : annonce-la toujours à l'appelant, lettre par lettre, avant de terminer l'appel.",
     category: "agenda",
     icon: "CalendarPlus",
     parameters: {

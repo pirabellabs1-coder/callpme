@@ -29,15 +29,10 @@ async function hubspot(token: string, lead: CrmLead, existingId?: string): Promi
   if (lead.phone) properties.phone = lead.phone;
   if (lead.email) properties.email = lead.email;
 
+  // Un contact existant n'est jamais modifié (l'appelant pourrait usurper une
+  // identité) : on ajoute seulement une note.
   let id = existingId ?? null;
-  if (id) {
-    await fetch(`https://api.hubapi.com/crm/v3/objects/contacts/${id}`, {
-      method: "PATCH",
-      headers,
-      body: JSON.stringify({ properties }),
-      signal: AbortSignal.timeout(8000),
-    });
-  } else {
+  if (!id) {
     const res = await fetch("https://api.hubapi.com/crm/v3/objects/contacts", {
       method: "POST",
       headers,

@@ -17,7 +17,7 @@ export async function POST(_req: NextRequest, { params }: { params: { id: string
     });
     if (!appt) return notFound("Rendez-vous introuvable");
     if (appt.status !== "booked") return badRequest("Ce rendez-vous est déjà annulé.");
-    const r = await cancelAppointment(session.org.id, { reference: appt.reference }, { test: appt.isTest });
+    const r = await cancelAppointment(session.org.id, { reference: appt.reference }, { test: appt.isTest, trusted: true });
     return r.ok ? ok({ success: true }) : badRequest(r.message);
   } catch {
     return serverError("Impossible d'annuler le rendez-vous");

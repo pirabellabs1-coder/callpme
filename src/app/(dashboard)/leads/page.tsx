@@ -22,13 +22,10 @@ const KINDS = [
 
 const KIND_LABEL: Record<string, string> = { lead: "Prospect", message: "Message", callback: "Rappel", ticket: "Ticket" };
 
-const dateFmt = new Intl.DateTimeFormat("fr-FR", {
-  timeZone: "Europe/Paris",
-  day: "numeric",
-  month: "short",
-  hour: "2-digit",
-  minute: "2-digit",
-});
+const dateLabel = (iso: string, tz: string) =>
+  new Intl.DateTimeFormat("fr-FR", { timeZone: tz, day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }).format(
+    new Date(iso),
+  );
 
 function scoreVariant(score: number): "success" | "warning" | "muted" {
   return score >= 70 ? "success" : score >= 40 ? "warning" : "muted";
@@ -123,12 +120,12 @@ export default async function LeadsPage({ searchParams }: { searchParams: { kind
                   </td>
                   <td className="max-w-md px-4 py-3 text-muted-foreground">
                     {l.callbackAt && (
-                      <p className="font-medium text-foreground">Rappeler le {dateFmt.format(new Date(l.callbackAt))}</p>
+                      <p className="font-medium text-foreground">Rappeler le {dateLabel(l.callbackAt, l.timezone)}</p>
                     )}
                     <p className="line-clamp-3 whitespace-pre-line">{l.notes || "—"}</p>
                   </td>
                   <td className="whitespace-nowrap px-4 py-3 text-muted-foreground">
-                    {dateFmt.format(new Date(l.createdAt))}
+                    {dateLabel(l.createdAt, l.timezone)}
                     {l.agentName && <span className="block text-xs">{l.agentName}</span>}
                   </td>
                   <td className="px-4 py-3">

@@ -1,5 +1,14 @@
 /** Dépôt « Rendez-vous » et « Prospects » (lecture pour le tableau de bord et l'API). */
 import { prisma } from "./client";
+import { bookingConfig } from "../agenda/slots";
+
+function agentTimezone(config: string | null | undefined): string {
+  try {
+    return bookingConfig(JSON.parse(config ?? "{}").booking).timezone;
+  } catch {
+    return bookingConfig().timezone;
+  }
+}
 
 export interface AppointmentRow {
   id: string;
@@ -16,6 +25,8 @@ export interface AppointmentRow {
   agentId: string | null;
   agentName: string | null;
   synced: boolean;
+  /** Fuseau de l'agenda de l'agent (affichage à l'heure locale du rendez-vous). */
+  timezone: string;
 }
 
 export async function listAppointments(
@@ -32,7 +43,7 @@ export async function listAppointments(
     },
     orderBy: { startsAt: past ? "desc" : "asc" },
     take: Math.min(opts.limit ?? 200, 500),
-    include: { agent: { select: { name: true } } },
+    include: { agent: { select: { name: true, config: true } } },
   });
   return rows.map((r) => ({
     id: r.id,
@@ -49,6 +60,7 @@ export async function listAppointments(
     agentId: r.agentId,
     agentName: r.agent?.name ?? null,
     synced: Boolean(r.googleEventId),
+    timezone: agentTimezone(r.agent?.config),
   }));
 }
 
@@ -67,6 +79,7 @@ export interface LeadRow {
   agentName: string | null;
   createdAt: string;
   crm: string[];
+  timezone: string;
 }
 
 export const LEAD_STATUSES = ["new", "contacted", "qualified", "won", "lost"] as const;
@@ -85,7 +98,7 @@ export async function listLeads(
     },
     orderBy: { createdAt: "desc" },
     take: Math.min(opts.limit ?? 300, 1000),
-    include: { agent: { select: { name: true } } },
+    include: { agent: { select: { name: true, config: true } } },
   });
   return rows.map((r) => {
     let crm: string[] = [];
@@ -109,6 +122,7 @@ export async function listLeads(
       agentName: r.agent?.name ?? null,
       createdAt: r.createdAt.toISOString(),
       crm,
+      timezone: agentTimezone(r.agent?.config),
     };
   });
 }

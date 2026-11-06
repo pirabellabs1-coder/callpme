@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession, isOrgAdmin } from "@/lib/auth/session";
 import { connectIntegration } from "@/lib/db/integrations";
-import { exchangeCode, verifyOAuthState } from "@/lib/integrations/google-calendar";
+import { exchangeCode, forgetGoogleToken, verifyOAuthState } from "@/lib/integrations/google-calendar";
 
 export const dynamic = "force-dynamic";
 
@@ -24,6 +24,7 @@ export async function GET(req: NextRequest) {
       accountName: tokens.email,
       credentials: { refresh_token: tokens.refreshToken, calendar_id: "primary" },
     });
+    forgetGoogleToken(session.org.id);
     const ok = NextResponse.redirect(`${base}/integrations?connected=google_calendar`);
     ok.cookies.delete("gcal_nonce");
     return ok;

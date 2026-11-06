@@ -24,6 +24,10 @@ const BLOCKED_PREFIXES = [
   "3336", // France : 3xxx courts surtaxés (forme internationale)
   "1900", // Amérique du Nord : surtaxés
   "1976",
+  // Indicatif +1 hors États-Unis / Canada (Caraïbes, Pacifique) : tarifs élevés,
+  // cibles classiques de fraude (IRSF, « SMS pumping »).
+  ...["242", "246", "264", "268", "284", "340", "345", "441", "473", "649", "658", "664", "670", "671", "684",
+    "721", "758", "767", "784", "787", "809", "829", "849", "868", "869", "876", "939"].map((c) => `1${c}`),
 ];
 
 export interface DestinationCheck {

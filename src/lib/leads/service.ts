@@ -72,8 +72,9 @@ export async function recordLead(input: LeadInput) {
     ? await prisma.lead.update({
         where: { id: existing.id },
         data: {
-          ...(input.name ? { name: data.name } : {}),
-          ...(data.email ? { email: data.email } : {}),
+          // Une fiche existante n'est jamais écrasée : on complète seulement les vides.
+          ...(input.name && existing.name === "Appelant" ? { name: data.name } : {}),
+          ...(data.email && !existing.email ? { email: data.email } : {}),
           ...(data.notes ? { notes: [existing.notes, data.notes].filter(Boolean).join("\n").slice(-4000) } : {}),
           ...(data.score != null ? { score: data.score } : {}),
           ...(data.interest ? { interest: data.interest } : {}),

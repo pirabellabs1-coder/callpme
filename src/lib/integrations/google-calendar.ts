@@ -158,3 +158,21 @@ export async function deleteGoogleEvent(orgId: string, eventId: string): Promise
     { method: "DELETE", headers: { Authorization: `Bearer ${auth.token}` }, signal: AbortSignal.timeout(8000) },
   ).catch(() => {});
 }
+
+/** Déconnexion : révoque le jeton chez Google et vide le cache local. */
+export async function revokeGoogleCalendar(orgId: string): Promise<void> {
+  accessCache.delete(orgId);
+  const creds = await integrationCredentials(orgId, "google_calendar").catch(() => null);
+  if (!creds?.refresh_token) return;
+  await fetch("https://oauth2.googleapis.com/revoke", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({ token: creds.refresh_token }),
+    signal: AbortSignal.timeout(8000),
+  }).catch(() => {});
+}
+
+/** Oublie le jeton d'accès en cache (reconnexion à un autre compte). */
+export function forgetGoogleToken(orgId: string): void {
+  accessCache.delete(orgId);
+}

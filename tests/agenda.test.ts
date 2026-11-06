@@ -70,3 +70,33 @@ describe("qualification des prospects", () => {
     expect(scoreLead({ need: "renseignement" })).toBe(40);
   });
 });
+
+import { bookingSchema } from "@/lib/validation/agent";
+import { DEFAULT_BOOKING } from "@/lib/agenda/slots";
+import { containsLink } from "@/lib/security/daily-quota";
+import { checkDestination } from "@/lib/telephony/destinations";
+
+describe("réglages d'agenda (validation)", () => {
+  it("accepte les réglages par défaut et des jours fermés", () => {
+    expect(bookingSchema.safeParse(DEFAULT_BOOKING).success).toBe(true);
+    const closedWednesday = { ...DEFAULT_BOOKING, hours: { ...DEFAULT_BOOKING.hours } };
+    delete closedWednesday.hours["3"];
+    expect(bookingSchema.safeParse(closedWednesday).success).toBe(true);
+  });
+  it("refuse une plage inversée ou un fuseau inconnu", () => {
+    expect(bookingSchema.safeParse({ ...DEFAULT_BOOKING, hours: { "1": [["18:00", "09:00"]] } }).success).toBe(false);
+    expect(bookingSchema.safeParse({ ...DEFAULT_BOOKING, timezone: "Mars/Olympus" }).success).toBe(false);
+  });
+});
+
+describe("garde-fous des actions", () => {
+  it("détecte les liens dans un SMS ou un e-mail dicté", () => {
+    expect(containsLink("Payez sur http://exemple.test")).toBe(true);
+    expect(containsLink("rendez-vous sur paiement-rapide.com")).toBe(true);
+    expect(containsLink("Votre rendez-vous est mardi à 10 h, référence RDV-2K9PQ.")).toBe(false);
+  });
+  it("bloque les indicatifs +1 des Caraïbes mais garde les États-Unis et le Canada", () => {
+    expect(checkDestination("+1 876 555 0101").ok).toBe(false);
+    expect(checkDestination("+1 514 555 0101").ok).toBe(true);
+  });
+});

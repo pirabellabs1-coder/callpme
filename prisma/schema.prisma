@@ -441,3 +441,15 @@ model Lead {
   @@index([organizationId, createdAt])
   @@index([organizationId, phone])
 }
+
+// ----- Compteurs quotidiens anti-abus (SMS, e-mails envoyés par les agents) -----
+model DailyCounter {
+  id             String   @id @default(cuid())
+  organizationId String
+  day            String // AAAA-MM-JJ (UTC)
+  kind           String // sms | email
+  count          Int      @default(0)
+  updatedAt      DateTime @updatedAt
+
+  @@unique([organizationId, day, kind])
+}

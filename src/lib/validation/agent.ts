@@ -37,7 +37,7 @@ export const bookingSchema = z.object({
       }
     }, "Fuseau horaire inconnu"),
   durationMin: z.number().int().min(5).max(480),
-  hours: z.record(
+  hours: z.partialRecord(
     z.enum(["0", "1", "2", "3", "4", "5", "6"]),
     z.array(z.tuple([hm, hm]).refine(([a, b]) => a < b, "Plage horaire invalide")).max(4),
   ),

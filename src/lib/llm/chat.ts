@@ -118,11 +118,20 @@ export async function generateReply(opts: {
       if (provider === "anthropic")
         return await anthropic(eff, messages, tools, executeTool);
     } catch {
-      /* clé/modèle invalide ou réseau : repli sur le moteur intégré */
+      // Fournisseur en panne pendant une vraie conversation : on ne simule
+      // aucune action (réservation, annulation…) et on reste honnête.
+      return { text: PROVIDER_DOWN_REPLY, toolCalls: [] };
     }
   }
+  // Aucun fournisseur configuré : moteur de démonstration intégré.
   return localFlow(role, messages, tools, executeTool);
 }
+
+export const PROVIDER_DOWN_REPLY =
+  "Je rencontre un souci technique et je ne peux pas traiter votre demande tout de suite. Pouvez-vous répéter dans un instant, ou préférez-vous que l'équipe vous rappelle ?";
+
+/** Outils que le moteur de démonstration peut déclencher : enregistrements seulement, jamais d'action engageante. */
+const DEMO_SAFE_TOOLS = new Set(["takeMessage", "saveToCRM", "scoreLead", "markInterested", "createTicket", "logCall", "recordAnswer"]);
 
 /* ----------------------------- Providers REST ---------------------------- */
 
@@ -277,11 +286,13 @@ async function localFlow(
     messages,
     tools.map((t) => t.name),
   );
-  if (!pick) return { text: base, toolCalls: [] };
+  if (!pick || !DEMO_SAFE_TOOLS.has(pick.name)) return { text: base, toolCalls: [] };
 
   const r = await executeTool(pick.name, pick.args);
+  const failed = (r.data as { ok?: boolean } | undefined)?.ok === false;
   return {
-    text: pick.reply ?? base,
+    // La réplique dépend du résultat réel de l'outil.
+    text: failed ? "Je n'ai pas pu l'enregistrer, je transmets votre demande à l'équipe." : (pick.reply ?? base),
     toolCalls: [{ name: pick.name, arguments: pick.args, message: r.message }],
   };
 }

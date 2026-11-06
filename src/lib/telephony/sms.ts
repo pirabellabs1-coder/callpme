@@ -9,6 +9,7 @@
 import { checkDestination } from "./destinations";
 import { toE164 } from "./e164";
 import { telephonyProvider } from "./provider";
+import { takeDailyQuota } from "../security/daily-quota";
 
 const MAX_PER_CALL = 3;
 const sentPerCall = new Map<string, number>();
@@ -25,7 +26,11 @@ export interface SmsResult {
   error?: string;
 }
 
-export async function sendSms(rawTo: string, text: string, opts: { callId?: string } = {}): Promise<SmsResult> {
+export async function sendSms(
+  rawTo: string,
+  text: string,
+  opts: { callId?: string; organizationId?: string } = {},
+): Promise<SmsResult> {
   const provider = telephonyProvider();
   if (!provider || !smsConfigured()) return { ok: false, error: "SMS non configurés." };
   const to = toE164(rawTo);
@@ -37,6 +42,9 @@ export async function sendSms(rawTo: string, text: string, opts: { callId?: stri
     if (n >= MAX_PER_CALL) return { ok: false, error: "Limite de SMS atteinte pour cet appel." };
     sentPerCall.set(opts.callId, n + 1);
     if (sentPerCall.size > 5000) sentPerCall.clear();
+  }
+  if (opts.organizationId && !(await takeDailyQuota(opts.organizationId, "sms"))) {
+    return { ok: false, error: "Plafond quotidien de SMS atteint." };
   }
   const body = text.slice(0, 480);
 

@@ -108,7 +108,8 @@ export async function prepareTurn(ctx: BrainContext, history: Turn[]): Promise<P
     if (builtin) {
       return {
         message: builtin.message ?? (builtin.ok ? "Outil exécuté." : "Échec de l'outil."),
-        data: { ok: builtin.ok, ...builtin.data },
+        // Le message (raison d'un échec, consigne) doit parvenir au LLM.
+        data: { ok: builtin.ok, message: builtin.message, ...builtin.data },
       };
     }
     const custom = customByName.get(name);

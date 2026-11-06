@@ -138,6 +138,7 @@ const TOOLS: AgentToolDef[] = [
       type: "object",
       properties: {
         reference: { type: "string", description: "Référence du rendez-vous (RDV-XXXXX)." },
+        name: { type: "string", description: "Nom sous lequel le rendez-vous a été pris (demande-le si tu as une référence)." },
       },
       required: [],
     },

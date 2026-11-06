@@ -13,9 +13,10 @@ import { cn } from "@/lib/utils";
 export const metadata = { title: "Rendez-vous" };
 export const dynamic = "force-dynamic";
 
-const TZ = "Europe/Paris";
-const dayFmt = new Intl.DateTimeFormat("fr-FR", { timeZone: TZ, weekday: "long", day: "numeric", month: "long" });
-const timeFmt = new Intl.DateTimeFormat("fr-FR", { timeZone: TZ, hour: "2-digit", minute: "2-digit" });
+const dayLabel = (iso: string, tz: string) =>
+  new Intl.DateTimeFormat("fr-FR", { timeZone: tz, weekday: "long", day: "numeric", month: "long" }).format(new Date(iso));
+const timeLabel = (iso: string, tz: string) =>
+  new Intl.DateTimeFormat("fr-FR", { timeZone: tz, hour: "2-digit", minute: "2-digit" }).format(new Date(iso));
 
 export default async function AppointmentsPage({
   searchParams,
@@ -34,7 +35,7 @@ export default async function AppointmentsPage({
   // Regroupement par jour (dans l'ordre déjà trié).
   const days: { label: string; items: typeof rows }[] = [];
   for (const r of rows) {
-    const label = dayFmt.format(new Date(r.startsAt));
+    const label = dayLabel(r.startsAt, r.timezone);
     const last = days[days.length - 1];
     if (last?.label === label) last.items.push(r);
     else days.push({ label, items: [r] });
@@ -100,8 +101,11 @@ export default async function AppointmentsPage({
                 {d.items.map((a) => (
                   <div key={a.id} className="flex flex-wrap items-center gap-x-4 gap-y-2 p-4">
                     <div className="w-16 shrink-0 font-mono text-sm tabular-nums text-foreground">
-                      {timeFmt.format(new Date(a.startsAt))}
+                      {timeLabel(a.startsAt, a.timezone)}
                       <span className="block text-xs text-muted-foreground">{a.durationMin} min</span>
+                      {a.timezone !== "Europe/Paris" && (
+                        <span className="block text-[0.7rem] text-muted-foreground">{a.timezone.split("/")[1]?.replace("_", " ")}</span>
+                      )}
                     </div>
                     <div className="min-w-0 flex-1">
                       <p className={cn("font-medium", a.status === "cancelled" && "text-muted-foreground line-through")}>

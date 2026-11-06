@@ -17,6 +17,7 @@ import { recordLead, scoreLead } from "../leads/service";
 import { sendSms } from "../telephony/sms";
 import { sendEmail } from "../email/resend";
 import { prisma } from "../db/client";
+import { containsLink, takeDailyQuota } from "../security/daily-quota";
 import type { ToolContext, ToolResult } from "../shared/types";
 
 type Handler = (args: Record<string, unknown>, ctx: ToolContext) => Promise<ToolResult>;
@@ -80,8 +81,11 @@ const HANDLERS: Record<string, Handler> = {
     const to = callerPhone(ctx);
     if (!text) return { ok: false, message: "Texte du SMS manquant." };
     if (!to) return { ok: false, message: "Numéro de l'appelant inconnu : SMS impossible." };
+    // Anti-hameçonnage : jamais de lien dicté pendant l'appel.
+    if (containsLink(text)) return { ok: false, message: "Les SMS ne peuvent pas contenir de lien ni d'adresse web." };
     if (ctx.test) return { ok: true, message: "SMS simulé (conversation de test) : rien n'a été envoyé.", data: { test: true } };
-    const r = await sendSms(to, text, { callId: ctx.callId });
+    const org = await prisma.organization.findUnique({ where: { id: ctx.organizationId }, select: { name: true } });
+    const r = await sendSms(to, `${org?.name ?? "Message"} : ${text}`, { callId: ctx.callId, organizationId: ctx.organizationId });
     return r.ok ? { ok: true, message: "SMS envoyé." } : { ok: false, message: `SMS non envoyé : ${r.error}` };
   },
 
@@ -103,7 +107,7 @@ const HANDLERS: Record<string, Handler> = {
         organizationId: ctx.organizationId,
         agentId: ctx.agentId,
         name: str(args.name, 120),
-        phone: str(args.phone, 40) ?? callerPhone(ctx),
+        phone: callerPhone(ctx),
         email: str(args.email, 200),
         notes: `Rendez-vous ${r.reference}${str(args.notes) ? ` — ${str(args.notes)}` : ""}`,
         callRef: ctx.callId,
@@ -118,7 +122,11 @@ const HANDLERS: Record<string, Handler> = {
   },
 
   cancelAppointment: async (args, ctx) => {
-    const r = await cancelAppointment(ctx.organizationId, { reference: args.reference }, { callerNumber: callerPhone(ctx), test: ctx.test });
+    const r = await cancelAppointment(
+      ctx.organizationId,
+      { reference: args.reference, name: args.name },
+      { callerNumber: callerPhone(ctx), test: ctx.test, callRef: ctx.callId },
+    );
     return { ok: r.ok, message: r.message, data: { reference: r.reference } };
   },
 
@@ -128,9 +136,12 @@ const HANDLERS: Record<string, Handler> = {
       organizationId: ctx.organizationId,
       agentId: ctx.agentId,
       name: str(args.name, 120),
-      phone: str(args.phone, 40) ?? callerPhone(ctx),
+      // Fiche rattachée au numéro réel de l'appelant ; un autre numéro dicté va en note.
+      phone: callerPhone(ctx) ?? str(args.phone, 40),
       email: str(args.email, 200),
-      notes: str(args.notes, 2000),
+      notes: [str(args.notes, 2000), callerPhone(ctx) && str(args.phone, 40) ? `Autre numéro donné : ${str(args.phone, 40)}` : null]
+        .filter(Boolean)
+        .join(" — ") || null,
       callRef: ctx.callId,
       test: ctx.test,
     });
@@ -203,7 +214,7 @@ const HANDLERS: Record<string, Handler> = {
   createTicket: async (args, ctx) => {
     const subject = str(args.subject, 200);
     if (!subject) return { ok: false, message: "Objet du ticket manquant." };
-    const priority = str(args.priority, 20) ?? "normale";
+    const priority = (["basse", "normale", "haute", "urgente"] as const).find((p) => p === args.priority) ?? "normale";
     const lead = await recordLead({
       organizationId: ctx.organizationId,
       agentId: ctx.agentId,
@@ -223,17 +234,24 @@ const HANDLERS: Record<string, Handler> = {
     const summary = str(args.summary, 2000);
     if (!to || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to)) return { ok: false, message: "Adresse e-mail invalide : fais-la épeler." };
     if (!summary) return { ok: false, message: "Récapitulatif manquant." };
+    if (containsLink(summary)) return { ok: false, message: "Le récapitulatif ne peut pas contenir de lien ni d'adresse web." };
     if (ctx.test) return { ok: true, message: `E-mail simulé (conversation de test) vers ${to} : rien n'a été envoyé.` };
     if (emailsSent.has(ctx.callId)) return { ok: false, message: "Un e-mail a déjà été envoyé pendant cet appel." };
     emailsSent.add(ctx.callId);
     if (emailsSent.size > 5000) emailsSent.clear();
+    if (!(await takeDailyQuota(ctx.organizationId, "email"))) {
+      return { ok: false, message: "Plafond quotidien d'e-mails atteint : propose de prendre un message." };
+    }
     const org = await prisma.organization.findUnique({ where: { id: ctx.organizationId }, select: { name: true } });
     const from = org?.name ?? "Votre interlocuteur";
+    const notice = `Vous recevez cet e-mail à la suite de votre appel avec l'assistant de ${from}. Si vous n'êtes pas à l'origine de cet appel, ignorez ce message.`;
     const r = await sendEmail({
       to,
       subject: `${from} — récapitulatif de votre appel`,
-      html: `<p>Bonjour,</p><p>${escapeHtml(summary).replace(/\n/g, "<br>")}</p><p>${escapeHtml(from)}</p>`,
-      text: `Bonjour,\n\n${summary}\n\n${from}`,
+      html:
+        `<p>Bonjour,</p><p>${escapeHtml(summary).replace(/\n/g, "<br>")}</p><p>${escapeHtml(from)}</p>` +
+        `<p style="color:#888;font-size:12px">${escapeHtml(notice)}</p>`,
+      text: `Bonjour,\n\n${summary}\n\n${from}\n\n${notice}`,
     });
     return r.ok ? { ok: true, message: `E-mail envoyé à ${to}.` } : { ok: false, message: "E-mail non envoyé (service indisponible)." };
   },

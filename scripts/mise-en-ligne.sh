@@ -8,7 +8,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-PROD_URL="${PROD_URL:-https://callpme-bikecareers1-5763s-projects.vercel.app}"
+PROD_URL="${PROD_URL:-https://callpme-eight.vercel.app}"
 
 val() { grep "^$1=" "$2" 2>/dev/null | head -1 | cut -d= -f2- | sed 's/^"//; s/"$//' || true; }
 

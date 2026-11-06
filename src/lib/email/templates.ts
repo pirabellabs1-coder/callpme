@@ -169,7 +169,7 @@ export function invitationEmail(opts: { inviterName: string; orgName: string; ro
   const inviterName = opts.inviterName.slice(0, 80);
   const inviter = escapeHtml(inviterName || "Un membre de l'équipe");
   const org = escapeHtml(opts.orgName);
-  const role = opts.role === "admin" ? "administrateur" : "membre";
+  const role = opts.role === "admin" ? "administrateur" : opts.role === "client" ? "client (espace de suivi de vos appels)" : "membre";
   const html = emailLayout({
     preheader: `${inviterName || "Votre équipe"} vous invite sur Callpme.`,
     heading: `Rejoignez ${org} sur Callpme`,

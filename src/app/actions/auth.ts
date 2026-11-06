@@ -9,7 +9,9 @@ import { hashPassword, verifyPassword } from "@/lib/auth/password";
 import {
   createSession,
   setSessionCookie,
+  setClientCookie,
   destroySession,
+  destroyClientSession,
 } from "@/lib/auth/session";
 import { isPlanId } from "@/lib/billing/plans";
 import { sendEmail } from "@/lib/email/resend";
@@ -63,6 +65,11 @@ export async function login(formData: FormData): Promise<AuthResult> {
     return { twoFactor: true };
   }
   const token = await createSession(user.id);
+  // Accès client d'une agence : cookie du portail, jamais celui du tableau de bord.
+  if (user.clientId) {
+    setClientCookie(token);
+    return { ok: true, next: "/espace" };
+  }
   setSessionCookie(token);
   return { ok: true };
 }
@@ -82,6 +89,11 @@ export async function verifyLoginCode(formData: FormData): Promise<AuthResult> {
   if (!method) return { error: "Code incorrect ou déjà utilisé." };
   cookies().delete(CHALLENGE_COOKIE);
   const token = await createSession(userId);
+  const u = await prisma.user.findUnique({ where: { id: userId }, select: { clientId: true } });
+  if (u?.clientId) {
+    setClientCookie(token);
+    return { ok: true, next: "/espace" };
+  }
   setSessionCookie(token);
   return { ok: true };
 }
@@ -200,4 +212,10 @@ export async function resetPassword(formData: FormData): Promise<AuthResult> {
     return { error: "Réinitialisation impossible." };
   }
   return { ok: true };
+}
+
+/** Déconnexion du portail client. */
+export async function clientLogout(): Promise<void> {
+  await destroyClientSession();
+  redirect("/login");
 }

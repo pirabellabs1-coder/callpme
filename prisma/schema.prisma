@@ -31,6 +31,11 @@ model Organization {
   country        String               @default("FR")
   /** Minutes rechargées (Mobile Money), utilisées après celles de l'offre. */
   extraMinutes   Int                  @default(0)
+  /** Marque blanche (agence) : nom et logo affichés sur le portail des clients. */
+  brandName      String?
+  brandLogoUrl   String?
+  /** Domaine personnalisé du portail (ex. espace.monagence.bj). */
+  customDomain   String?              @unique
   agents         Agent[]
   users          User[]
   invitations    Invitation[]
@@ -63,6 +68,9 @@ model User {
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   role           String       @default("member") // owner | admin | member
   isAdmin        Boolean      @default(false) // super-admin plateforme
+  /** Accès client d'une agence : ne voit que l'espace de ce client (portail). */
+  clientId       String?
+  client         Client?      @relation(fields: [clientId], references: [id], onDelete: Cascade)
   sessions       Session[]
   createdAt      DateTime     @default(now())
   // Double authentification (TOTP) : secret chiffré (AES-GCM), codes de secours hachés (JSON).
@@ -84,7 +92,9 @@ model Invitation {
   organizationId String
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   email          String
-  role           String       @default("member") // admin | member
+  role           String       @default("member") // admin | member | client
+  /** Invitation au portail d'un client de l'agence. */
+  clientId       String?
   /** Empreinte SHA-256 du jeton envoyé par e-mail (le jeton n'est jamais stocké). */
   tokenHash      String       @unique
   invitedById    String?
@@ -258,6 +268,7 @@ model Client {
   logoUrl        String?
   contactEmail   String?
   agents         Agent[]
+  users          User[]
   createdAt      DateTime     @default(now())
 
   @@index([organizationId])

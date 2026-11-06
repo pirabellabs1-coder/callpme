@@ -59,11 +59,65 @@ export const getSession = cache(async (): Promise<SessionContext | null> => {
   if (!session || session.expiresAt < new Date()) return null;
 
   const u = session.user;
+  // Un accès client (portail d'agence) n'ouvre jamais le tableau de bord de l'agence.
+  if (u.clientId) return null;
   return {
     user: { id: u.id, email: u.email, name: u.name, role: u.role, isAdmin: u.isAdmin },
     org: { id: u.organization.id, name: u.organization.name, plan: u.organization.plan },
   };
 });
+
+/* ------------------------- Portail des clients d'agence ------------------------- */
+
+/** Cookie distinct : les routes du tableau de bord ne le lisent jamais. */
+export const CLIENT_COOKIE = "cpme_client";
+
+export interface ClientSessionContext {
+  user: { id: string; email: string; name: string | null };
+  client: { id: string; name: string; brandColor: string | null; logoUrl: string | null };
+  org: { id: string; name: string; brandName: string | null; brandLogoUrl: string | null };
+}
+
+export function setClientCookie(token: string) {
+  cookies().set(CLIENT_COOKIE, token, {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
+    path: "/",
+    maxAge: MAX_AGE_SECONDS,
+  });
+}
+
+/** Session d'un accès client (portail /espace). */
+export const getClientSession = cache(async (): Promise<ClientSessionContext | null> => {
+  const token = cookies().get(CLIENT_COOKIE)?.value;
+  if (!token) return null;
+  const session = await prisma.session.findUnique({
+    where: { token },
+    include: { user: { include: { organization: true, client: true } } },
+  });
+  if (!session || session.expiresAt < new Date()) return null;
+  const u = session.user;
+  if (!u.clientId || !u.client || u.client.organizationId !== u.organizationId) return null;
+  return {
+    user: { id: u.id, email: u.email, name: u.name },
+    client: { id: u.client.id, name: u.client.name, brandColor: u.client.brandColor, logoUrl: u.client.logoUrl },
+    org: { id: u.organization.id, name: u.organization.name, brandName: u.organization.brandName, brandLogoUrl: u.organization.brandLogoUrl },
+  };
+});
+
+export async function requireClientSession(): Promise<ClientSessionContext> {
+  const s = await getClientSession();
+  if (!s) redirect("/login");
+  return s;
+}
+
+/** Ferme la session du portail client. */
+export async function destroyClientSession() {
+  const token = cookies().get(CLIENT_COOKIE)?.value;
+  if (token) await prisma.session.deleteMany({ where: { token } });
+  cookies().delete(CLIENT_COOKIE);
+}
 
 /** Garde-fou : renvoie la session ou redirige vers /login. */
 export async function requireSession(): Promise<SessionContext> {

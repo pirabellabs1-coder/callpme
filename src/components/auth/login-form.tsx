@@ -56,7 +56,7 @@ export function LoginForm() {
         setPassword("");
         return;
       }
-      router.push("/overview");
+      router.push(res?.next ?? "/overview");
       router.refresh();
     });
   }
@@ -76,7 +76,7 @@ export function LoginForm() {
         }
         return;
       }
-      router.push("/overview");
+      router.push(res?.next ?? "/overview");
       router.refresh();
     });
   }

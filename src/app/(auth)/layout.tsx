@@ -1,12 +1,33 @@
 import Link from "next/link";
+import { headers } from "next/headers";
+import { prisma } from "@/lib/db/client";
 import { Check } from "lucide-react";
 import { Logo } from "@/components/brand/logo";
 
-export default function AuthLayout({
+export default async function AuthLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  // Portail d'une agence sur son propre domaine : sa marque, pas celle de la plateforme.
+  const host = (headers().get("host") ?? "").split(":")[0].toLowerCase();
+  const agency = host
+    ? await prisma.organization.findUnique({ where: { customDomain: host }, select: { brandName: true, brandLogoUrl: true, name: true } }).catch(() => null)
+    : null;
+  if (agency) {
+    const name = agency.brandName || agency.name;
+    return (
+      <div className="flex min-h-screen flex-col items-center justify-center bg-background px-6 py-10">
+        {agency.brandLogoUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={agency.brandLogoUrl} alt={name} className="mb-8 h-10 w-auto max-w-[200px] object-contain" />
+        ) : (
+          <p className="mb-8 text-xl font-semibold tracking-tight">{name}</p>
+        )}
+        <div className="w-full max-w-sm">{children}</div>
+      </div>
+    );
+  }
   return (
     <div className="grid min-h-screen lg:grid-cols-2">
       {/* Colonne formulaire */}

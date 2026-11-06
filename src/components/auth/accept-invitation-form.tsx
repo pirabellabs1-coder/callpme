@@ -46,7 +46,7 @@ export function AcceptInvitationForm({
               setError(r.error);
               return;
             }
-            router.push("/overview");
+            router.push(r.next ?? "/overview");
             router.refresh();
           });
         }}

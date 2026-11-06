@@ -3,7 +3,7 @@ import { CHALLENGE_COOKIE, challengeCookieOptions, makeChallenge } from "@/lib/a
 import { randomBytes } from "crypto";
 import { prisma } from "@/lib/db/client";
 import { hashPassword } from "@/lib/auth/password";
-import { createSession, SESSION_COOKIE } from "@/lib/auth/session";
+import { CLIENT_COOKIE, createSession, SESSION_COOKIE } from "@/lib/auth/session";
 
 export const dynamic = "force-dynamic";
 
@@ -75,8 +75,20 @@ export async function GET(req: NextRequest) {
       return res;
     }
 
-    // 5) Session
+    // 5) Session (accès client d'agence : portail uniquement)
     const token = await createSession(user.id);
+    if (user.clientId) {
+      const res = NextResponse.redirect(`${base}/espace`);
+      res.cookies.set(CLIENT_COOKIE, token, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "lax",
+        path: "/",
+        maxAge: MAX_AGE,
+      });
+      res.cookies.delete("g_state");
+      return res;
+    }
     const res = NextResponse.redirect(`${base}/overview`);
     res.cookies.set(SESSION_COOKIE, token, {
       httpOnly: true,

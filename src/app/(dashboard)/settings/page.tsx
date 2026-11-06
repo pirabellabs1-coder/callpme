@@ -79,12 +79,13 @@ export default async function SettingsPage() {
 
   const [users, invitations, me] = await Promise.all([
     prisma.user.findMany({
-      where: { organizationId: org.id },
+      // Les accès clients (portail) se gèrent depuis la page Clients.
+      where: { organizationId: org.id, clientId: null },
       orderBy: { createdAt: "asc" },
       select: { id: true, name: true, email: true, role: true, twoFactorEnabled: true },
     }),
     prisma.invitation.findMany({
-      where: { organizationId: org.id, acceptedAt: null, expiresAt: { gt: new Date() } },
+      where: { organizationId: org.id, clientId: null, acceptedAt: null, expiresAt: { gt: new Date() } },
       orderBy: { createdAt: "desc" },
       select: { id: true, email: true, role: true, expiresAt: true },
     }),

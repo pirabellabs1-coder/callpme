@@ -26,7 +26,7 @@ export default async function InvitationPage({ params }: { params: { token: stri
       token={params.token}
       email={inv.email}
       orgName={inv.organization.name}
-      role={inv.role === "admin" ? "administrateur" : "membre"}
+      role={inv.clientId ? "client (accès à votre espace de suivi)" : inv.role === "admin" ? "administrateur" : "membre"}
     />
   );
 }

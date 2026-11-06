@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { prisma } from "@/lib/db/client";
-import { createSession, destroySession, isOrgAdmin, requireSession, setSessionCookie } from "@/lib/auth/session";
+import { createSession, destroySession, setClientCookie, isOrgAdmin, requireSession, setSessionCookie } from "@/lib/auth/session";
 import { hashPassword } from "@/lib/auth/password";
 import { clientIp, isRateLimited } from "@/lib/security/rate-limit";
 import { takeDailyQuota } from "@/lib/security/daily-quota";
@@ -14,6 +14,8 @@ import { canGrant, canManage, findPendingInvitation, INVITE_TTL_MS, newInviteTok
 export interface TeamResult {
   ok?: boolean;
   error?: string;
+  /** Page où envoyer la personne après l'acceptation. */
+  next?: string;
   /** Lien d'invitation (à copier si l'e-mail n'arrive pas). */
   link?: string;
   emailSent?: boolean;
@@ -144,8 +146,20 @@ export async function acceptInvitation(formData: FormData): Promise<TeamResult> 
         data: { acceptedAt: new Date() },
       });
       if (claimed.count !== 1) throw new Error("used");
+      // Accès client : rattaché au client (portail), jamais membre de l'agence.
+      if (inv.clientId) {
+        const client = await tx.client.findFirst({ where: { id: inv.clientId, organizationId: inv.organizationId }, select: { id: true } });
+        if (!client) throw new Error("client");
+      }
       const user = await tx.user.create({
-        data: { email: inv.email, name: parsed.data.name, passwordHash, role: inv.role, organizationId: inv.organizationId },
+        data: {
+          email: inv.email,
+          name: parsed.data.name,
+          passwordHash,
+          role: inv.clientId ? "client" : inv.role,
+          clientId: inv.clientId ?? null,
+          organizationId: inv.organizationId,
+        },
       });
       return user.id;
     });
@@ -154,6 +168,57 @@ export async function acceptInvitation(formData: FormData): Promise<TeamResult> 
   }
   // Une session d'un autre compte ouverte dans ce navigateur est fermée et remplacée.
   await destroySession();
-  setSessionCookie(await createSession(userId));
+  const token = await createSession(userId);
+  if (inv.clientId) {
+    setClientCookie(token);
+    return { ok: true, next: "/espace" };
+  }
+  setSessionCookie(token);
   return { ok: true };
+}
+
+/**
+ * Agence : invite un client à son portail (il ne voit que ses agents, ses
+ * appels, ses rendez-vous et ses prospects).
+ */
+export async function inviteClientUser(clientId: string, rawEmail: string): Promise<TeamResult> {
+  const session = await requireSession();
+  if (!isOrgAdmin(session)) return { error: "Seul un administrateur peut donner un accès client." };
+  if (session.org.plan !== "agency") return { error: "Les accès clients sont réservés à l'offre Agence." };
+  if (isRateLimited(`invite:${session.user.id}`, 20, 60 * 60_000)) return { error: TOO_MANY };
+  const email = String(rawEmail ?? "").trim().toLowerCase();
+  if (!z.string().email().max(160).safeParse(email).success) return { error: "Adresse e-mail invalide." };
+  const client = await prisma.client.findFirst({ where: { id: String(clientId), organizationId: session.org.id }, select: { id: true, name: true } });
+  if (!client) return { error: "Client introuvable." };
+  if (!(await takeDailyQuota(session.org.id, "invite"))) return { error: "Limite d'invitations atteinte pour aujourd'hui." };
+  if (await prisma.user.findUnique({ where: { email }, select: { id: true } })) {
+    return { error: "Cette adresse est déjà utilisée par un compte Callpme." };
+  }
+  const { token, tokenHash } = newInviteToken();
+  await prisma.$transaction([
+    prisma.invitation.deleteMany({ where: { organizationId: session.org.id, email, acceptedAt: null } }),
+    prisma.invitation.create({
+      data: {
+        organizationId: session.org.id,
+        email,
+        role: "client",
+        clientId: client.id,
+        tokenHash,
+        invitedById: session.user.id,
+        expiresAt: new Date(Date.now() + INVITE_TTL_MS),
+      },
+    }),
+  ]);
+  const org = await prisma.organization.findUnique({ where: { id: session.org.id }, select: { brandName: true, customDomain: true } });
+  const base = org?.customDomain ? `https://${org.customDomain}` : PUBLIC_URL;
+  const link = `${base}/invitation/${token}`;
+  const mail = invitationEmail({
+    inviterName: session.user.name ?? session.user.email,
+    orgName: org?.brandName || session.org.name,
+    role: "client",
+    link,
+  });
+  const sent = await sendEmail({ to: email, subject: mail.subject, html: mail.html, text: mail.text }).catch(() => null);
+  const emailSent = sent?.ok === true;
+  return { ok: true, emailSent, link: emailSent ? undefined : link };
 }

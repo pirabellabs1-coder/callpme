@@ -57,6 +57,13 @@ function matches(path: string, prefix: string) {
 
 export function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
+  // Portail des clients d'agence : cookie distinct.
+  if (matches(pathname, "/espace") && !req.cookies.get("cpme_client")?.value) {
+    const url = req.nextUrl.clone();
+    url.pathname = "/login";
+    url.search = "";
+    return NextResponse.redirect(url);
+  }
   const hasSession = Boolean(req.cookies.get(SESSION_COOKIE)?.value);
   if (hasSession) return NextResponse.next();
 

@@ -193,6 +193,8 @@ model Call {
   variant        String?
   /** Client de l'agence au moment de l'appel (portail : pas de fuite si l'agent est réattribué). */
   clientId       String?
+  /// JSON : qualité technique (temps de réponse, interruptions, pannes). Voir voice-engine/quality.ts.
+  quality        String?
   summary        String?
   outcome        String?
   /// JSON : données relevées en fin d'appel (champs définis sur l'agent).

@@ -10,6 +10,7 @@ import {
   Download,
   CalendarCheck2,
   ListChecks,
+  Gauge,
   type LucideIcon,
 } from "lucide-react";
 import { getCallById } from "@/lib/db/calls";
@@ -19,6 +20,7 @@ import { getPresetVoice } from "@/lib/voices/catalog";
 import { prisma } from "@/lib/db/client";
 import { getTool } from "@/lib/tools/registry";
 import { formatValue } from "@/lib/analysis/fields";
+import { parseQuality, SLOW_RESPONSE_MS } from "@/lib/voice-engine/quality";
 import { cn, formatDuration } from "@/lib/utils";
 import { Card } from "@/components/ui/card";
 import { RoleIcon, RoleBadge } from "@/components/role-badge";
@@ -74,7 +76,7 @@ export default async function CallTranscriptPage({
   const call = await getCallById(params.id, session.org.id);
   if (!call) notFound();
 
-  const [evaluation, agent, appointments, leads] = await Promise.all([
+  const [evaluation, agent, appointments, leads, qualityRow] = await Promise.all([
     prisma.evaluation.findUnique({ where: { callId: call.id } }),
     getAgentById(call.agentId),
     prisma.appointment.findMany({
@@ -85,7 +87,10 @@ export default async function CallTranscriptPage({
       where: { organizationId: session.org.id, callRef: call.id },
       select: { id: true, kind: true, name: true, score: true },
     }),
+    prisma.call.findUnique({ where: { id: call.id }, select: { quality: true } }),
   ]);
+  const quality = parseQuality(qualityRow?.quality);
+  const seconds = (ms: number | null) => (ms === null ? "—" : `${(ms / 1000).toFixed(1).replace(".", ",")} s`);
   const fieldLabels = new Map((agent?.config.analysis?.fields ?? []).map((f) => [f.key, f.label]));
   const KIND_LABEL: Record<string, string> = { lead: "Prospect", message: "Message", callback: "Rappel à faire", ticket: "Ticket" };
   const role = call.agentRole ?? "support";
@@ -354,6 +359,44 @@ export default async function CallTranscriptPage({
               </KeyValue>
             </dl>
           </Card>
+
+          {quality && quality.turns > 0 && (
+            <Card className="p-5">
+              <SectionTitle icon={Gauge}>Qualité technique</SectionTitle>
+              <dl className="mt-2 divide-y divide-border">
+                <KeyValue label="Temps de réponse moyen">
+                  <span
+                    className={cn(
+                      "tabular",
+                      quality.responseAvgMs !== null && quality.responseAvgMs > SLOW_RESPONSE_MS && "text-destructive",
+                    )}
+                  >
+                    {seconds(quality.responseAvgMs)}
+                  </span>
+                </KeyValue>
+                <KeyValue label="Plus long blanc (95 %)">
+                  <span className="tabular">{seconds(quality.responseP95Ms)}</span>
+                </KeyValue>
+                <KeyValue label="Dont modèle / voix">
+                  <span className="tabular">
+                    {seconds(quality.llmAvgMs)} / {seconds(quality.ttsAvgMs)}
+                  </span>
+                </KeyValue>
+                <KeyValue label="Interruptions">
+                  <span className="tabular">{quality.interruptions}</span>
+                </KeyValue>
+              </dl>
+              {quality.issues.length > 0 ? (
+                <ul className="mt-3 space-y-1 text-xs text-amber-600 dark:text-amber-400">
+                  {quality.issues.map((issue) => (
+                    <li key={issue}>{issue}</li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="mt-3 text-xs text-muted-foreground">Aucun problème technique détecté.</p>
+              )}
+            </Card>
+          )}
 
           {toolTurns.length > 0 && (
             <Card className="p-5">

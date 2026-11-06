@@ -26,6 +26,7 @@ import { finishCall } from "./persist";
 import { checkDestination } from "../telephony/destinations";
 import { remainingMinutes } from "../billing/limits";
 import type { VoiceTokenPayload } from "./token";
+import { QualityTracker } from "./quality";
 
 /** Ce que le transport doit savoir faire. */
 export interface VoiceTransport {
@@ -94,6 +95,8 @@ export class CallSession {
   private contactInfo = "";
   private dtmfDigits = "";
   private dtmfTimer: NodeJS.Timeout | null = null;
+  /** Qualité technique : temps de réponse, interruptions, pannes. */
+  private readonly quality = new QualityTracker();
 
   constructor(
     private readonly ctx: VoiceTokenPayload,
@@ -313,6 +316,7 @@ export class CallSession {
     if (last?.role === "assistant" && !last.content.endsWith(INTERRUPTED_MARK)) {
       this.history[this.history.length - 1] = { ...last, content: `${last.content} ${INTERRUPTED_MARK}` };
     }
+    this.quality.interrupted();
     this.speechGen++;
     this.speaking?.abort();
     this.speaking = null;
@@ -350,8 +354,10 @@ export class CallSession {
     try {
       this.history.push({ role: "user", content: text });
       this.addTurn("caller", text);
+      this.quality.turnStart();
       await this.respond();
     } finally {
+      this.quality.turnEnd();
       this.busy = false;
     }
     // On ne répond à la suite que si l'appelant a réellement terminé sa phrase
@@ -391,7 +397,10 @@ export class CallSession {
           // Test navigateur : outils sans effet. Widget sur un site : vraie conversation.
           test: this.ctx.direction === "web" && this.ctx.metadata?.channel !== "widget",
           // L'agent commence à parler dès sa première phrase.
-          onText: (delta) => chunker.push(delta).forEach(say),
+          onText: (delta) => {
+            this.quality.llmFirstToken();
+            chunker.push(delta).forEach(say);
+          },
           onToolCall: (name) => {
             if (name === "transferToHuman") muted = true;
           },
@@ -413,6 +422,7 @@ export class CallSession {
         }
       }
     } catch {
+      this.quality.llmError();
       reply = "Je suis désolé, je rencontre un problème technique. Pouvez-vous répéter ?";
     }
     if (this.ended) return;
@@ -482,6 +492,7 @@ export class CallSession {
     try {
       for await (const chunk of streamSpeech(text, this.voice, ctrl.signal)) {
         if (ctrl.signal.aborted || this.ended) break;
+        this.quality.firstAudio();
         this.transport.sendAudio(chunk);
         // 8 000 octets µ-law = 1 seconde d'audio.
         this.playbackUntil = Math.max(this.playbackUntil, Date.now()) + (chunk.length / 8000) * 1000;
@@ -489,6 +500,7 @@ export class CallSession {
     } catch (e) {
       if (!ctrl.signal.aborted) {
         // Détail technique dans les journaux serveur seulement.
+        this.quality.ttsError();
         console.error("[voice] synthèse vocale :", e instanceof Error ? e.message : e);
         this.transport.sendEvent?.({ type: "error", message: "Synthèse vocale impossible." });
       }
@@ -546,6 +558,7 @@ export class CallSession {
         metadata: this.ctx.metadata,
         variant: this.variant ?? undefined,
         providerCallId: this.providerCallId,
+        quality: this.quality.summary(),
       });
       this.transport.sendEvent?.({ type: "ended", callId: call.id });
     } catch {

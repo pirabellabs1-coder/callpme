@@ -3,6 +3,7 @@
  * résumé), met à jour le contact de campagne et envoie le webhook
  * `call.completed` / `call.transferred`. Remplace l'ancien webhook Vapi.
  */
+import type { CallQuality } from "./quality";
 import { prisma } from "../db/client";
 import { recordContactOutcome } from "../campaigns/engine";
 import { dispatchEvent } from "../webhooks/dispatch";
@@ -22,6 +23,8 @@ export interface FinishCallInput {
   metadata?: Record<string, string>;
   /** Test A/B : variante de l'agent utilisée. */
   variant?: "A" | "B";
+  /** Qualité technique mesurée pendant l'appel. */
+  quality?: CallQuality;
   /** Identifiant de l'appel chez l'opérateur (Twilio CallSid, Telnyx…). */
   providerCallId?: string | null;
   /** Identifiant de session vocale (jeton) utilisé par les outils pendant l'appel. */
@@ -56,6 +59,7 @@ export async function finishCall(input: FinishCallInput) {
       extracted: extracted ? JSON.stringify(extracted) : null,
       providerCallId: input.providerCallId ?? null,
       variant: input.variant ?? null,
+      quality: input.quality ? JSON.stringify(input.quality) : null,
       clientId: input.agent.clientId ?? null,
       // Évaluation enregistrée pour chaque appel où l'appelant s'est exprimé.
       ...(analysis && input.transcript.some((t) => t.speaker === "caller")

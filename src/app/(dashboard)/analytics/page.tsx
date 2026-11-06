@@ -19,6 +19,8 @@ import { SeedNotice } from "@/components/dashboard/seed-notice";
 import { StatCard } from "@/components/ui/stat";
 import { outcomesByAgent } from "@/lib/db/outcomes";
 import { AgentOutcomesTable } from "@/components/analytics/agent-outcomes";
+import { QualityPanel } from "@/components/analytics/quality-panel";
+import { qualityOverview } from "@/lib/db/quality";
 import { zonedDayStart } from "@/lib/db/calls";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -101,7 +103,8 @@ export default async function AnalyticsPage({
     : 14;
 
   const a = await getAnalytics(org.id, days);
-  const outcomes = await outcomesByAgent(org.id, zonedDayStart(a.fromDate));
+  const since = zonedDayStart(a.fromDate);
+  const [outcomes, quality] = await Promise.all([outcomesByAgent(org.id, since), qualityOverview(org.id, since)]);
 
   const range = `du ${formatYmd(a.fromDate, { day: "numeric", month: "long" })} au ${formatYmd(a.toDate, { day: "numeric", month: "long", year: "numeric" })}`;
   const header = (
@@ -383,6 +386,8 @@ export default async function AnalyticsPage({
       </div>
 
       <AgentOutcomesTable rows={outcomes} caption={`Ce que chaque agent a produit ${range}.`} />
+
+      <QualityPanel q={quality} />
     </div>
   );
 }

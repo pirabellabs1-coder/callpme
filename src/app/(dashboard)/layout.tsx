@@ -3,7 +3,7 @@ import { requireSession } from "@/lib/auth/session";
 import { listClients } from "@/lib/db/clients";
 import { getActiveClientId } from "@/lib/db/active-client";
 import { prisma } from "@/lib/db/client";
-import { monthlyMinutesUsed } from "@/lib/billing/limits";
+import { minutesUsedSince, orgSubscription } from "@/lib/billing/limits";
 import { getPlan } from "@/lib/billing/plans";
 import { telephonyConfigured, telephonyProvider, voiceEngineMissing } from "@/lib/telephony/provider";
 
@@ -43,6 +43,7 @@ export default async function DashboardLayout({
   const isAgency = session.org.plan === "agency";
   const orgId = session.org.id;
   const now = new Date();
+  const sub = await orgSubscription(orgId, now);
   const [clients, activeClientId, pendingLeads, upcomingAppointments, minutesUsed] = await Promise.all([
     isAgency ? listClients(orgId) : Promise.resolve([]),
     isAgency ? getActiveClientId(orgId) : Promise.resolve(null),
@@ -55,7 +56,7 @@ export default async function DashboardLayout({
         startsAt: { gte: now, lt: new Date(now.getTime() + 24 * 3600_000) },
       },
     }),
-    monthlyMinutesUsed(orgId),
+    minutesUsedSince(orgId, sub.periodStart),
   ]);
   const missing = [...voiceEngineMissing(), ...(telephonyProvider() ? [] : ["opérateur (Twilio ou Telnyx)"])];
   const active = clients.find((c) => c.id === activeClientId) ?? null;
@@ -77,7 +78,7 @@ export default async function DashboardLayout({
       activeClientName={active?.name ?? null}
       activeClientColor={activeClientColor}
       badges={{ "/leads": pendingLeads, "/appointments": upcomingAppointments }}
-      usage={{ used: minutesUsed, total: getPlan(session.org.plan).minutes }}
+      usage={{ used: minutesUsed, total: sub.minutesIncluded }}
       status={{ ready: telephonyConfigured(), missing }}
     >
       {children}

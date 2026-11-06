@@ -4,6 +4,9 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db/client";
 import { isOrgAdmin, requireSession } from "@/lib/auth/session";
 import { PLANS } from "@/lib/billing/plans";
+import { applyPromo } from "@/lib/billing/subscription";
+import { activatePaidPlan } from "@/lib/payments/confirm";
+import { isRateLimited } from "@/lib/security/rate-limit";
 import { sendEmail } from "@/lib/email/resend";
 import {
   createGeniusPayment,
@@ -21,18 +24,68 @@ export interface BillingResult {
 export interface CheckoutResult {
   url?: string;
   error?: string;
+  /** Activé sans paiement (code promo à 100 %). */
+  activated?: boolean;
 }
 
-/** Démarre un paiement GeniusPay pour Starter/Pro. Renvoie l'URL de checkout. */
-export async function startCheckout(planId: string): Promise<CheckoutResult> {
+/** Code promo utilisable par cette organisation (actif, non expiré, places restantes, pas déjà utilisé). */
+async function usablePromo(raw: string, orgId: string) {
+  const code = raw.trim().toUpperCase();
+  if (!code) return null;
+  const promo = await prisma.promoCode.findUnique({ where: { code } });
+  if (!promo || !promo.active) return { error: "Code promo inconnu ou désactivé." } as const;
+  if (promo.expiresAt && promo.expiresAt < new Date()) return { error: "Ce code promo a expiré." } as const;
+  if (promo.maxRedemptions > 0 && promo.redeemedCount >= promo.maxRedemptions) return { error: "Ce code promo a déjà été entièrement utilisé." } as const;
+  const already = await prisma.payment.findFirst({ where: { organizationId: orgId, promoCode: code, status: "completed" }, select: { id: true } });
+  if (already) return { error: "Vous avez déjà utilisé ce code promo." } as const;
+  return { promo } as const;
+}
+
+/** Réserve une utilisation du code, sans jamais dépasser le maximum (atomique). */
+async function claimPromo(code: string, max: number): Promise<boolean> {
+  const r = await prisma.promoCode.updateMany({
+    where: max > 0 ? { code, redeemedCount: { lt: max } } : { code },
+    data: { redeemedCount: { increment: 1 } },
+  });
+  return r.count === 1;
+}
+
+/** Activation sans paiement (code promo couvrant tout le prix, déjà réservé). */
+async function activateFree(orgId: string, plan: string, code: string) {
+  await prisma.payment.create({
+    data: { organizationId: orgId, kind: "promo", plan, amountEur: 0, amountXof: 0, status: "completed", promoCode: code },
+  });
+  await activatePaidPlan(orgId, plan);
+  revalidatePath("/billing");
+  revalidatePath("/", "layout");
+}
+
+/**
+ * Démarre un paiement GeniusPay pour Starter/Pro : nouvelle offre ou
+ * renouvellement de l'offre actuelle (+30 jours). Code promo facultatif.
+ */
+export async function startCheckout(planId: string, promoCode = ""): Promise<CheckoutResult> {
   const session = await requireSession();
-  if (!isOrgAdmin(session)) return { error: "Seul un administrateur peut changer d'offre." };
+  if (!isOrgAdmin(session)) return { error: "Seul un administrateur peut gérer l'abonnement." };
   if (planId !== "starter" && planId !== "pro") {
     return { error: "Cette offre n'est pas payable directement." };
   }
-  if (!geniusConfigured()) return { error: "Paiement momentanément indisponible." };
   const plan = PLANS[planId];
-  const amountEur = plan.priceMonthly ?? 0;
+  let amountEur = plan.priceMonthly ?? 0;
+  let code: string | null = null;
+  const found = await usablePromo(promoCode, session.org.id);
+  if (found && "error" in found) return { error: found.error };
+  if (found) {
+    if (found.promo.discountType === "plan") return { error: "Ce code offre une offre : utilisez le bouton « Utiliser le code »." };
+    amountEur = applyPromo(amountEur, found.promo);
+    code = found.promo.code;
+    if (amountEur <= 0) {
+      if (!(await claimPromo(code, found.promo.maxRedemptions))) return { error: "Ce code promo a déjà été entièrement utilisé." };
+      await activateFree(session.org.id, planId, code);
+      return { activated: true };
+    }
+  }
+  if (!geniusConfigured()) return { error: "Paiement momentanément indisponible." };
   const payment = await prisma.payment.create({
     data: {
       organizationId: session.org.id,
@@ -41,11 +94,12 @@ export async function startCheckout(planId: string): Promise<CheckoutResult> {
       amountEur,
       amountXof: eurToXof(amountEur),
       status: "pending",
+      promoCode: code,
     },
   });
   const result = await createGeniusPayment({
     amountEur,
-    description: `Abonnement Callpme — ${plan.name}`,
+    description: `Abonnement Callpme — ${plan.name} (30 jours)`,
     customer: { name: session.user.name ?? session.user.email, email: session.user.email },
     metadata: { paymentId: payment.id, orgId: session.org.id, plan: planId, kind: "subscription" },
     successUrl: `${PUBLIC_URL}/billing/retour?pid=${payment.id}`,
@@ -57,6 +111,24 @@ export async function startCheckout(planId: string): Promise<CheckoutResult> {
   }
   await prisma.payment.update({ where: { id: payment.id }, data: { reference: result.reference } });
   return { url: result.checkoutUrl };
+}
+
+/** Code promo qui offre une offre (30 jours) sans paiement. */
+export async function redeemPromo(promoCode: string): Promise<BillingResult> {
+  const session = await requireSession();
+  if (!isOrgAdmin(session)) return { error: "Seul un administrateur peut gérer l'abonnement." };
+  if (isRateLimited(`promo:${session.org.id}`, 10, 60 * 60_000)) return { error: "Trop de tentatives. Réessayez plus tard." };
+  const found = await usablePromo(promoCode, session.org.id);
+  if (!found) return { error: "Saisissez un code promo." };
+  if ("error" in found) return { error: found.error };
+  if (found.promo.discountType !== "plan" || !found.promo.grantPlan) {
+    return { error: "Ce code donne une réduction : choisissez une offre puis payez avec le code." };
+  }
+  if (!(await claimPromo(found.promo.code, found.promo.maxRedemptions))) {
+    return { error: "Ce code promo a déjà été entièrement utilisé." };
+  }
+  await activateFree(session.org.id, found.promo.grantPlan, found.promo.code);
+  return { ok: true };
 }
 
 /** Le client envoie une demande pour l'offre Agence (objectifs + budget). */

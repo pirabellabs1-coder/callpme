@@ -1,12 +1,14 @@
 "use client";
 
 import { useId, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { Check, Loader2, AlertCircle, CheckCircle2, Building2 } from "lucide-react";
 import { PLAN_ORDER, PLANS, type PlanId } from "@/lib/billing/plans";
 import {
   startCheckout,
   submitAgencyRequest,
   payAgencyRequest,
+  redeemPromo,
 } from "@/app/actions/billing";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -24,14 +26,20 @@ type Agency = {
 
 export function BillingPlans({
   currentPlan,
+  status,
   agency,
   xofRate,
 }: {
   currentPlan: string;
+  /** État de l'abonnement : l'offre en cours se renouvelle, l'essai se transforme. */
+  status: "trial" | "active" | "expired";
   agency: Agency;
   xofRate: number;
 }) {
+  const router = useRouter();
   const [pending, start] = useTransition();
+  const [promo, setPromo] = useState("");
+  const [promoDone, setPromoDone] = useState<string | null>(null);
   const [target, setTarget] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
@@ -43,9 +51,15 @@ export function BillingPlans({
     setError(null);
     setTarget(id);
     start(async () => {
-      const r = await startCheckout(id);
+      const r = await startCheckout(id, promo);
       if (r.url) {
         window.location.href = r.url;
+        return;
+      }
+      if (r.activated) {
+        setTarget(null);
+        setPromoDone("Code appliqué : votre offre est active pour 30 jours.");
+        router.refresh();
         return;
       }
       setError(r.error ?? "Erreur.");
@@ -68,8 +82,50 @@ export function BillingPlans({
     });
   }
 
+  function usePromo() {
+    setError(null);
+    setPromoDone(null);
+    setTarget("promo");
+    start(async () => {
+      const r = await redeemPromo(promo);
+      setTarget(null);
+      if (r.error) setError(r.error);
+      else {
+        setPromoDone("Code appliqué : votre offre est active pour 30 jours.");
+        setPromo("");
+        router.refresh();
+      }
+    });
+  }
+
   return (
     <>
+      <div className="mb-5 flex flex-wrap items-end gap-2">
+        <div className="space-y-1.5">
+          <Label htmlFor="promo-code">Code promo</Label>
+          <Input
+            id="promo-code"
+            value={promo}
+            onChange={(e) => setPromo(e.target.value.toUpperCase())}
+            placeholder="EX. LANCEMENT"
+            maxLength={40}
+            className="w-48 font-mono uppercase"
+            aria-describedby="promo-help"
+          />
+        </div>
+        <Button variant="outline" onClick={usePromo} disabled={pending || !promo.trim()}>
+          {target === "promo" && <Loader2 className="size-4 animate-spin" aria-hidden="true" />}
+          Utiliser le code
+        </Button>
+        <p id="promo-help" className="w-full text-xs text-muted-foreground">
+          Un code de réduction s&apos;applique au paiement de l&apos;offre choisie ci-dessous ; un code d&apos;offre gratuite s&apos;active avec « Utiliser le code ».
+        </p>
+        {promoDone && (
+          <p role="status" className="flex w-full items-center gap-2 text-sm text-emerald-600 dark:text-emerald-400">
+            <CheckCircle2 className="size-4" aria-hidden="true" /> {promoDone}
+          </p>
+        )}
+      </div>
       {error && (
         <p
           role="alert"
@@ -121,7 +177,17 @@ export function BillingPlans({
                 ))}
               </ul>
 
-              {isCurrent ? (
+              {isCurrent && !isAgency ? (
+                <Button
+                  variant={status === "active" ? "outline" : "brand"}
+                  className="mt-6 w-full"
+                  disabled={pending}
+                  onClick={() => checkout(id)}
+                >
+                  {target === id && <Loader2 className="size-4 animate-spin" aria-hidden="true" />}
+                  {status === "active" ? "Renouveler (+30 jours)" : "Payer cette offre"}
+                </Button>
+              ) : isCurrent && isAgency && status === "active" ? (
                 <Button variant="outline" className="mt-6 w-full" disabled>
                   Offre actuelle
                 </Button>

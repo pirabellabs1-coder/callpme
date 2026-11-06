@@ -21,6 +21,10 @@ model Organization {
   id             String               @id @default(cuid())
   name           String
   plan           String               @default("starter") // starter | pro | agency
+  /** Fin de la période payée (chaque paiement ajoute 30 jours). */
+  paidUntil      DateTime?
+  /** Fin de l'essai gratuit (défaut : création + 14 jours). */
+  trialEndsAt    DateTime?
   agents         Agent[]
   users          User[]
   invitations    Invitation[]
@@ -437,6 +441,8 @@ model Payment {
   amountEur      Int // montant affiché en euros
   amountXof      Int // montant réellement facturé en FCFA
   status         String       @default("pending") // pending | completed | failed
+  /** Code promo utilisé (compté à la confirmation du paiement). */
+  promoCode      String?
   createdAt      DateTime     @default(now())
 
   @@index([organizationId])

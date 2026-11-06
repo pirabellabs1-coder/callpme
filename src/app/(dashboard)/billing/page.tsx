@@ -2,7 +2,7 @@ import { Bot, Hash, Clock, ShieldCheck } from "lucide-react";
 import { requireSession } from "@/lib/auth/session";
 import { prisma } from "@/lib/db/client";
 import { countAgents } from "@/lib/db/agents";
-import { monthlyMinutesUsed } from "@/lib/billing/limits";
+import { minutesUsedSince, orgSubscription } from "@/lib/billing/limits";
 import { getPlan, limitLabel, UNLIMITED } from "@/lib/billing/plans";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { Card } from "@/components/ui/card";
@@ -86,18 +86,31 @@ function UsageRow({
 
 export default async function BillingPage() {
   const session = await requireSession();
+  const sub = await orgSubscription(session.org.id);
   const plan = getPlan(session.org.plan);
 
-  const [agents, numbers, minutesUsed, agencyRow] = await Promise.all([
+  const [agents, numbers, minutesUsed, agencyRow, payments] = await Promise.all([
     countAgents(session.org.id),
     // Same count as the limit enforced by POST /api/numbers.
     prisma.phoneNumber.count({ where: { organizationId: session.org.id } }),
-    monthlyMinutesUsed(session.org.id),
+    minutesUsedSince(session.org.id, sub.periodStart),
     prisma.agencyRequest.findFirst({
       where: { organizationId: session.org.id },
       orderBy: { createdAt: "desc" },
     }),
+    prisma.payment.findMany({
+      where: { organizationId: session.org.id, status: { in: ["completed", "failed"] } },
+      orderBy: { createdAt: "desc" },
+      take: 12,
+    }),
   ]);
+  const dateFmt = new Intl.DateTimeFormat("fr-FR", { day: "numeric", month: "long", year: "numeric" });
+  const statusText =
+    sub.status === "trial"
+      ? `Essai gratuit jusqu'au ${dateFmt.format(sub.endsAt)} (${sub.daysLeft} jour${sub.daysLeft > 1 ? "s" : ""}) : ${sub.minutesIncluded} minutes d'appel pour découvrir Callpme.`
+      : sub.status === "active"
+        ? `Payé jusqu'au ${dateFmt.format(sub.endsAt)} (${sub.daysLeft} jour${sub.daysLeft > 1 ? "s" : ""}). Renouvelez quand vous voulez : les jours s'ajoutent.`
+        : `Expiré depuis le ${dateFmt.format(sub.endsAt)} : vos agents ne prennent plus d'appels. Vos données sont conservées.`;
   const agency = agencyRow
     ? {
         id: agencyRow.id,
@@ -124,13 +137,22 @@ export default async function BillingPage() {
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <p className="eyebrow">Offre actuelle</p>
+            <div className="mt-2">
+              {sub.status === "trial" ? (
+                <Badge variant="brand">Essai gratuit</Badge>
+              ) : sub.status === "active" ? (
+                <Badge variant="success">Active</Badge>
+              ) : (
+                <Badge variant="danger">Expirée</Badge>
+              )}
+            </div>
             <h2
               id="current-plan-title"
               className="mt-3 text-display-sm font-semibold tracking-tight text-foreground"
             >
               {plan.name}
             </h2>
-            <p className="mt-1 text-sm text-muted-foreground">{plan.tagline}</p>
+            <p className="mt-1 max-w-xl text-sm text-muted-foreground">{statusText}</p>
           </div>
           <div className="text-right">
             <p className="tabular text-xl font-semibold tracking-tight text-foreground">
@@ -147,18 +169,15 @@ export default async function BillingPage() {
         </div>
 
         <h3 className="mt-6 text-sm font-medium text-foreground">
-          Consommation <span className="font-normal text-muted-foreground">· {monthLabel}</span>
+          Consommation{" "}
+          <span className="font-normal text-muted-foreground">
+            · {sub.status === "trial" ? "pendant l'essai" : sub.status === "active" ? `depuis le ${dateFmt.format(sub.periodStart)}` : monthLabel}
+          </span>
         </h3>
         <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
-          <UsageRow icon={Bot} label="Agents" used={agents} max={plan.maxAgents} />
-          <UsageRow icon={Hash} label="Numéros" used={numbers} max={plan.maxNumbers} />
-          <UsageRow
-            icon={Clock}
-            label="Minutes ce mois-ci"
-            used={minutesUsed}
-            max={plan.minutes}
-            unit="min"
-          />
+          <UsageRow icon={Bot} label="Agents" used={agents} max={sub.plan.maxAgents} />
+          <UsageRow icon={Hash} label="Numéros" used={numbers} max={sub.plan.maxNumbers} />
+          <UsageRow icon={Clock} label="Minutes" used={minutesUsed} max={sub.minutesIncluded} unit="min" />
         </div>
       </Card>
 
@@ -168,13 +187,53 @@ export default async function BillingPage() {
           id="change-plan-title"
           className="mb-1 text-[0.95rem] font-semibold tracking-tight text-foreground"
         >
-          Changer d&apos;offre
+          {sub.status === "active" ? "Renouveler ou changer d'offre" : "Choisir une offre"}
         </h2>
         <p className="mb-5 max-w-2xl text-sm text-muted-foreground">
           Starter et Pro se règlent en ligne. L&apos;offre Agence se fait sur devis :
           envoyez une demande, l&apos;équipe fixe le montant, puis vous réglez.
         </p>
-        <BillingPlans currentPlan={session.org.plan} agency={agency} xofRate={EUR_TO_XOF} />
+        <BillingPlans currentPlan={session.org.plan} status={sub.status} agency={agency} xofRate={EUR_TO_XOF} />
+      </section>
+
+      {/* Historique des paiements */}
+      <section aria-labelledby="payments-title">
+        <h2 id="payments-title" className="mb-3 text-[0.95rem] font-semibold tracking-tight text-foreground">
+          Historique des paiements
+        </h2>
+        {payments.length === 0 ? (
+          <p className="text-sm text-muted-foreground">Aucun paiement pour le moment.</p>
+        ) : (
+          <Card className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="text-left text-xs text-muted-foreground">
+                <tr className="border-b border-border">
+                  <th scope="col" className="px-4 py-2.5 font-medium">Date</th>
+                  <th scope="col" className="px-4 py-2.5 font-medium">Objet</th>
+                  <th scope="col" className="px-4 py-2.5 text-right font-medium">Montant</th>
+                  <th scope="col" className="px-4 py-2.5 font-medium">Statut</th>
+                </tr>
+              </thead>
+              <tbody>
+                {payments.map((p) => (
+                  <tr key={p.id} className="border-b border-border last:border-0">
+                    <td className="px-4 py-2.5 tabular">{dateFmt.format(p.createdAt)}</td>
+                    <td className="px-4 py-2.5">
+                      {p.kind === "agency" ? "Offre Agence" : `Offre ${getPlan(p.plan).name} · 30 jours`}
+                      {p.promoCode && <span className="ml-2 font-mono text-xs text-muted-foreground">{p.promoCode}</span>}
+                    </td>
+                    <td className="px-4 py-2.5 text-right tabular">
+                      {new Intl.NumberFormat("fr-FR").format(p.amountXof)} FCFA
+                    </td>
+                    <td className="px-4 py-2.5">
+                      {p.status === "completed" ? <Badge variant="success">Payé</Badge> : <Badge variant="danger">Échoué</Badge>}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </Card>
+        )}
       </section>
 
       <div className="flex items-start gap-3 rounded-xl border border-border bg-secondary/30 p-4">

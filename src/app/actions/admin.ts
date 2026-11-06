@@ -1,5 +1,6 @@
 "use server";
 
+import { extendPaidUntil } from "@/lib/billing/subscription";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db/client";
 import { requireAdmin } from "@/lib/auth/session";
@@ -72,7 +73,10 @@ export async function setOrgPlan(
 ): Promise<AdminResult> {
   await requireAdmin();
   if (!isPlanId(plan)) return { error: "Offre inconnue." };
-  await prisma.organization.update({ where: { id: orgId }, data: { plan } });
+  // L'offre attribuée par l'équipe donne aussi 30 jours d'accès (prolongés si déjà en cours).
+  const org = await prisma.organization.findUnique({ where: { id: orgId }, select: { plan: true, paidUntil: true } });
+  if (!org) return { error: "Organisation introuvable." };
+  await prisma.organization.update({ where: { id: orgId }, data: { plan, paidUntil: extendPaidUntil(org, plan) } });
 
   // Informe les membres de l'organisation du changement d'offre (best-effort)
   if (hasResend()) {

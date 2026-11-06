@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Volume2, Square, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { normalizeTuning } from "@/lib/voices/tuning";
 
 /**
  * Aperçu audio d'une voix.
@@ -126,7 +127,8 @@ export function VoicePreview({
             voiceId: externalVoiceId,
             text: sample,
             language,
-            ...(studioVoiceId ? { studioVoiceId } : {}),
+            // Voix Studio : réglages relus côté serveur ; sinon, la vitesse de l'agent.
+            ...(studioVoiceId ? { studioVoiceId } : { tuning: normalizeTuning({}, speed) }),
           }),
         });
         const data = await res.json();

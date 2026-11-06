@@ -15,8 +15,9 @@ export default async function EditStudioVoicePage({ params }: { params: { id: st
   if (!voice) notFound();
   const s = parseStudioSettings(voice.settings);
   const bases = await studioBaseVoices(s.baseVoiceId);
-  // Voix d'avant le Studio (sans voix de départ connue) : on part de la première du catalogue.
-  const baseVoiceId = bases.some((b) => b.id === s.baseVoiceId) ? s.baseVoiceId! : (bases[0]?.id ?? "");
+  // Voix clonée : pas de voix de départ, son propre timbre est conservé.
+  const isClone = Boolean(s.externalVoiceId && !s.baseVoiceId);
+  const baseVoiceId = isClone ? "" : bases.some((b) => b.id === s.baseVoiceId) ? s.baseVoiceId! : (bases[0]?.id ?? "");
 
   return (
     <div className="space-y-6">
@@ -24,6 +25,7 @@ export default async function EditStudioVoicePage({ params }: { params: { id: st
       <VoiceStudio
         baseVoices={bases}
         canEdit={isOrgAdmin(session)}
+        clone={isClone ? { provider: voice.provider, externalId: s.externalVoiceId! } : undefined}
         initial={{
           id: voice.id,
           name: voice.name,

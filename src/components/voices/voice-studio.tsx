@@ -95,15 +95,18 @@ export function VoiceStudio({
   baseVoices,
   initial,
   canEdit,
+  clone,
 }: {
   baseVoices: StudioBaseVoice[];
   initial: VoiceStudioInitial;
   canEdit: boolean;
+  /** Voix clonée : son propre timbre est conservé, pas de voix de départ. */
+  clone?: { provider: string; externalId: string };
 }) {
   const router = useRouter();
   const [name, setName] = useState(initial.name);
   const [description, setDescription] = useState(initial.description);
-  const [baseId, setBaseId] = useState(initial.baseVoiceId || baseVoices[0]?.id || "");
+  const [baseId, setBaseId] = useState(clone ? "" : initial.baseVoiceId || baseVoices[0]?.id || "");
   const [tuning, setTuning] = useState<VoiceTuning>(initial.tuning);
   const nextKey = useRef(initial.pronunciations.length);
   const [rows, setRows] = useState<Row[]>(initial.pronunciations.map((p, i) => ({ ...p, key: i })));
@@ -115,6 +118,8 @@ export function VoiceStudio({
   const audio = useRef<HTMLAudioElement | null>(null);
 
   const base = baseVoices.find((v) => v.id === baseId);
+  // Voix réellement jouée : le clone, ou la voix du catalogue choisie.
+  const source = clone ?? (base ? { provider: base.provider, externalId: base.externalId } : null);
   const preset = TUNING_PRESETS.find((p) => JSON.stringify(p.tuning) === JSON.stringify(tuning))?.key;
   const pronunciations = rows.map(({ word, say }) => ({ word: word.trim(), say: say.trim() })).filter((p) => p.word && p.say);
 
@@ -131,7 +136,7 @@ export function VoiceStudio({
   }
 
   async function play() {
-    if (!base) return;
+    if (!source) return;
     stop();
     setError(null);
     setListen("loading");
@@ -140,8 +145,8 @@ export function VoiceStudio({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          provider: base.provider,
-          voiceId: base.externalId,
+          provider: source.provider,
+          voiceId: source.externalId,
           text: text.trim() || DEFAULT_TEXT,
           language: "fr-FR",
           tuning,
@@ -208,6 +213,12 @@ export function VoiceStudio({
                 }}
               />
             </div>
+            {clone ? (
+              <div className="space-y-2">
+                <p className="text-sm font-medium">Voix de départ</p>
+                <p className="text-sm text-muted-foreground">Votre voix clonée : son timbre est conservé, seuls les réglages changent.</p>
+              </div>
+            ) : (
             <div className="space-y-2">
               <Label htmlFor="studio-base">Voix de départ</Label>
               <div className="flex items-center gap-2">
@@ -231,6 +242,7 @@ export function VoiceStudio({
                 {base?.previewUrl && <SamplePlayButton key={base.id} src={base.previewUrl} label={`Écouter ${base.name} d'origine`} />}
               </div>
             </div>
+            )}
           </div>
           <div className="space-y-2">
             <Label htmlFor="studio-desc">Description (facultatif)</Label>
@@ -406,7 +418,7 @@ export function VoiceStudio({
             variant="outline"
             className="w-full"
             onClick={listen === "idle" ? play : stop}
-            disabled={listen === "loading" || !base}
+            disabled={listen === "loading" || !source}
           >
             {listen === "loading" ? (
               <>
@@ -436,7 +448,7 @@ export function VoiceStudio({
               Voix enregistrée. Les agents qui l&apos;utilisent la prennent dès leur prochain appel.
             </p>
           )}
-          <Button type="button" variant="brand" className="w-full" onClick={save} disabled={pending || !canEdit || !base}>
+          <Button type="button" variant="brand" className="w-full" onClick={save} disabled={pending || !canEdit || !source}>
             {pending && <Loader2 className="animate-spin" aria-hidden />}
             {initial.id ? "Enregistrer les modifications" : "Enregistrer ma voix"}
           </Button>

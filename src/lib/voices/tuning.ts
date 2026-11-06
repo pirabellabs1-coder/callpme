@@ -108,6 +108,8 @@ export interface StudioVoiceSettings {
   /** Voix du catalogue Callpme à l'origine de cette voix. */
   baseVoiceId?: string;
   tuning: VoiceTuning;
+  /** Des réglages ont été enregistrés (sinon : réglages par défaut). */
+  customTuning: boolean;
   pronunciations: Pronunciation[];
 }
 
@@ -123,6 +125,7 @@ export function parseStudioSettings(settings: string | null | undefined): Studio
     externalVoiceId: ext,
     baseVoiceId: typeof raw.baseVoiceId === "string" ? raw.baseVoiceId : undefined,
     tuning: normalizeTuning(raw.tuning),
+    customTuning: Boolean(raw.tuning && typeof raw.tuning === "object"),
     pronunciations: normalizePronunciations(raw.pronunciations),
   };
 }

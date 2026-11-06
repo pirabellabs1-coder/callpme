@@ -1,9 +1,10 @@
 import { NextRequest } from "next/server";
 import { z } from "zod";
-import { getSession } from "@/lib/auth/session";
+import { getSession, isOrgAdmin } from "@/lib/auth/session";
+import { prisma } from "@/lib/db/client";
 import { deleteVoice, getVoice, updateVoice } from "@/lib/db/voices";
 import { externalVoiceId } from "@/lib/voices/provider-voice";
-import { ok, badRequest, unauthorized, notFound, serverError } from "@/lib/api/respond";
+import { ok, badRequest, forbidden, unauthorized, notFound, serverError } from "@/lib/api/respond";
 
 export const dynamic = "force-dynamic";
 
@@ -24,6 +25,7 @@ export async function PUT(
   try {
     const session = await getSession();
     if (!session) return unauthorized();
+    if (!isOrgAdmin(session)) return forbidden("Réservé aux administrateurs de l'organisation.");
     const body = await req.json().catch(() => null);
     const parsed = patchSchema.safeParse(body);
     if (!parsed.success) return badRequest("Données invalides");
@@ -41,7 +43,12 @@ export async function DELETE(
   try {
     const session = await getSession();
     if (!session) return unauthorized();
+    if (!isOrgAdmin(session)) return forbidden("Réservé aux administrateurs de l'organisation.");
     const existing = await getVoice(session.org.id, params.id);
+    if (existing) {
+      const inUse = await prisma.agent.count({ where: { organizationId: session.org.id, config: { contains: `"voiceId":"${existing.id}"` } } });
+      if (inUse > 0) return badRequest(`${inUse} agent(s) utilisent cette voix : choisissez-leur d'abord une autre voix.`);
+    }
     const removed = await deleteVoice(session.org.id, params.id);
     const ext = existing ? externalVoiceId(existing.settings) : undefined;
     if (removed && ext && existing?.provider === "elevenlabs" && process.env.ELEVENLABS_API_KEY) {

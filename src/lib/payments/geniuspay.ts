@@ -113,7 +113,7 @@ export function verifyGeniusWebhook(rawBody: string, signature: string | null, t
   if (Math.abs(now - ts) > 5 * 60_000) return false;
   const expected = createHmac("sha256", secret).update(`${timestamp}.${rawBody}`).digest("hex");
   const given = signature.replace(/^sha256=/, "").trim().toLowerCase();
-  if (given.length !== expected.length) return false;
+  if (!/^[0-9a-f]{64}$/.test(given)) return false;
   return timingSafeEqual(Buffer.from(given), Buffer.from(expected));
 }
 

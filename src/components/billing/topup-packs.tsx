@@ -5,7 +5,7 @@ import { AlertCircle, Loader2, Smartphone } from "lucide-react";
 import { startTopup } from "@/app/actions/billing";
 import { MINUTE_PACKS } from "@/lib/billing/topups";
 import { Button } from "@/components/ui/button";
-import { formatEur } from "@/lib/billing/money";
+import { formatEur, formatEurPrecise } from "@/lib/billing/money";
 
 export function TopupPacks({ disabledReason }: { disabledReason?: string }) {
   const [pending, start] = useTransition();
@@ -21,7 +21,7 @@ export function TopupPacks({ disabledReason }: { disabledReason?: string }) {
             <p className="mt-1 tabular text-xl font-semibold">
               {formatEur(p.priceEur)}
             </p>
-            <p className="text-xs text-muted-foreground">{formatEur(Math.round((p.priceEur / p.minutes) * 1000) / 1000)} la minute</p>
+            <p className="text-xs text-muted-foreground">{formatEurPrecise(p.priceEur / p.minutes)} la minute</p>
             <Button
               variant="outline"
               size="sm"

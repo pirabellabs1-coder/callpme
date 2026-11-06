@@ -21,6 +21,11 @@ describe("abonnement", () => {
     expect(s.periodStart.getTime()).toBe(now.getTime() - DAY);
   });
 
+  it("une démo plus longue que prévu ne donne jamais de minutes illimitées", () => {
+    const s = subscriptionState({ plan: "starter", createdAt: new Date(now.getTime() - 20 * DAY), paidUntil: null, trialEndsAt: new Date(now.getTime() + 10 * DAY) }, now);
+    expect(s.periodStart.getTime()).toBeLessThanOrEqual(now.getTime());
+  });
+
   it("accès démo terminé : plus de minutes", () => {
     const s = subscriptionState({ plan: "starter", createdAt: new Date(now.getTime() - 20 * DAY), paidUntil: null, trialEndsAt: new Date(now.getTime() - DAY) }, now);
     expect(s.status).toBe("expired");
@@ -70,6 +75,10 @@ describe("webhook GeniusPay", () => {
     expect(verifyGeniusWebhook(body, sig, ts, "autre", t)).toBe(false);
     expect(verifyGeniusWebhook(body, sig, ts, "whsec_test", t + 10 * 60_000)).toBe(false);
     expect(verifyGeniusWebhook(body, null, ts, "whsec_test", t)).toBe(false);
+    expect(verifyGeniusWebhook(body, "é".repeat(64), ts, "whsec_test", t)).toBe(false);
+    const tsMs = String(t);
+    const sigMs = createHmac("sha256", "whsec_test").update(`${tsMs}.${body}`).digest("hex");
+    expect(verifyGeniusWebhook(body, sigMs, tsMs, "whsec_test", t)).toBe(true);
   });
 });
 
@@ -77,6 +86,7 @@ describe("affichage des prix", () => {
   it("formate toujours en euros", async () => {
     const { formatEur } = await import("@/lib/billing/money");
     expect(formatEur(49).replace(/\s/g, " ")).toBe("49 €");
-    expect(formatEur(0.035).replace(/\s/g, " ")).toBe("0,04 €");
+    const { formatEurPrecise } = await import("@/lib/billing/money");
+    expect(formatEurPrecise(0.035).replace(/\s/g, " ")).toBe("0,035 €");
   });
 });

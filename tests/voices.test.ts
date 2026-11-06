@@ -99,6 +99,22 @@ describe("Studio : réglages et prononciation", () => {
     expect(v).toMatchObject({ voiceId: "nouvelleBase1", tuning, pronunciations: [{ word: "MTN", say: "èm-té-ène" }] });
   });
 
+  it("voix Studio d'un autre fournisseur : son fournisseur prime sur celui de l'agent", () => {
+    process.env.ELEVENLABS_API_KEY = "x";
+    delete process.env.CARTESIA_API_KEY;
+    const v = resolveVoice(agentWith({ provider: "cartesia" as never, kind: "provider", providerVoiceId: "ancienne01" }), null, {
+      voiceId: "voixEleven1",
+      provider: "elevenlabs",
+    });
+    expect(v?.voiceId).toBe("voixEleven1");
+  });
+
+  it("voix clonée sans réglages : la vitesse de l'agent s'applique", () => {
+    process.env.ELEVENLABS_API_KEY = "x";
+    const v = resolveVoice(agentWith({ kind: "provider", providerVoiceId: "clone01", speed: 0.9 }), null, { voiceId: "clone01", provider: "elevenlabs" });
+    expect(v?.tuning?.speed).toBe(0.9);
+  });
+
   it("sans Studio, la vitesse de l'agent est reprise dans les réglages", () => {
     process.env.ELEVENLABS_API_KEY = "x";
     const v = resolveVoice(agentWith({ kind: "provider", providerVoiceId: "voixChoisie1", speed: 0.85 }), null);

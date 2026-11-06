@@ -1,6 +1,6 @@
 "use server";
 
-import { extendPaidUntil } from "@/lib/billing/subscription";
+import { extendPaidUntil, DEMO_DAYS } from "@/lib/billing/subscription";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db/client";
 import { requireAdmin } from "@/lib/auth/session";
@@ -109,7 +109,7 @@ export async function setOrgPlan(
  */
 export async function setDemoAccess(orgId: string, days: number): Promise<AdminResult> {
   await requireAdmin();
-  if (!Number.isInteger(days) || days < 0 || days > 30) return { error: "Durée invalide." };
+  if (days !== 0 && days !== DEMO_DAYS) return { error: "Durée invalide." };
   const org = await prisma.organization.findUnique({ where: { id: orgId }, select: { id: true } });
   if (!org) return { error: "Organisation introuvable." };
   await prisma.organization.update({

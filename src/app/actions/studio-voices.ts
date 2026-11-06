@@ -18,7 +18,8 @@ const saveSchema = z.object({
   id: z.string().max(40).optional(),
   name: z.string().trim().min(2, "Nom de 2 à 60 caractères.").max(60, "Nom de 2 à 60 caractères."),
   description: z.string().trim().max(300).optional(),
-  baseVoiceId: z.string().min(1).max(40),
+  /** Voix du catalogue de départ (vide pour une voix clonée : on garde son timbre). */
+  baseVoiceId: z.string().max(40),
   tuning: tuningSchema,
   pronunciations: pronunciationsSchema,
 });
@@ -40,11 +41,34 @@ export async function saveStudioVoice(input: z.input<typeof saveSchema>): Promis
     ? await prisma.voice.findFirst({ where: { id: d.id, organizationId: orgId }, select: { id: true, settings: true } })
     : null;
   if (d.id && !existing) return { error: "Voix introuvable." };
-  const base = await prisma.platformVoice.findUnique({ where: { id: d.baseVoiceId } });
+  const prev = existing ? parseStudioSettings(existing.settings) : null;
+
+  // Voix clonée (sans voix de départ du catalogue) : on garde son identifiant,
+  // son fournisseur et son échantillon ; seuls les réglages changent.
+  if (existing && prev?.externalVoiceId && !prev.baseVoiceId) {
+    let raw: Record<string, unknown> = {};
+    try {
+      raw = existing.settings ? JSON.parse(existing.settings) : {};
+    } catch {
+      raw = {};
+    }
+    await prisma.voice.update({
+      where: { id: existing.id },
+      data: {
+        name: d.name,
+        description: d.description || null,
+        settings: JSON.stringify({ ...raw, studio: true, tuning: d.tuning, pronunciations: d.pronunciations }),
+      },
+    });
+    revalidatePath("/voices");
+    return { ok: true, id: existing.id };
+  }
+
+  const base = d.baseVoiceId ? await prisma.platformVoice.findUnique({ where: { id: d.baseVoiceId } }) : null;
   // Une voix retirée du catalogue reste utilisable par les voix qui en partaient déjà.
-  const keptBase = existing ? parseStudioSettings(existing.settings).baseVoiceId === d.baseVoiceId : false;
+  const keptBase = prev?.baseVoiceId === d.baseVoiceId;
   if (!base || (!base.active && !keptBase)) return { error: "Cette voix du catalogue n'est plus disponible." };
-  const settings: StudioVoiceSettings & { studio: true } = {
+  const settings: Omit<StudioVoiceSettings, "customTuning"> & { studio: true } = {
     studio: true,
     externalVoiceId: base.externalId,
     baseVoiceId: base.id,
@@ -82,12 +106,10 @@ export async function deleteStudioVoice(id: string): Promise<StudioVoiceResult> 
   const voice = await prisma.voice.findFirst({ where: { id, organizationId: orgId }, select: { id: true } });
   if (!voice) return { ok: true };
   const needle = `"voiceId":"${voice.id}"`;
-  const [agents, versions] = await Promise.all([
-    prisma.agent.count({ where: { organizationId: orgId, config: { contains: needle } } }),
-    prisma.agentVersion.count({ where: { agent: { organizationId: orgId }, config: { contains: needle } } }),
-  ]);
-  if (agents + versions > 0) {
-    return { error: `${agents + versions} agent(s) utilisent cette voix : choisissez-leur d'abord une autre voix.` };
+  // Les anciennes versions d'un agent gardent l'identifiant fournisseur : elles restent jouables.
+  const agents = await prisma.agent.count({ where: { organizationId: orgId, config: { contains: needle } } });
+  if (agents > 0) {
+    return { error: `${agents} agent(s) utilisent cette voix : choisissez-leur d'abord une autre voix.` };
   }
   await prisma.voice.delete({ where: { id: voice.id } });
   revalidatePath("/voices");

@@ -24,6 +24,8 @@ export interface TtsVoice {
 /** Réglages Studio d'une voix enregistrée par le client. */
 export interface StudioExtras {
   voiceId?: string;
+  /** Fournisseur de la voix Studio (peut différer de celui figé dans l'agent). */
+  provider?: string;
   tuning?: VoiceTuning;
   pronunciations?: Pronunciation[];
 }
@@ -59,7 +61,8 @@ export function resolveVoice(agent: Agent, fallbackVoiceId?: string | null, stud
   };
   // Voix Studio (réglée par le client) : son identifiant fournisseur à jour prime.
   const chosen = studio?.voiceId || (v.kind === "provider" ? v.providerVoiceId : undefined);
-  if (chosen && v.provider === provider) {
+  const chosenProvider = studio?.voiceId ? (studio.provider ?? v.provider) : v.provider;
+  if (chosen && chosenProvider === provider) {
     return { provider, voiceId: chosen, language, ...extras };
   }
   const voiceId = (provider === "elevenlabs" ? fallbackVoiceId : null) || process.env.VOICE_DEFAULT_FEMALE_ID;

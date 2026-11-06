@@ -15,6 +15,9 @@ export async function POST(req: NextRequest) {
   try {
     const raw = await req.text();
     const secret = process.env.GENIUS_PAY_WEBHOOK_SECRET;
+    if (!secret && process.env.NODE_ENV === "production") {
+      console.warn("[geniuspay] GENIUS_PAY_WEBHOOK_SECRET absent : signature non vérifiée (statut revérifié auprès de GeniusPay).");
+    }
     if (secret && !verifyGeniusWebhook(raw, req.headers.get("x-webhook-signature"), req.headers.get("x-webhook-timestamp"), secret)) {
       return unauthorized();
     }

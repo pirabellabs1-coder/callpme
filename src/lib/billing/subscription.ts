@@ -55,7 +55,7 @@ export function subscriptionState(org: OrgBilling, now = new Date()): Subscripti
       status: "trial",
       plan: getPlan("starter"),
       minutesIncluded: TRIAL_MINUTES,
-      periodStart: new Date(Math.max(org.createdAt.getTime(), trialEnd.getTime() - DEMO_DAYS * DAY)),
+      periodStart: new Date(Math.min(now.getTime(), Math.max(org.createdAt.getTime(), trialEnd.getTime() - DEMO_DAYS * DAY))),
       endsAt: trialEnd,
       daysLeft: daysLeft(trialEnd),
       neverPaid: !org.paidUntil,

@@ -3,8 +3,8 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { X } from "lucide-react";
-import { Sidebar } from "./sidebar";
-import { Topbar } from "./topbar";
+import { Sidebar, type NavBadges, type UsageMeter } from "./sidebar";
+import { Topbar, type ServiceStatus } from "./topbar";
 import { setActiveClient } from "@/app/actions/clients";
 
 interface ClientLite {
@@ -22,6 +22,9 @@ export function DashboardShell({
   activeClientId,
   activeClientName,
   activeClientColor,
+  badges,
+  usage,
+  status,
   children,
 }: {
   orgName: string;
@@ -32,6 +35,9 @@ export function DashboardShell({
   activeClientId: string | null;
   activeClientName?: string | null;
   activeClientColor?: string | null;
+  badges?: NavBadges;
+  usage?: UsageMeter | null;
+  status?: ServiceStatus;
   children: React.ReactNode;
 }) {
   const [open, setOpen] = useState(false);
@@ -52,6 +58,8 @@ export function DashboardShell({
     userEmail,
     clients,
     activeClientId,
+    badges,
+    usage,
   };
 
   // Couleur du client actif appliquée à TOUT le tableau de bord (anti-mélange).
@@ -60,11 +68,17 @@ export function DashboardShell({
     : undefined;
 
   return (
-    <div className="min-h-screen bg-muted/30 bg-grain" style={themeStyle}>
-      <Topbar onMenuClick={() => setOpen(true)} />
+    <div className="min-h-dvh bg-background bg-grain" style={themeStyle}>
+      <a
+        href="#contenu"
+        className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-3 focus:z-[60] focus:rounded-md focus:bg-card focus:px-3 focus:py-2 focus:text-sm focus:shadow"
+      >
+        Aller au contenu
+      </a>
+      <Topbar onMenuClick={() => setOpen(true)} status={status} />
 
       <div className="flex">
-        <aside className="sticky top-16 hidden h-[calc(100vh-4rem)] w-64 shrink-0 overflow-y-auto border-r border-border bg-card lg:block">
+        <aside className="sticky top-14 hidden h-[calc(100dvh-3.5rem)] w-60 shrink-0 overflow-y-auto border-r border-border bg-card lg:block">
           <Sidebar {...sidebarProps} />
         </aside>
 
@@ -88,8 +102,8 @@ export function DashboardShell({
           </div>
         )}
 
-        <main className="min-w-0 flex-1 px-4 py-7 sm:px-6 lg:px-8">
-          <div className="mx-auto max-w-[1200px]">
+        <main id="contenu" tabIndex={-1} className="min-w-0 flex-1 px-4 py-7 outline-none sm:px-6 lg:px-10 lg:py-9">
+          <div className="mx-auto max-w-[1240px]">
             {activeClientName && (
               <div className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[hsl(var(--brand)/0.35)] bg-[hsl(var(--brand)/0.08)] px-4 py-2.5">
                 <p className="inline-flex items-center gap-2 text-sm">

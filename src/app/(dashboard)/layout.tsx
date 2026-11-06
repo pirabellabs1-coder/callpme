@@ -2,6 +2,10 @@ import { DashboardShell } from "@/components/dashboard/shell";
 import { requireSession } from "@/lib/auth/session";
 import { listClients } from "@/lib/db/clients";
 import { getActiveClientId } from "@/lib/db/active-client";
+import { prisma } from "@/lib/db/client";
+import { monthlyMinutesUsed } from "@/lib/billing/limits";
+import { getPlan } from "@/lib/billing/plans";
+import { telephonyConfigured, telephonyProvider, voiceEngineMissing } from "@/lib/telephony/provider";
 
 export const dynamic = "force-dynamic";
 
@@ -37,10 +41,23 @@ export default async function DashboardLayout({
   const session = await requireSession();
   // Le multi-clients (espaces agence) est réservé à l'offre Agence.
   const isAgency = session.org.plan === "agency";
-  const [clients, activeClientId] = await Promise.all([
-    isAgency ? listClients(session.org.id) : Promise.resolve([]),
-    isAgency ? getActiveClientId(session.org.id) : Promise.resolve(null),
+  const orgId = session.org.id;
+  const now = new Date();
+  const [clients, activeClientId, pendingLeads, upcomingAppointments, minutesUsed] = await Promise.all([
+    isAgency ? listClients(orgId) : Promise.resolve([]),
+    isAgency ? getActiveClientId(orgId) : Promise.resolve(null),
+    prisma.lead.count({ where: { organizationId: orgId, isTest: false, status: "new" } }),
+    prisma.appointment.count({
+      where: {
+        organizationId: orgId,
+        isTest: false,
+        status: "booked",
+        startsAt: { gte: now, lt: new Date(now.getTime() + 24 * 3600_000) },
+      },
+    }),
+    monthlyMinutesUsed(orgId),
   ]);
+  const missing = [...voiceEngineMissing(), ...(telephonyProvider() ? [] : ["opérateur (Twilio ou Telnyx)"])];
   const active = clients.find((c) => c.id === activeClientId) ?? null;
   const activeClientColor =
     active && active.brandColor ? hexToHsl(active.brandColor) : null;
@@ -59,6 +76,9 @@ export default async function DashboardLayout({
       activeClientId={activeClientId}
       activeClientName={active?.name ?? null}
       activeClientColor={activeClientColor}
+      badges={{ "/leads": pendingLeads, "/appointments": upcomingAppointments }}
+      usage={{ used: minutesUsed, total: getPlan(session.org.plan).minutes }}
+      status={{ ready: telephonyConfigured(), missing }}
     >
       {children}
     </DashboardShell>

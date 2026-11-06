@@ -15,6 +15,7 @@ import {
 import type { AgentRole } from "@/lib/shared/types";
 import { cn } from "@/lib/utils";
 import { RoleIcon } from "@/components/role-badge";
+import { ALL_NAV } from "./nav-items";
 
 interface Results {
   agents: { id: string; name: string; role: AgentRole }[];
@@ -69,7 +70,10 @@ export function CommandPalette() {
     router.push(href);
   }
 
+  const norm = (t: string) => t.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+  const pages = q ? ALL_NAV.filter((n) => norm(n.label).includes(norm(q.trim()))).slice(0, 5) : [];
   const hasResults =
+    pages.length > 0 ||
     res.agents.length + res.clients.length + res.calls.length > 0;
 
   return (
@@ -110,7 +114,7 @@ export function CommandPalette() {
                 ref={inputRef}
                 value={q}
                 onChange={(e) => setQ(e.target.value)}
-                placeholder="Rechercher agents, appels, clients…"
+                placeholder="Rechercher une page, un agent, un appel, un client…"
                 className="h-12 flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground/60"
               />
             </div>
@@ -120,6 +124,15 @@ export function CommandPalette() {
                   {ACTIONS.map((a) => (
                     <Item key={a.href} onClick={() => go(a.href)} icon={<a.icon className="size-4" />}>
                       {a.label}
+                    </Item>
+                  ))}
+                </Group>
+              )}
+              {pages.length > 0 && (
+                <Group title="Pages">
+                  {pages.map((p) => (
+                    <Item key={p.href} onClick={() => go(p.href)} icon={<p.icon className="size-4" />}>
+                      {p.label}
                     </Item>
                   ))}
                 </Group>

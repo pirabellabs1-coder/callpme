@@ -4,19 +4,21 @@ import { fr } from "date-fns/locale";
 import {
   PhoneCall,
   CircleCheck,
-  Timer,
-  PhoneForwarded,
   ArrowRight,
   Bot,
   Megaphone,
   Check,
   Plus,
+  CalendarCheck2,
+  UserPlus,
 } from "lucide-react";
 import { getSession } from "@/lib/auth/session";
 import { getOnboardingSteps } from "@/lib/db/onboarding";
 import { cn } from "@/lib/utils";
 import { getCurrentOrg } from "@/lib/db/context";
 import { getAnalytics } from "@/lib/db/analytics";
+import { prisma } from "@/lib/db/client";
+import { TodayPanel } from "@/components/dashboard/today-panel";
 import { listAgents } from "@/lib/db/agents";
 import { listCalls } from "@/lib/db/calls";
 import { PageHeader } from "@/components/dashboard/page-header";
@@ -33,12 +35,15 @@ export default async function OverviewPage() {
   const org = await getCurrentOrg();
   if (!org) return <SeedNotice />;
 
-  const [analytics, agents, recentCalls, steps, session] = await Promise.all([
+  const since = new Date(Date.now() - 14 * 86_400_000);
+  const [analytics, agents, recentCalls, steps, session, booked14, leads14] = await Promise.all([
     getAnalytics(org.id, 14),
     listAgents(org.id),
     listCalls(org.id, { limit: 6 }),
     getOnboardingSteps(org.id),
     getSession(),
+    prisma.appointment.count({ where: { organizationId: org.id, isTest: false, createdAt: { gte: since } } }),
+    prisma.lead.count({ where: { organizationId: org.id, isTest: false, kind: "lead", createdAt: { gte: since } } }),
   ]);
   const doneCount = steps.filter((s) => s.done).length;
   const firstName = session?.user.name?.split(" ")[0];
@@ -135,7 +140,10 @@ export default async function OverviewPage() {
         </Card>
       )}
 
-      {/* KPI */}
+      {/* À traiter aujourd'hui */}
+      <TodayPanel orgId={org.id} />
+
+      {/* Résultats : ce que les agents ont produit, pas seulement des appels */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard
           label="Appels traités"
@@ -150,15 +158,16 @@ export default async function OverviewPage() {
           delta={{ value: "vs. transferts", positive: true }}
         />
         <StatCard
-          label="Durée moyenne"
-          value={formatDuration(analytics.avgDurationSec)}
-          icon={Timer}
+          label="Rendez-vous pris"
+          value={formatNumber(booked14)}
+          icon={CalendarCheck2}
+          hint="Réservés par vos agents en 14 jours"
         />
         <StatCard
-          label="Transferts humains"
-          value={`${analytics.transferRate}%`}
-          icon={PhoneForwarded}
-          hint="Part des appels escaladés"
+          label="Prospects collectés"
+          value={formatNumber(leads14)}
+          icon={UserPlus}
+          hint={`Durée moyenne d'appel ${formatDuration(analytics.avgDurationSec)} · ${analytics.transferRate}% transférés`}
         />
       </div>
 

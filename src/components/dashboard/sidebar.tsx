@@ -1,27 +1,31 @@
 "use client";
 
-import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ChevronsUpDown, ChevronDown, LogOut } from "lucide-react";
+import { ChevronsUpDown, LogOut } from "lucide-react";
 import { cn, initials } from "@/lib/utils";
 import { getPlan } from "@/lib/billing/plans";
 import { logout } from "@/app/actions/auth";
-import {
-  PRIMARY_NAV,
-  AGENCY_NAV,
-  SYSTEM_NAV,
-  type NavItem,
-} from "./nav-items";
+import { NAV_GROUPS, type NavItem } from "./nav-items";
 import { ClientSwitcher } from "./client-switcher";
+
+/** Compteurs « à traiter » affichés à côté des liens (clé = href). */
+export type NavBadges = Record<string, number>;
+
+export interface UsageMeter {
+  used: number;
+  total: number;
+}
 
 function NavLink({
   item,
   active,
+  badge,
   onNavigate,
 }: {
   item: NavItem;
   active: boolean;
+  badge?: number;
   onNavigate?: () => void;
 }) {
   const Icon = item.icon;
@@ -31,61 +35,33 @@ function NavLink({
       onClick={onNavigate}
       aria-current={active ? "page" : undefined}
       className={cn(
-        "group flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm font-medium transition-colors",
+        "group relative flex items-center gap-2.5 rounded-lg px-2.5 py-[0.4rem] text-[0.84rem] font-medium transition-[background-color,color] duration-200",
         active
-          ? "bg-secondary text-foreground"
-          : "text-muted-foreground hover:bg-accent/60 hover:text-foreground",
+          ? "bg-foreground/[0.06] text-foreground"
+          : "text-muted-foreground hover:bg-foreground/[0.04] hover:text-foreground",
       )}
     >
+      {active && (
+        <span aria-hidden className="absolute -left-3 top-1/2 h-4 w-[3px] -translate-y-1/2 rounded-r-full bg-brand" />
+      )}
       <Icon
         className={cn(
-          "size-[1.1rem] shrink-0 transition-colors",
-          active ? "text-brand" : "text-muted-foreground/80 group-hover:text-foreground",
+          "size-[1.05rem] shrink-0 transition-colors",
+          active ? "text-brand" : "text-muted-foreground/70 group-hover:text-foreground",
         )}
-        strokeWidth={1.75}
+        strokeWidth={1.6}
+        aria-hidden
       />
-      {item.label}
+      <span className="flex-1 truncate">{item.label}</span>
+      {badge ? (
+        <span
+          className="min-w-[1.25rem] rounded-full bg-brand/15 px-1.5 text-center text-[0.7rem] font-semibold tabular-nums leading-5 text-brand"
+          aria-label={`${badge} à traiter`}
+        >
+          {badge > 99 ? "99+" : badge}
+        </span>
+      ) : null}
     </Link>
-  );
-}
-
-function NavSection({
-  label,
-  items,
-  isActive,
-  onNavigate,
-}: {
-  label: string;
-  items: NavItem[];
-  isActive: (i: NavItem) => boolean;
-  onNavigate?: () => void;
-}) {
-  const [open, setOpen] = useState(true);
-  return (
-    <div className="space-y-0.5">
-      <button
-        type="button"
-        onClick={() => setOpen((o) => !o)}
-        className="flex w-full items-center justify-between rounded-md px-3 py-1.5 text-[0.7rem] font-semibold uppercase tracking-wider text-muted-foreground/70 transition-colors hover:text-foreground"
-      >
-        {label}
-        <ChevronDown
-          className={cn("size-3.5 transition-transform", !open && "-rotate-90")}
-        />
-      </button>
-      {open && (
-        <div className="ml-4 space-y-0.5 border-l border-border pl-2">
-          {items.map((item) => (
-            <NavLink
-              key={item.href}
-              item={item}
-              active={isActive(item)}
-              onNavigate={onNavigate}
-            />
-          ))}
-        </div>
-      )}
-    </div>
   );
 }
 
@@ -96,6 +72,8 @@ export function Sidebar({
   userEmail,
   clients,
   activeClientId,
+  badges = {},
+  usage,
   onNavigate,
 }: {
   orgName: string;
@@ -104,71 +82,96 @@ export function Sidebar({
   userEmail: string;
   clients: { id: string; name: string; brandColor?: string | null }[];
   activeClientId: string | null;
+  badges?: NavBadges;
+  usage?: UsageMeter | null;
   onNavigate?: () => void;
 }) {
   const pathname = usePathname();
-  const isActive = (item: NavItem) =>
-    item.match ? pathname.startsWith(item.match) : pathname === item.href;
+  const isActive = (item: NavItem) => (item.match ? pathname.startsWith(item.match) : pathname === item.href);
   const plan = getPlan(orgPlan);
   const isAgency = plan.id === "agency";
-  // Multi-clients réservé à l'offre Agence.
-  const agencyNav = isAgency
-    ? AGENCY_NAV
-    : AGENCY_NAV.filter((i) => i.href !== "/clients");
+  const pct = usage && usage.total > 0 ? Math.min(100, Math.round((usage.used / usage.total) * 100)) : 0;
 
   return (
     <div className="flex h-full flex-col bg-card">
       {/* Organisation */}
       <div className="px-3 pt-4">
         <Link
-          href="/billing"
+          href="/settings"
           onClick={onNavigate}
-          className="flex w-full items-center gap-2.5 rounded-lg border border-border bg-card px-2.5 py-2 text-left shadow-xs transition-colors hover:bg-accent/50"
+          className="flex w-full items-center gap-2.5 rounded-xl px-2 py-1.5 text-left transition-colors hover:bg-foreground/[0.04]"
         >
-          <span className="inline-flex size-7 items-center justify-center rounded-md bg-foreground text-[0.7rem] font-semibold text-background">
+          <span className="inline-flex size-8 items-center justify-center rounded-[0.6rem] bg-foreground text-[0.7rem] font-semibold text-background">
             {initials(orgName)}
           </span>
           <span className="min-w-0 flex-1">
-            <span className="block truncate text-sm font-medium text-foreground">
-              {orgName}
-            </span>
-            <span className="block truncate text-xs text-muted-foreground">
-              Plan {plan.name}
-            </span>
+            <span className="block truncate text-sm font-semibold tracking-tight text-foreground">{orgName}</span>
+            <span className="block truncate text-xs text-muted-foreground">Offre {plan.name}</span>
           </span>
-          <ChevronsUpDown className="size-4 shrink-0 text-muted-foreground" />
+          <ChevronsUpDown className="size-4 shrink-0 text-muted-foreground" aria-hidden />
         </Link>
       </div>
 
-      {/* Client actif (agence uniquement) */}
-      {isAgency && (
-        <ClientSwitcher
-          clients={clients}
-          activeClientId={activeClientId}
-          onNavigate={onNavigate}
-        />
-      )}
+      {isAgency && <ClientSwitcher clients={clients} activeClientId={activeClientId} onNavigate={onNavigate} />}
 
-      {/* Navigation */}
-      <nav className="flex-1 space-y-3 overflow-y-auto px-3 py-4">
-        <NavSection label="Plateforme" items={PRIMARY_NAV} isActive={isActive} onNavigate={onNavigate} />
-        <NavSection label="Agence" items={agencyNav} isActive={isActive} onNavigate={onNavigate} />
-        <NavSection label="Système" items={SYSTEM_NAV} isActive={isActive} onNavigate={onNavigate} />
+      {/* Navigation par usage */}
+      <nav aria-label="Navigation principale" className="flex-1 space-y-5 overflow-y-auto px-3 py-5">
+        {NAV_GROUPS.filter((g) => !g.agencyOnly || isAgency).map((group) => (
+          <div key={group.id} className="space-y-0.5">
+            <p className="px-2.5 pb-1.5 text-[0.68rem] font-medium uppercase tracking-[0.14em] text-muted-foreground/60">
+              {group.label}
+            </p>
+            {group.items.map((item) => (
+              <NavLink
+                key={item.href}
+                item={item}
+                active={isActive(item)}
+                badge={badges[item.href]}
+                onNavigate={onNavigate}
+              />
+            ))}
+          </div>
+        ))}
       </nav>
+
+      {/* Consommation du mois */}
+      {usage && usage.total > 0 && (
+        <Link
+          href="/billing"
+          onClick={onNavigate}
+          className="mx-3 mb-3 block rounded-xl border border-border bg-foreground/[0.02] p-3 transition-colors hover:bg-foreground/[0.04]"
+        >
+          <div className="flex items-baseline justify-between text-xs">
+            <span className="font-medium text-foreground">Minutes du mois</span>
+            <span className="tabular-nums text-muted-foreground">
+              {usage.used.toLocaleString("fr-FR")} / {usage.total.toLocaleString("fr-FR")}
+            </span>
+          </div>
+          <div
+            className="mt-2 h-1.5 overflow-hidden rounded-full bg-foreground/[0.08]"
+            role="progressbar"
+            aria-label="Minutes consommées ce mois-ci"
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuenow={pct}
+          >
+            <div
+              className={cn("h-full rounded-full transition-[width] duration-500", pct >= 90 ? "bg-rose-500" : pct >= 75 ? "bg-amber-500" : "bg-brand")}
+              style={{ width: `${pct}%` }}
+            />
+          </div>
+        </Link>
+      )}
 
       {/* Profil */}
       <div className="border-t border-border p-3">
-        <div className="flex items-center gap-2.5 rounded-lg px-2.5 py-2">
-          <span className="inline-flex size-8 items-center justify-center rounded-full bg-brand/10 text-xs font-semibold text-brand-700 ring-1 ring-inset ring-brand/20">
+        <div className="flex items-center gap-2.5 rounded-lg px-1.5 py-1">
+          <span className="inline-flex size-8 items-center justify-center rounded-[0.6rem] bg-brand/10 text-xs font-semibold text-brand ring-1 ring-inset ring-brand/20">
             {initials(userName)}
           </span>
           <span className="min-w-0 flex-1">
-            <span className="block truncate text-sm font-medium text-foreground">
-              {userName}
-            </span>
-            <span className="block truncate text-xs text-muted-foreground">
-              {userEmail}
-            </span>
+            <span className="block truncate text-sm font-medium text-foreground">{userName}</span>
+            <span className="block truncate text-xs text-muted-foreground">{userEmail}</span>
           </span>
           <form action={logout}>
             <button

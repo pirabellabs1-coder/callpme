@@ -17,6 +17,7 @@ import {
   type ChatMessage,
   type GenerateResult,
   type ResolvedTool,
+  type TextSink,
   type ToolExecutor,
 } from "../llm/chat";
 import type { Agent } from "../shared/types";
@@ -37,6 +38,10 @@ export interface BrainContext {
   extraInstructions?: string;
   /** Conversation de test : les outils n'ont pas d'effet externe. */
   test?: boolean;
+  /** Réponse en flux (voix) : texte transmis au fil de sa génération. */
+  onText?: TextSink;
+  /** Prévenu avant chaque exécution d'outil (ex. couper la parole avant un transfert). */
+  onToolCall?: (name: string) => void;
 }
 
 /** Date et heure courantes dans le fuseau de l'agent (indispensable pour l'agenda). */
@@ -168,7 +173,13 @@ export async function agentReply(ctx: BrainContext, history: Turn[]): Promise<Ge
     role: ctx.agent.role,
     messages: prepared.messages,
     tools: prepared.tools,
-    executeTool: prepared.executeTool,
+    executeTool: ctx.onToolCall
+      ? (name, args) => {
+          ctx.onToolCall?.(name);
+          return prepared.executeTool(name, args);
+        }
+      : prepared.executeTool,
+    onText: ctx.onText,
   });
   return { ...result, prepared };
 }

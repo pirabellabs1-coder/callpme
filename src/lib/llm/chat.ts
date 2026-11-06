@@ -40,7 +40,12 @@ export type ToolExecutor = (
 export interface GenerateResult {
   text: string;
   toolCalls: ToolInvocation[];
+  /** Vrai si le texte a déjà été transmis morceau par morceau via `onText`. */
+  streamed?: boolean;
 }
+
+/** Reçoit le texte de la réponse au fil de sa génération. */
+export type TextSink = (delta: string) => void;
 
 type Provider = "openai" | "anthropic" | "mistral";
 
@@ -126,8 +131,10 @@ export async function generateReply(opts: {
   messages: ChatMessage[];
   tools?: ResolvedTool[];
   executeTool?: ToolExecutor;
+  /** Réponse en flux : chaque morceau de texte est transmis dès sa génération. */
+  onText?: TextSink;
 }): Promise<GenerateResult> {
-  const { model, role, messages, tools = [], executeTool } = opts;
+  const { model, role, messages, tools = [], executeTool, onText } = opts;
   const provider = resolveProvider(model.provider);
   if (provider) {
     const eff: ModelConfig = {
@@ -136,6 +143,13 @@ export async function generateReply(opts: {
       modelId: effectiveModelId(provider, model.modelId),
     };
     try {
+      if (onText) {
+        if (provider === "openai")
+          return await openAICompatibleStream("https://api.openai.com/v1/chat/completions", ENV_KEY.openai()!, eff, messages, tools, onText, executeTool);
+        if (provider === "mistral")
+          return await openAICompatibleStream("https://api.mistral.ai/v1/chat/completions", ENV_KEY.mistral()!, eff, messages, tools, onText, executeTool);
+        if (provider === "anthropic") return await anthropicStream(eff, messages, tools, onText, executeTool);
+      }
       if (provider === "openai")
         return await openAICompatible("https://api.openai.com/v1/chat/completions", ENV_KEY.openai()!, eff, messages, tools, executeTool);
       if (provider === "mistral")
@@ -295,6 +309,247 @@ async function anthropic(
     return { text: text || "Pardon, pouvez-vous répéter ?", toolCalls: made };
   }
   return { text: "Pardon, pouvez-vous répéter ?", toolCalls: made };
+}
+
+/* --------------------------- Réponses en flux ---------------------------- */
+
+const STREAM_FALLBACK = "Pardon, pouvez-vous répéter ?";
+
+/** Lit un flux SSE et renvoie le champ « data » de chaque événement. */
+export async function* sseData(body: ReadableStream<Uint8Array>): AsyncGenerator<string> {
+  const reader = body.getReader();
+  const decoder = new TextDecoder();
+  let buf = "";
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buf = (buf + decoder.decode(value, { stream: true })).replace(/\r\n/g, "\n");
+      let i: number;
+      while ((i = buf.indexOf("\n\n")) >= 0) {
+        const raw = buf.slice(0, i);
+        buf = buf.slice(i + 2);
+        const data = raw
+          .split("\n")
+          .filter((l) => l.startsWith("data:"))
+          .map((l) => l.slice(5).trimStart())
+          .join("\n");
+        if (data) yield data;
+      }
+    }
+  } finally {
+    reader.releaseLock();
+  }
+}
+
+/** OpenAI / Mistral en flux : texte transmis au fil de l'eau, outils exécutés entre deux tours. */
+async function openAICompatibleStream(
+  url: string,
+  key: string,
+  model: ModelConfig,
+  messages: ChatMessage[],
+  tools: ResolvedTool[],
+  onText: TextSink,
+  executeTool?: ToolExecutor,
+): Promise<GenerateResult> {
+  const toolDefs = tools.map((t) => ({
+    type: "function",
+    function: { name: t.name, description: t.description, parameters: t.parameters },
+  }));
+  const convo: unknown[] = [...messages];
+  const made: ToolInvocation[] = [];
+  let said = "";
+
+  for (let round = 0; round < 4; round++) {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
+      body: JSON.stringify({
+        model: model.modelId,
+        temperature: model.temperature,
+        messages: convo,
+        tools: toolDefs.length ? toolDefs : undefined,
+        max_tokens: 500,
+        stream: true,
+      }),
+      signal: AbortSignal.timeout(20000),
+    });
+    if (!res.ok || !res.body) throw new Error(`LLM ${res.status}`);
+
+    let content = "";
+    const calls: { id: string; name: string; arguments: string }[] = [];
+    if (said) said += " ";
+    for await (const data of sseData(res.body)) {
+      if (data === "[DONE]") break;
+      let chunk: {
+        choices?: {
+          delta?: {
+            content?: string | null;
+            tool_calls?: { index?: number; id?: string; function?: { name?: string; arguments?: string } }[];
+          };
+        }[];
+      };
+      try {
+        chunk = JSON.parse(data);
+      } catch {
+        continue;
+      }
+      const delta = chunk.choices?.[0]?.delta;
+      if (!delta) continue;
+      if (delta.content) {
+        content += delta.content;
+        said += delta.content;
+        onText(delta.content);
+      }
+      for (const tc of delta.tool_calls ?? []) {
+        const i = tc.index ?? calls.length;
+        calls[i] ??= { id: "", name: "", arguments: "" };
+        if (tc.id) calls[i].id = tc.id;
+        if (tc.function?.name) calls[i].name += tc.function.name;
+        if (tc.function?.arguments) calls[i].arguments += tc.function.arguments;
+      }
+    }
+
+    const real = calls.filter(Boolean);
+    if (real.length && executeTool) {
+      convo.push({
+        role: "assistant",
+        content: content || null,
+        tool_calls: real.map((c) => ({ id: c.id, type: "function", function: { name: c.name, arguments: c.arguments } })),
+      });
+      for (const c of real) {
+        let args: Record<string, unknown> = {};
+        try {
+          args = JSON.parse(c.arguments || "{}");
+        } catch {
+          /* arguments illisibles */
+        }
+        const r = await executeTool(c.name, args);
+        made.push({ name: c.name, arguments: args, message: r.message });
+        convo.push({ role: "tool", tool_call_id: c.id, content: JSON.stringify(r.data ?? { message: r.message }) });
+      }
+      continue;
+    }
+    break;
+  }
+  const text = said.trim();
+  if (!text) onText(STREAM_FALLBACK);
+  return { text: text || STREAM_FALLBACK, toolCalls: made, streamed: true };
+}
+
+type AnthropicBlock = {
+  type: string;
+  text?: string;
+  id?: string;
+  name?: string;
+  input?: Record<string, unknown>;
+  thinking?: string;
+  signature?: string;
+  data?: string;
+  /** JSON partiel des arguments d'outil (reconstitué à la fin du bloc). */
+  partial?: string;
+};
+
+/** Anthropic en flux. Les blocs (réflexion comprise) sont renvoyés tels quels au tour suivant. */
+async function anthropicStream(
+  model: ModelConfig,
+  messages: ChatMessage[],
+  tools: ResolvedTool[],
+  onText: TextSink,
+  executeTool?: ToolExecutor,
+): Promise<GenerateResult> {
+  const system = messages.find((m) => m.role === "system")?.content;
+  const conv: { role: "user" | "assistant"; content: unknown }[] = messages
+    .filter((m) => m.role !== "system")
+    .map((m) => ({ role: m.role === "assistant" ? "assistant" : "user", content: m.content }));
+  const toolDefs = tools.map((t) => ({ name: t.name, description: t.description, input_schema: t.parameters }));
+  const made: ToolInvocation[] = [];
+  let said = "";
+
+  for (let round = 0; round < 4; round++) {
+    const res = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-api-key": process.env.ANTHROPIC_API_KEY ?? "",
+        "anthropic-version": "2023-06-01",
+      },
+      body: JSON.stringify({
+        model: model.modelId,
+        system,
+        messages: conv,
+        tools: toolDefs.length ? toolDefs : undefined,
+        max_tokens: 500,
+        stream: true,
+        ...anthropicTuning(model),
+      }),
+      signal: AbortSignal.timeout(20000),
+    });
+    if (!res.ok || !res.body) throw new Error(`LLM ${res.status}`);
+
+    const blocks: AnthropicBlock[] = [];
+    if (said) said += " ";
+    for await (const data of sseData(res.body)) {
+      let ev: {
+        type?: string;
+        index?: number;
+        content_block?: AnthropicBlock;
+        delta?: { type?: string; text?: string; partial_json?: string; thinking?: string; signature?: string };
+        error?: { message?: string };
+      };
+      try {
+        ev = JSON.parse(data);
+      } catch {
+        continue;
+      }
+      if (ev.type === "error") throw new Error(`LLM ${ev.error?.message ?? "erreur de flux"}`);
+      const i = ev.index ?? 0;
+      if (ev.type === "content_block_start" && ev.content_block) {
+        blocks[i] = { ...ev.content_block };
+        if (blocks[i].type === "tool_use") blocks[i].partial = "";
+      } else if (ev.type === "content_block_delta" && ev.delta && blocks[i]) {
+        const b = blocks[i];
+        const d = ev.delta;
+        if (d.type === "text_delta" && d.text) {
+          b.text = (b.text ?? "") + d.text;
+          said += d.text;
+          onText(d.text);
+        } else if (d.type === "input_json_delta") b.partial = (b.partial ?? "") + (d.partial_json ?? "");
+        else if (d.type === "thinking_delta") b.thinking = (b.thinking ?? "") + (d.thinking ?? "");
+        else if (d.type === "signature_delta") b.signature = (b.signature ?? "") + (d.signature ?? "");
+      } else if (ev.type === "content_block_stop" && blocks[i]?.type === "tool_use") {
+        const b = blocks[i];
+        try {
+          b.input = b.partial ? JSON.parse(b.partial) : {};
+        } catch {
+          b.input = {};
+        }
+        delete b.partial;
+      } else if (ev.type === "message_stop") break;
+    }
+
+    const content = blocks.filter(Boolean).map((b) => {
+      const { partial: _p, ...rest } = b;
+      return rest;
+    });
+    const uses = content.filter((b) => b.type === "tool_use");
+    if (uses.length && executeTool) {
+      conv.push({ role: "assistant", content });
+      const results: unknown[] = [];
+      for (const use of uses) {
+        const args = use.input ?? {};
+        const r = await executeTool(use.name ?? "", args);
+        made.push({ name: use.name ?? "", arguments: args, message: r.message });
+        results.push({ type: "tool_result", tool_use_id: use.id, content: JSON.stringify(r.data ?? { message: r.message }) });
+      }
+      conv.push({ role: "user", content: results });
+      continue;
+    }
+    break;
+  }
+  const text = said.trim();
+  if (!text) onText(STREAM_FALLBACK);
+  return { text: text || STREAM_FALLBACK, toolCalls: made, streamed: true };
 }
 
 /* --------------------- Moteur de dialogue intégré + outils --------------- */

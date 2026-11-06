@@ -18,6 +18,7 @@ import { sanitizeSpoken } from "../voice/speech-text";
 import type { CallStatus, TranscriptTurn } from "../shared/types";
 import type { Agent } from "../shared/types";
 import { agentReply, type Turn } from "./brain";
+import { SentenceChunker } from "./chunker";
 import { openDeepgram, type SttStream } from "./stt";
 import { resolveVoice, streamSpeech, type TtsVoice } from "./tts";
 import { finishCall } from "./persist";
@@ -67,6 +68,10 @@ export class CallSession {
   private userBuffer = "";
   private busy = false;
   private speaking: AbortController | null = null;
+  /** File de parole : les phrases sont dites dans l'ordre, l'une après l'autre. */
+  private speechTail: Promise<void> = Promise.resolve();
+  /** Incrémenté à chaque interruption : les phrases en attente sont abandonnées. */
+  private speechGen = 0;
   /** Instant (ms) où l'audio déjà envoyé aura fini d'être joué. */
   private playbackUntil = 0;
   private lastActivity = Date.now();
@@ -265,6 +270,7 @@ export class CallSession {
     if (last?.role === "assistant" && !last.content.endsWith(INTERRUPTED_MARK)) {
       this.history[this.history.length - 1] = { ...last, content: `${last.content} ${INTERRUPTED_MARK}` };
     }
+    this.speechGen++;
     this.speaking?.abort();
     this.speaking = null;
     this.playbackUntil = 0;
@@ -314,7 +320,23 @@ export class CallSession {
 
   private async respond() {
     this.transport.sendEvent?.({ type: "thinking" });
+    const gen = this.speechGen;
+    const vars = { agentName: this.agent.name, organizationName: this.organizationName };
+    const chunker = new SentenceChunker();
+    const said: string[] = [];
+    // Après une demande de transfert, le modèle n'annonce rien lui-même :
+    // l'annonce dépend de la réussite réelle du transfert (voir plus bas).
+    let muted = false;
+    const say = (sentence: string) => {
+      if (muted || this.ended || gen !== this.speechGen) return;
+      const clean = sanitizeSpoken(sentence, vars);
+      if (!clean) return;
+      said.push(clean);
+      void this.speak(clean);
+    };
+
     let reply = "";
+    let streamed = false;
     try {
       const result = await agentReply(
         {
@@ -324,12 +346,19 @@ export class CallSession {
           callerNumber: this.ctx.direction === "outbound" ? this.ctx.to : this.ctx.from,
           extraInstructions: this.contactInfo ? `${VOICE_STYLE}\n\n${this.contactInfo}` : VOICE_STYLE,
           test: this.ctx.direction === "web",
+          // L'agent commence à parler dès sa première phrase.
+          onText: (delta) => chunker.push(delta).forEach(say),
+          onToolCall: (name) => {
+            if (name === "transferToHuman") muted = true;
+          },
         },
         this.history,
       );
       // Raccroché pendant la réflexion : rien à dire ni à transférer.
       if (this.ended) return;
-      reply = result.text;
+      streamed = Boolean(result.streamed);
+      if (streamed) chunker.flush().forEach(say);
+      reply = streamed ? "" : result.text;
       for (const call of result.toolCalls) {
         this.addTurn("tool", call.message, call.name);
         if (call.name === "endCall") this.hangupAfterSpeech = true;
@@ -342,12 +371,22 @@ export class CallSession {
     } catch {
       reply = "Je suis désolé, je rencontre un problème technique. Pouvez-vous répéter ?";
     }
-    const spoken = sanitizeSpoken(reply, { agentName: this.agent.name, organizationName: this.organizationName });
-    if (spoken) {
-      this.history.push({ role: "assistant", content: spoken });
-      this.addTurn("agent", spoken);
-      await this.speak(spoken);
+    if (this.ended) return;
+
+    // Réponse non diffusée en flux (moteur intégré, panne) ou phrase de remplacement.
+    const extra = sanitizeSpoken(reply, vars);
+    if (extra && gen === this.speechGen) {
+      said.push(extra);
+      void this.speak(extra);
     }
+    const spoken = said.join(" ");
+    if (spoken) {
+      // Interrompu en cours de réponse : le modèle doit savoir qu'elle n'a pas été entendue en entier.
+      this.history.push({ role: "assistant", content: gen === this.speechGen ? spoken : `${spoken} ${INTERRUPTED_MARK}` });
+      this.addTurn("agent", spoken);
+    }
+    // Attendre l'envoi de toutes les phrases (l'ordre des tours reste celui de la conversation).
+    await this.speechTail;
     if (this.hangupAfterSpeech) {
       // Laisse la dernière phrase se terminer avant de raccrocher.
       const wait = Math.max(0, this.playbackUntil - Date.now()) + 400;
@@ -382,10 +421,18 @@ export class CallSession {
 
   /* ------------------------------ Parole ------------------------------ */
 
-  private async speak(text: string) {
-    if (!this.voice || this.ended) return;
+  /** Ajoute une phrase à la file de parole ; résout une fois son audio envoyé. */
+  private speak(text: string): Promise<void> {
+    const gen = this.speechGen;
+    const run = this.speechTail.then(() => this.speakNow(text, gen));
+    this.speechTail = run.catch(() => {});
+    return run;
+  }
+
+  private async speakNow(text: string, gen: number) {
+    // Phrase abandonnée si l'appelant a interrompu l'agent entre-temps.
+    if (!this.voice || this.ended || gen !== this.speechGen) return;
     const ctrl = new AbortController();
-    this.speaking?.abort();
     this.speaking = ctrl;
     this.transport.sendEvent?.({ type: "speaking", text });
     try {
@@ -427,6 +474,7 @@ export class CallSession {
   async end(status: CallStatus, opts: { keepLine?: boolean } = {}) {
     if (this.ended) return;
     this.ended = true;
+    this.speechGen++;
     this.speaking?.abort();
     this.timers.forEach((t) => clearTimeout(t));
     if (this.dtmfTimer) clearTimeout(this.dtmfTimer);

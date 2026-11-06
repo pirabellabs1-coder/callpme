@@ -37,10 +37,23 @@ const brain = vi.hoisted(() => ({
   reply: "Bien sûr, jeudi à 16 h vous convient ?",
   toolCalls: [] as { name: string; arguments: Record<string, unknown>; message: string }[],
   histories: [] as unknown[],
+  /** Réponse en flux : morceaux transmis un à un via onText. */
+  stream: null as string[] | null,
+  /** Appelé au milieu du flux (ex. interruption par l'appelant). */
+  midStream: null as null | (() => void),
 }));
 vi.mock("@/lib/voice-engine/brain", () => ({
-  agentReply: async (_ctx: unknown, history: unknown[]) => {
+  agentReply: async (ctx: { onText?: (d: string) => void }, history: unknown[]) => {
     brain.histories.push([...history]);
+    if (brain.stream && ctx.onText) {
+      for (let i = 0; i < brain.stream.length; i++) {
+        const d = brain.stream[i];
+        if (i === Math.floor(brain.stream.length / 2)) brain.midStream?.();
+        ctx.onText(d);
+        await new Promise((r) => setTimeout(r, 5));
+      }
+      return { text: brain.stream.join(""), toolCalls: brain.toolCalls, prepared: {}, streamed: true };
+    }
     return { text: brain.reply, toolCalls: brain.toolCalls, prepared: {} };
   },
 }));
@@ -131,6 +144,8 @@ beforeEach(() => {
   brain.reply = "Bien sûr, jeudi à 16 h vous convient ?";
   brain.toolCalls = [];
   brain.histories = [];
+  brain.stream = null;
+  brain.midStream = null;
   persisted.calls = [];
   org.delayMs = 0;
   quota.minutes = 500;
@@ -315,6 +330,47 @@ describe("CallSession (moteur vocal)", () => {
     expect(brain.histories).toHaveLength(1);
     const last = (brain.histories[0] as { content: string }[]).at(-1)!;
     expect(last.content).toBe("[Touches tapées : 1 2]");
+    await s.end("completed");
+  });
+});
+
+describe("réponse en flux (l'agent parle dès la première phrase)", () => {
+  it("dit chaque phrase dès qu'elle est complète, dans l'ordre", async () => {
+    const { transport } = makeTransport();
+    const s = new CallSession(ctx, transport);
+    await s.start();
+    brain.stream = ["Bien sûr, je regarde ", "l'agenda. ", "J'ai un créneau jeudi à seize heures, ", "ou vendredi matin. ", "Lequel préférez-vous ?"];
+    stt.events!.onTranscript!("Je voudrais un rendez-vous", true);
+    await stt.events!.onUtteranceEnd!();
+    await new Promise((r) => setTimeout(r, 300));
+    expect(tts.spoken.slice(1)).toEqual([
+      "Bien sûr, je regarde l'agenda.",
+      "J'ai un créneau jeudi à seize heures, ou vendredi matin.",
+      "Lequel préférez-vous?",
+    ]);
+    await s.end("completed");
+    const turns = persisted.calls[0].transcript as { speaker: string; text: string }[];
+    expect(turns.filter((t) => t.speaker === "agent").pop()?.text).toBe(
+      "Bien sûr, je regarde l'agenda. J'ai un créneau jeudi à seize heures, ou vendredi matin. Lequel préférez-vous?",
+    );
+  });
+
+  it("abandonne la suite de la réponse quand l'appelant coupe la parole", async () => {
+    const { transport } = makeTransport();
+    const s = new CallSession(ctx, transport);
+    await s.start();
+    tts.slow = true;
+    brain.stream = ["Bien sûr, je regarde l'agenda. ", "Nous avons plusieurs créneaux cette semaine. ", "Le premier est lundi. ", "Le second est mardi. "];
+    brain.midStream = () => stt.events!.onTranscript!("Non attendez", false);
+    stt.events!.onTranscript!("Je voudrais un rendez-vous", true);
+    await stt.events!.onUtteranceEnd!();
+    await new Promise((r) => setTimeout(r, 300));
+    expect(tts.spoken.slice(1)).not.toContain("Le second est mardi.");
+    // Le cerveau saura que sa réponse a été coupée.
+    stt.events!.onTranscript!("Non attendez, plutôt le soir", true);
+    await stt.events!.onUtteranceEnd!();
+    const last = brain.histories[1] as { role: string; content: string }[];
+    expect(last.find((m) => m.role === "assistant" && m.content.includes("agenda"))?.content).toContain("[interrompu par l'appelant]");
     await s.end("completed");
   });
 });

@@ -20,6 +20,8 @@ export interface FinishCallInput {
   metadata?: Record<string, string>;
   /** Identifiant de l'appel chez l'opérateur (Twilio CallSid, Telnyx…). */
   providerCallId?: string | null;
+  /** Identifiant de session vocale (jeton) utilisé par les outils pendant l'appel. */
+  sessionCallId?: string;
 }
 
 /** Résumé court de l'appel : LLM si disponible, sinon repli déterministe. */
@@ -84,6 +86,15 @@ export async function finishCall(input: FinishCallInput) {
       providerCallId: input.providerCallId ?? null,
     },
   });
+
+  // Rendez-vous et fiches créés pendant l'appel : rattachés à l'appel enregistré.
+  if (input.sessionCallId) {
+    const where = { organizationId: input.organizationId, callRef: input.sessionCallId };
+    await Promise.all([
+      prisma.appointment.updateMany({ where, data: { callRef: call.id } }),
+      prisma.lead.updateMany({ where, data: { callRef: call.id } }),
+    ]).catch(() => {});
+  }
 
   // Contact de campagne : statut final + issue.
   const contactId = input.metadata?.contactId;

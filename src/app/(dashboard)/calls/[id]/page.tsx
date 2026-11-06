@@ -8,6 +8,7 @@ import {
   ExternalLink,
   AudioLines,
   Download,
+  CalendarCheck2,
   type LucideIcon,
 } from "lucide-react";
 import { getCallById } from "@/lib/db/calls";
@@ -71,10 +72,19 @@ export default async function CallTranscriptPage({
   const call = await getCallById(params.id, session.org.id);
   if (!call) notFound();
 
-  const [evaluation, agent] = await Promise.all([
+  const [evaluation, agent, appointments, leads] = await Promise.all([
     prisma.evaluation.findUnique({ where: { callId: call.id } }),
     getAgentById(call.agentId),
+    prisma.appointment.findMany({
+      where: { organizationId: session.org.id, callRef: call.id },
+      select: { id: true, reference: true, customerName: true, startsAt: true, status: true },
+    }),
+    prisma.lead.findMany({
+      where: { organizationId: session.org.id, callRef: call.id },
+      select: { id: true, kind: true, name: true, score: true },
+    }),
   ]);
+  const KIND_LABEL: Record<string, string> = { lead: "Prospect", message: "Message", callback: "Rappel à faire", ticket: "Ticket" };
   const role = call.agentRole ?? "support";
   const toolTurns = call.transcript.filter((t) => t.speaker === "tool");
   const spokenTurns = call.transcript.filter(
@@ -247,6 +257,34 @@ export default async function CallTranscriptPage({
             )}
           </Card>
 
+          {(appointments.length > 0 || leads.length > 0) && (
+            <Card className="border-emerald-500/20 p-5">
+              <SectionTitle icon={CalendarCheck2}>Résultats de l&apos;appel</SectionTitle>
+              <ul className="mt-3 space-y-2 text-sm">
+                {appointments.map((a) => (
+                  <li key={a.id}>
+                    <Link href="/appointments" className="flex items-baseline justify-between gap-3 rounded-lg px-2 py-1.5 hover:bg-foreground/[0.04]">
+                      <span>
+                        Rendez-vous{a.status === "cancelled" ? " (annulé)" : ""} · {a.customerName}
+                      </span>
+                      <span className="mono text-xs text-muted-foreground">{a.reference}</span>
+                    </Link>
+                  </li>
+                ))}
+                {leads.map((l) => (
+                  <li key={l.id}>
+                    <Link href="/leads" className="flex items-baseline justify-between gap-3 rounded-lg px-2 py-1.5 hover:bg-foreground/[0.04]">
+                      <span>
+                        {KIND_LABEL[l.kind] ?? l.kind} · {l.name}
+                      </span>
+                      {l.score != null && <span className="text-xs tabular-nums text-muted-foreground">{l.score}/100</span>}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </Card>
+          )}
+
           <Card className="p-5">
             <SectionTitle>Détails</SectionTitle>
             <dl className="mt-2 divide-y divide-border">
@@ -319,6 +357,7 @@ export default async function CallTranscriptPage({
                         <p className="text-sm font-medium text-foreground">
                           {tool?.label ?? turn.toolName ?? "Outil"}
                         </p>
+                        {turn.text && <p className="mt-0.5 text-xs text-muted-foreground text-pretty">{turn.text}</p>}
                         <p className="text-[0.7rem] tabular text-muted-foreground">
                           à {formatOffset(turn.at)}
                         </p>

@@ -384,6 +384,8 @@ async function main() {
     );
   }
   console.log("· Nettoyage…");
+  await prisma.appointment.deleteMany();
+  await prisma.lead.deleteMany();
   await prisma.call.deleteMany();
   await prisma.agent.deleteMany();
   await prisma.session.deleteMany();
@@ -439,6 +441,8 @@ async function main() {
   console.log("· Agents…");
   let totalCalls = 0;
   let salesAgentId = "";
+  let appointmentAgentId = "";
+  let qualifAgentId = "";
   for (const a of SEED_AGENTS) {
     const config = buildConfig(
       a.role,
@@ -498,6 +502,8 @@ async function main() {
         createdAt: created,
       });
     }
+    if (a.role === "appointment") appointmentAgentId = agent.id;
+    if (a.role === "lead_qualification") qualifAgentId = agent.id;
     await prisma.call.createMany({ data: calls });
     totalCalls += calls.length;
     console.log(`  ✓ ${a.name} (${a.role}) — ${calls.length} appels`);
@@ -652,8 +658,45 @@ async function main() {
 
   await prisma.integration.createMany({
     data: [
-      { organizationId: org.id, provider: "google_calendar", status: "connected" },
       { organizationId: org.id, provider: "slack", status: "connected" },
+    ],
+  });
+
+  console.log("· Rendez-vous et prospects…");
+  const day = (offset: number, h: number, m = 0) => {
+    const d = new Date();
+    d.setDate(d.getDate() + offset);
+    // Jours ouvrés seulement (agenda par défaut : lundi–vendredi).
+    while (d.getDay() === 0 || d.getDay() === 6) d.setDate(d.getDate() + 1);
+    d.setHours(h, m, 0, 0);
+    return d;
+  };
+  const appts = [
+    { name: "Awa Diallo", phone: "+33612457831", at: day(1, 9, 30), notes: "Détartrage" },
+    { name: "Julien Marchetti", phone: "+33698123407", at: day(1, 14, 0), notes: "Première consultation" },
+    { name: "Fatou Ndiaye", phone: "+221771234567", at: day(2, 10, 30), notes: "Contrôle annuel" },
+    { name: "Hélène Garnier", phone: "+33645219988", at: day(3, 16, 30), notes: null },
+    { name: "Karim Benali", phone: "+33771330456", at: day(5, 11, 0), notes: "Devis implant" },
+  ];
+  await prisma.appointment.createMany({
+    data: appts.map((x, i) => ({
+      organizationId: org.id,
+      agentId: appointmentAgentId || null,
+      reference: `RDV-DEMO${i + 1}`,
+      customerName: x.name,
+      customerPhone: x.phone,
+      notes: x.notes,
+      startsAt: x.at,
+      durationMin: 30,
+      slotKey: `${appointmentAgentId}:${x.at.toISOString()}`,
+    })),
+  });
+  await prisma.lead.createMany({
+    data: [
+      { organizationId: org.id, agentId: qualifAgentId || null, kind: "lead", name: "Sophie Lambert", phone: "+33611223344", email: "s.lambert@atelier-lambert.fr", notes: "Besoin : standard téléphonique pour 3 boutiques · Budget : 300 €/mois · Échéance : ce trimestre", score: 80, interest: "fort" },
+      { organizationId: org.id, agentId: qualifAgentId || null, kind: "lead", name: "Moussa Traoré", phone: "+2250707123456", notes: "Besoin : relance des impayés en Mobile Money · Échéance : dans 2 mois", score: 60, interest: "moyen" },
+      { organizationId: org.id, agentId: appointmentAgentId || null, kind: "callback", name: "Claire Dubois", phone: "+33678901234", notes: "Question sur un remboursement de mutuelle", callbackAt: day(1, 11, 0) },
+      { organizationId: org.id, agentId: appointmentAgentId || null, kind: "message", name: "Dr Martin (confrère)", phone: "+33142000000", notes: "Pour le Dr Diallo : merci de rappeler au sujet du patient adressé hier." },
     ],
   });
 

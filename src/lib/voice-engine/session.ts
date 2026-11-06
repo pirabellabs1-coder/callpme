@@ -349,6 +349,7 @@ export class CallSession {
     }
     try {
       const call = await finishCall({
+        sessionCallId: this.ctx.callId,
         agent: this.agent,
         organizationId: this.agent.organizationId,
         direction: this.ctx.direction,

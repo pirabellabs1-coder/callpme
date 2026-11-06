@@ -1,72 +1,69 @@
-# Déploiement Callpme — Vercel + PostgreSQL
+# Déploiement Callpme — Vercel + PostgreSQL (Neon)
 
-En local, Callpme tourne sur **SQLite** (zéro configuration). Pour la **production**,
-il faut une vraie base **PostgreSQL** (le système de fichiers de Vercel est éphémère :
-SQLite n'y est pas persistant). Le schéma est déjà conçu pour être portable
-(JSON stocké en TEXT), donc le passage à Postgres est direct.
+Le schéma Prisma est déjà en **PostgreSQL** (`prisma/schema.prisma`), en local
+comme en production. Utilisez des bases distinctes : une base de développement
+(ou une branche Neon) et une base de production.
 
-## 1. Créer une base PostgreSQL
+## 1. Base de production
 
-Au choix (offre gratuite suffisante pour démarrer) :
+Créez un projet Neon (région UE, ex. `aws-eu-central-1`) ou une base Postgres
+équivalente, puis récupérez l'URL `postgresql://…?sslmode=require` (préférez
+l'URL « pooled » pour l'application).
 
-- **Vercel Postgres** : Vercel → Storage → Create Database → Postgres.
-- **Neon** : https://neon.tech → New Project → copier la connection string.
-- **Supabase** : https://supabase.com → Project → Database → Connection string.
-
-Récupérez l'URL `postgresql://...` (avec `?sslmode=require`).
-
-## 2. Basculer Prisma sur PostgreSQL
-
-Dans `prisma/schema.prisma`, changez **une seule ligne** :
-
-```prisma
-datasource db {
-  provider = "postgresql"   // était "sqlite"
-  url      = env("DATABASE_URL")
-}
-```
-
-Puis, en pointant `DATABASE_URL` vers votre base Postgres :
+Créez le schéma :
 
 ```bash
-npx prisma generate
-npx prisma db push        # crée les tables sur Postgres
-# (optionnel) npm run db:seed   # données de démo — à NE PAS faire en prod réelle
+DATABASE_URL="postgresql://…" npx prisma db push
 ```
 
-> Astuce : gardez `provider = "sqlite"` pour le dev local et `"postgresql"` pour la
-> prod. Si vous voulez Postgres aussi en local, lancez une base Neon de dev.
+**Ne lancez jamais le seed en production** : il efface toutes les données. Il
+refuse de toute façon de s'exécuter si `NODE_ENV=production` ou sans
+`ALLOW_SEED=1`.
 
-## 3. Variables d'environnement (Vercel)
+## 2. Variables d'environnement (Vercel → Settings → Environment Variables)
 
-Project → Settings → Environment Variables — copiez celles de
-[`.env.production.example`](.env.production.example) :
+Modèle complet : [`.env.production.example`](.env.production.example).
 
-- `DATABASE_URL` (Postgres)
-- `NEXTAUTH_SECRET` (`openssl rand -hex 32`)
-- `PUBLIC_URL` (`https://votre-domaine.com`)
-- `RESEND_API_KEY` + `RESEND_FROM` (adresse de votre **domaine vérifié**)
-- (optionnel) `ELEVENLABS_API_KEY`, `CARTESIA_API_KEY`, `OPENAI_API_KEY`, etc.
+**Obligatoires** — sans elles, les fonctions concernées refusent volontairement
+de fonctionner :
 
-## 4. Build
+| Variable | Rôle |
+|---|---|
+| `DATABASE_URL` | Base PostgreSQL de production |
+| `NEXTAUTH_SECRET` | Secret HMAC (≥ 32 caractères, `openssl rand -hex 32`) |
+| `PUBLIC_URL` | URL publique (`https://votre-domaine.com`, sans slash final) |
+| `ADMIN_GATE_SLUG` | Segment secret de la porte admin (`/portail/<slug>`) ; sans lui, l'admin est inaccessible |
+| `VAPI_WEBHOOK_SECRET` | Secret du webhook Vapi ; sans lui, le webhook répond 503 |
+| `ENCRYPTION_KEY` | Clé de chiffrement des identifiants tiers (≥ 32 caractères) — ne plus la changer ensuite |
 
-`package.json` doit exécuter `prisma generate` avant le build (déjà géré si
-`postinstall` lance `prisma generate`). Sinon, sur Vercel :
+**Selon les fonctionnalités utilisées** : `RESEND_API_KEY` + `RESEND_FROM`
+(e-mails, domaine vérifié), `CONTACT_TO` (destinataire des formulaires du site),
+`VAPI_API_KEY` + `VAPI_PHONE_NUMBER_ID` (appels réels), `GENIUS_PAY_API_KEY` +
+`GENIUS_PAY_API_SECRET` (paiements), `GOOGLE_CLIENT_ID` + `GOOGLE_CLIENT_SECRET`
+(connexion Google), `ADMIN_PASSPHRASE`, clés LLM/voix (`OPENAI_API_KEY`,
+`ANTHROPIC_API_KEY`, `MISTRAL_API_KEY`, `ELEVENLABS_API_KEY`, `CARTESIA_API_KEY`).
 
-- **Build Command** : `prisma generate && next build`
+## 3. Build
+
+Le script `vercel-build` exécute `prisma generate && next build`. Sur Vercel :
+
+- **Build Command** : `npm run vercel-build`
 - **Install Command** : `npm install`
 
-## 5. Déployer
+La CI (`.github/workflows/ci.yml`) vérifie typecheck, tests et build sur chaque
+pull request.
 
-1. Poussez le repo sur GitHub.
-2. Vercel → New Project → importez le repo → réglez les variables → Deploy.
-3. Après le 1er déploiement : `npx prisma db push` contre `DATABASE_URL` (ou via un
-   script de release) pour créer le schéma.
+## 4. Déployer
 
-## 6. Mise en production « propre »
+1. Fusionnez la pull request sur `main` une fois la CI verte.
+2. Vercel → importez le dépôt → renseignez les variables → Deploy.
+3. Vérifiez : `/statut` (base joignable), connexion, création d'un agent,
+   formulaire de contact (réception de l'e-mail).
 
-- Connectez-vous en **admin** → **Revenus & métriques** → **Zone de danger** →
-  **Purger les données de démonstration** pour partir d'une base 100 % réelle.
-- Vérifiez que `RESEND_FROM` utilise bien votre domaine vérifié (sinon les e-mails
-  échouent).
-- **Régénérez** toutes les clés qui ont pu transiter en clair (Resend, token Vercel).
+## 5. Limites connues
+
+- Le limiteur de tentatives est en mémoire : sur plusieurs instances
+  serverless, remplacez le stockage par Redis (ex. Upstash) — interface dans
+  `src/lib/security/rate-limit.ts`.
+- Les tarifs affichés viennent de `src/lib/billing/plans.ts` : modifiez-les à
+  un seul endroit.

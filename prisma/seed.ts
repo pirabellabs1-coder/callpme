@@ -373,6 +373,16 @@ function directionFor(role: AgentRole, i: number): CallDirection {
 /* ------------------------------- Exécution ------------------------------ */
 
 async function main() {
+  // Garde-fou : ce script VIDE les tables puis crée un compte admin au mot de
+  // passe connu. Interdit en production, et exige une confirmation explicite.
+  if (process.env.NODE_ENV === "production") {
+    throw new Error("Seed refusé : NODE_ENV=production.");
+  }
+  if (process.env.ALLOW_SEED !== "1") {
+    throw new Error(
+      "Seed refusé : il efface toutes les données. Relancez avec ALLOW_SEED=1 pour confirmer (base de développement uniquement).",
+    );
+  }
   console.log("· Nettoyage…");
   await prisma.call.deleteMany();
   await prisma.agent.deleteMany();
@@ -391,8 +401,8 @@ async function main() {
       users: {
         create: [
           {
-            email: "contact@pirabellabs.com",
-            name: "Équipe Pirabel",
+            email: "demo@callpme.dev",
+            name: "Équipe Démo",
             role: "owner",
             passwordHash: ownerHash,
             isAdmin: true,
@@ -499,7 +509,7 @@ async function main() {
   await prisma.apiKey.create({
     data: {
       organizationId: org.id,
-      name: "Clé de production",
+      name: "Clé de démonstration",
       prefix: demoKeyRaw.slice(0, 13),
       lastFour: demoKeyRaw.slice(-4),
       hash: createHash("sha256").update(demoKeyRaw).digest("hex"),
@@ -648,7 +658,7 @@ async function main() {
   });
 
   console.log(`\n✅ Seed terminé : 1 org (plan agency), 2 clients, ${SEED_AGENTS.length} agents, ${totalCalls} appels.`);
-  console.log("   Connexion démo : contact@pirabellabs.com / demo1234");
+  console.log("   Connexion démo : demo@callpme.dev / demo1234 (base de développement uniquement)");
   console.log(`   Clé API de démo (à usage de test) : ${demoKeyRaw}`);
 }
 

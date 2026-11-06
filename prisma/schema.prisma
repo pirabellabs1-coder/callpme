@@ -137,6 +137,8 @@ model Call {
   providerCallId String?     @unique // identifiant de l'appel chez l'opérateur téléphonique
   summary        String?
   outcome        String?
+  /// JSON : données relevées en fin d'appel (champs définis sur l'agent).
+  extracted      String?
   satisfaction   Int? // 1..5
   createdAt      DateTime    @default(now())
   evaluation     Evaluation?

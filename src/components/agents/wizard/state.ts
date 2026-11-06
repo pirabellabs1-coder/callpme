@@ -14,6 +14,7 @@ import type {
   VoiceProvider,
 } from "@/lib/shared/types";
 import { ROLE_META } from "@/lib/agents/roles";
+import type { ExtractField } from "@/lib/analysis/fields";
 import type { AgentTemplate } from "@/lib/agents/templates";
 import type { PromptParams } from "@/lib/agents/role-templates";
 
@@ -51,6 +52,9 @@ export interface WizardState {
   /** Répondeur sur appel sortant. */
   voicemailAction: "message" | "hangup" | "off";
   voicemailMessage: string;
+  /** Analyse de fin d'appel. */
+  analysisFields: ExtractField[];
+  successCriteria: string;
   guardrails: string[];
   persona: string;
   tools: string[];
@@ -100,6 +104,8 @@ export function initialState(
       booking: agent.config.booking ?? null,
       voicemailAction: agent.config.voicemail?.action ?? "message",
       voicemailMessage: agent.config.voicemail?.message ?? "",
+      analysisFields: agent.config.analysis?.fields ?? [],
+      successCriteria: agent.config.analysis?.successCriteria ?? "",
       knowledgeBaseId: agent.knowledgeBaseId ?? "",
     };
   }
@@ -128,6 +134,8 @@ export function initialState(
     booking: null,
     voicemailAction: "message",
     voicemailMessage: "",
+    analysisFields: [],
+    successCriteria: "",
     knowledgeBaseId: "",
   };
 }
@@ -246,6 +254,17 @@ export function buildPayload(
     maxDurationSec: s.maxDurationMin > 0 ? s.maxDurationMin * 60 : undefined,
     ...(s.transferNumber.trim() ? { transferNumber: s.transferNumber.trim() } : {}),
     ...(s.booking ? { booking: s.booking } : {}),
+    analysis: {
+      // Lignes sans nom ignorées ; valeurs de choix dédoublonnées.
+      fields: s.analysisFields
+        .filter((f) => f.label.trim())
+        .map((f) => ({
+          ...f,
+          label: f.label.trim(),
+          ...(f.type === "choice" ? { options: Array.from(new Set(f.options ?? [])).filter(Boolean) } : {}),
+        })),
+      ...(s.successCriteria.trim() ? { successCriteria: s.successCriteria.trim() } : {}),
+    },
     voicemail: {
       action: s.voicemailAction,
       ...(s.voicemailMessage.trim() ? { message: s.voicemailMessage.trim().slice(0, 600) } : {}),

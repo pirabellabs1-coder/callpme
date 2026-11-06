@@ -8,6 +8,7 @@ import { Select } from "@/components/ui/select";
 import { ToolsPicker } from "./tools-picker";
 import { GuardrailsEditor } from "./guardrails-editor";
 import { BookingSettings } from "./booking-settings";
+import { AnalysisSettings } from "./analysis-settings";
 import type { SetWizardState, StepErrors, WizardState } from "./state";
 
 export function StepTools({
@@ -85,6 +86,12 @@ export function StepTools({
       {s.tools.some((t) => t === "checkAvailability" || t === "bookAppointment") && (
         <BookingSettings value={s.booking} onChange={(booking) => set({ booking })} />
       )}
+
+      <AnalysisSettings
+        fields={s.analysisFields}
+        successCriteria={s.successCriteria}
+        onChange={(patch) => set(patch)}
+      />
 
       <GuardrailsEditor
         guardrails={s.guardrails}

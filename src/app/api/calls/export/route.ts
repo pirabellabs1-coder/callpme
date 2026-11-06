@@ -31,6 +31,19 @@ function cell(value: string | number | null | undefined): string {
   return /[";\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
 
+/** « budget : 300 | rappel : Oui » — données relevées sur une seule cellule. */
+function extractedText(raw: string | null): string {
+  if (!raw) return "";
+  try {
+    return Object.entries(JSON.parse(raw) as Record<string, unknown>)
+      .filter(([, v]) => v !== null && v !== "")
+      .map(([k, v]) => `${k} : ${typeof v === "boolean" ? (v ? "Oui" : "Non") : String(v)}`)
+      .join(" | ");
+  } catch {
+    return "";
+  }
+}
+
 /** GET /api/calls/export — CSV des appels filtrés de l'organisation. */
 export async function GET(req: NextRequest) {
   try {
@@ -51,6 +64,7 @@ export async function GET(req: NextRequest) {
       "Issue",
       "Satisfaction (1-5)",
       "Résumé",
+      "Données relevées",
       "ID",
     ];
     const lines = [header.map(cell).join(";")];
@@ -67,6 +81,7 @@ export async function GET(req: NextRequest) {
           r.outcome,
           r.satisfaction,
           r.summary,
+          extractedText(r.extracted),
           r.id,
         ]
           .map(cell)

@@ -77,6 +77,22 @@ export const configSchema = z.object({
     .refine((v) => !v || checkDestination(v).ok, "Destination non autorisée (pays non couvert ou numéro surtaxé).")
     .optional(),
   booking: bookingSchema.optional(),
+  analysis: z
+    .object({
+      fields: z
+        .array(
+          z.object({
+            key: z.string().regex(/^[a-z0-9_]{1,40}$/, "Clé invalide"),
+            label: z.string().trim().min(1).max(80),
+            type: z.enum(["text", "number", "boolean", "choice", "date"]),
+            description: z.string().trim().max(300).optional(),
+            options: z.array(z.string().trim().min(1).max(60)).max(20).optional(),
+          }),
+        )
+        .max(15),
+      successCriteria: z.string().trim().max(600).optional(),
+    })
+    .optional(),
   voicemail: z
     .object({
       action: z.enum(["message", "hangup", "off"]),

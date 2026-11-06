@@ -9,6 +9,7 @@ import {
   AudioLines,
   Download,
   CalendarCheck2,
+  ListChecks,
   type LucideIcon,
 } from "lucide-react";
 import { getCallById } from "@/lib/db/calls";
@@ -17,6 +18,7 @@ import { getAgentById } from "@/lib/db/agents";
 import { getPresetVoice } from "@/lib/voices/catalog";
 import { prisma } from "@/lib/db/client";
 import { getTool } from "@/lib/tools/registry";
+import { formatValue } from "@/lib/analysis/fields";
 import { cn, formatDuration } from "@/lib/utils";
 import { Card } from "@/components/ui/card";
 import { RoleIcon, RoleBadge } from "@/components/role-badge";
@@ -84,6 +86,7 @@ export default async function CallTranscriptPage({
       select: { id: true, kind: true, name: true, score: true },
     }),
   ]);
+  const fieldLabels = new Map((agent?.config.analysis?.fields ?? []).map((f) => [f.key, f.label]));
   const KIND_LABEL: Record<string, string> = { lead: "Prospect", message: "Message", callback: "Rappel à faire", ticket: "Ticket" };
   const role = call.agentRole ?? "support";
   const toolTurns = call.transcript.filter((t) => t.speaker === "tool");
@@ -256,6 +259,19 @@ export default async function CallTranscriptPage({
               </p>
             )}
           </Card>
+
+          {call.extracted && Object.keys(call.extracted).length > 0 && (
+            <Card className="p-5">
+              <SectionTitle icon={ListChecks}>Données relevées</SectionTitle>
+              <dl className="mt-2 divide-y divide-border">
+                {Object.entries(call.extracted).map(([key, value]) => (
+                  <KeyValue key={key} label={fieldLabels.get(key) ?? key}>
+                    <span className={value === null ? "font-normal text-muted-foreground" : ""}>{formatValue(value)}</span>
+                  </KeyValue>
+                ))}
+              </dl>
+            </Card>
+          )}
 
           {(appointments.length > 0 || leads.length > 0) && (
             <Card className="border-emerald-500/20 p-5">

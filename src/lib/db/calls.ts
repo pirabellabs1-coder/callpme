@@ -33,8 +33,19 @@ interface CallRow {
   summary: string | null;
   outcome: string | null;
   satisfaction: number | null;
+  extracted?: string | null;
   createdAt: Date;
   agent?: { name: string; role: string } | null;
+}
+
+function parseExtracted(raw: string | null | undefined): Call["extracted"] {
+  if (!raw) return null;
+  try {
+    const v = JSON.parse(raw);
+    return v && typeof v === "object" ? v : null;
+  } catch {
+    return null;
+  }
 }
 
 function toCall(row: CallRow): Call {
@@ -51,6 +62,7 @@ function toCall(row: CallRow): Call {
     summary: row.summary,
     outcome: row.outcome,
     satisfaction: row.satisfaction,
+    extracted: parseExtracted(row.extracted),
     createdAt: row.createdAt.toISOString(),
     agentName: row.agent?.name,
     agentRole: row.agent?.role as AgentRole | undefined,
@@ -208,6 +220,7 @@ export interface CallExportRow {
   outcome: string | null;
   satisfaction: number | null;
   summary: string | null;
+  extracted: string | null;
 }
 
 /** Lignes légères (sans transcript ni audio) pour l'export CSV. */
@@ -229,6 +242,7 @@ export async function listCallsForExport(
       outcome: true,
       satisfaction: true,
       summary: true,
+      extracted: true,
       agent: { select: { name: true } },
     },
     orderBy: [{ createdAt: "desc" }, { id: "desc" }],

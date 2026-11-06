@@ -5,6 +5,7 @@
  * Tout est typé strictement pour permettre l'échange de providers
  * (LLM / STT / TTS) sans casser le reste de la plateforme.
  */
+import type { AnalysisConfig } from "../analysis/fields";
 
 /* ------------------------------------------------------------------ */
 /*  Rôles d'agent                                                      */
@@ -163,6 +164,8 @@ export interface AgentConfig {
   booking?: BookingConfig;
   /** Appels sortants tombant sur un répondeur. */
   voicemail?: VoicemailConfig;
+  /** Analyse de fin d'appel : données à relever et critère de réussite. */
+  analysis?: AnalysisConfig;
 }
 
 export interface VoicemailConfig {
@@ -250,6 +253,8 @@ export interface Call {
   outcome?: string | null;
   /** Satisfaction 1–5 si mesurée. */
   satisfaction?: number | null;
+  /** Données relevées en fin d'appel (champs définis sur l'agent). */
+  extracted?: Record<string, string | number | boolean | null> | null;
   createdAt: string;
 
   /* Champs joints */

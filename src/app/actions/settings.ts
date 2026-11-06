@@ -18,6 +18,10 @@ export async function updateOrganization(
   formData: FormData,
 ): Promise<SettingsResult> {
   const session = await requireSession();
+  // Seuls le propriétaire et les administrateurs modifient l'organisation.
+  if (session.user.role !== "owner" && session.user.role !== "admin") {
+    return { error: "Seul un administrateur peut modifier l'organisation." };
+  }
   const name = String(formData.get("name") ?? "").trim();
   if (name.length < 2) {
     return { error: "Le nom doit contenir au moins 2 caractères." };

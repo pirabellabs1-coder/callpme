@@ -201,3 +201,86 @@ export function twoFactorEmail(name: string, enabled: boolean): EmailContent {
   });
   return { subject: enabled ? "Sécurité — double authentification activée" : "Sécurité — double authentification désactivée", html, text: toText(html) };
 }
+
+/* ----------------------------- Paiements -------------------------------- */
+
+const eur = (n: number) =>
+  new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR", minimumFractionDigits: 0, maximumFractionDigits: 2 }).format(n);
+const longDate = (d: Date) => new Intl.DateTimeFormat("fr-FR", { day: "numeric", month: "long", year: "numeric", timeZone: "Africa/Porto-Novo" }).format(d);
+
+/** Reçu de paiement : montant en euros, numéro de facture, lien vers la facture. */
+export function paymentReceiptEmail(o: {
+  name: string;
+  orgName: string;
+  label: string;
+  amountEur: number;
+  invoiceNumber: string | null;
+  invoiceUrl: string;
+  paidAt: Date;
+  /** Fin de la période payée (abonnement). */
+  activeUntil?: Date | null;
+}): EmailContent {
+  const row = (k: string, v: string) =>
+    `<tr><td style="padding:8px 0;color:#78716c;font-size:14px;">${k}</td><td style="padding:8px 0;text-align:right;font-size:14px;color:#1c1917;font-weight:600;">${v}</td></tr>`;
+  const html = emailLayout({
+    preheader: `Paiement de ${eur(o.amountEur)} confirmé.`,
+    heading: "Paiement confirmé, merci",
+    bodyHtml: `<p style="margin:0 0 12px;">Bonjour ${escapeHtml(o.name || "")},</p>
+      <p style="margin:0 0 16px;">Nous avons bien reçu le paiement de <strong>${escapeHtml(o.orgName)}</strong>. Voici votre reçu.</p>
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-top:1px solid #ece7e3;border-bottom:1px solid #ece7e3;margin:0 0 12px;">
+        ${row("Objet", escapeHtml(o.label))}
+        ${row("Montant", eur(o.amountEur))}
+        ${row("Date", longDate(o.paidAt))}
+        ${o.invoiceNumber ? row("Facture", escapeHtml(o.invoiceNumber)) : ""}
+        ${o.activeUntil ? row("Offre active jusqu'au", longDate(o.activeUntil)) : ""}
+      </table>
+      <p style="margin:0;">Votre facture est disponible à tout moment dans <strong>Facturation</strong>, prête à imprimer ou à enregistrer en PDF.</p>`,
+    ctaLabel: "Voir ma facture",
+    ctaUrl: o.invoiceUrl,
+    footnote: "Une question sur ce paiement ? Répondez simplement à cet e-mail.",
+  });
+  return { subject: `Paiement confirmé — ${o.invoiceNumber ?? eur(o.amountEur)}`, html, text: toText(html) };
+}
+
+/** Rappel avant la fin de la période payée. */
+export function expiryReminderEmail(o: { name: string; planName: string; endsAt: Date; daysLeft: number }): EmailContent {
+  const days = `${o.daysLeft} jour${o.daysLeft > 1 ? "s" : ""}`;
+  const html = emailLayout({
+    preheader: `Votre offre ${o.planName} se termine dans ${days}.`,
+    heading: `Votre offre se termine dans ${days}`,
+    bodyHtml: `<p style="margin:0 0 12px;">Bonjour ${escapeHtml(o.name || "")},</p>
+      <p style="margin:0 0 12px;">Votre offre <strong>${escapeHtml(o.planName)}</strong> est payée jusqu'au <strong>${longDate(o.endsAt)}</strong>. Après cette date, vos agents ne prendront plus d'appels.</p>
+      <p style="margin:0;">Renouvelez dès maintenant en Mobile Money ou par carte : les 30 jours s'ajoutent à la période en cours, vous ne perdez rien.</p>`,
+    ctaLabel: "Renouveler mon offre",
+    ctaUrl: `${baseUrl()}/billing`,
+  });
+  return { subject: `Votre offre Callpme se termine dans ${days}`, html, text: toText(html) };
+}
+
+/** Offre arrivée à échéance. */
+export function expiredEmail(o: { name: string; planName: string }): EmailContent {
+  const html = emailLayout({
+    preheader: "Vos agents ne prennent plus d'appels.",
+    heading: "Votre offre est arrivée à échéance",
+    bodyHtml: `<p style="margin:0 0 12px;">Bonjour ${escapeHtml(o.name || "")},</p>
+      <p style="margin:0 0 12px;">Votre offre <strong>${escapeHtml(o.planName)}</strong> est terminée : vos agents ne prennent plus d'appels pour le moment.</p>
+      <p style="margin:0;">Vos agents, numéros et données sont conservés. Il suffit de renouveler pour tout retrouver immédiatement.</p>`,
+    ctaLabel: "Renouveler mon offre",
+    ctaUrl: `${baseUrl()}/billing`,
+  });
+  return { subject: "Votre offre Callpme est arrivée à échéance", html, text: toText(html) };
+}
+
+/** Accès démo accordé par l'équipe. */
+export function demoAccessEmail(o: { name: string; endsAt: Date; minutes: number }): EmailContent {
+  const html = emailLayout({
+    preheader: "Votre accès démo Callpme est ouvert.",
+    heading: "Votre accès démo est ouvert",
+    bodyHtml: `<p style="margin:0 0 12px;">Bonjour ${escapeHtml(o.name || "")},</p>
+      <p style="margin:0 0 12px;">L'équipe Callpme vous a ouvert un accès démo jusqu'au <strong>${longDate(o.endsAt)}</strong>, avec <strong>${o.minutes} minutes d'appel</strong> pour essayer votre agent en conditions réelles.</p>
+      <p style="margin:0;">Créez votre agent, choisissez sa voix et appelez-le : nous restons disponibles pour vous accompagner.</p>`,
+    ctaLabel: "Créer mon agent",
+    ctaUrl: `${baseUrl()}/agents/new`,
+  });
+  return { subject: "Votre accès démo Callpme est ouvert", html, text: toText(html) };
+}

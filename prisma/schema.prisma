@@ -27,6 +27,10 @@ model Organization {
   trialEndsAt    DateTime?
   /// Crédit prépayé des appels sortants, en centimes d'euro (jamais négatif).
   callCreditCents Int @default(0)
+  /// Échéance (paidUntil) pour laquelle le rappel « fin d'offre » a été envoyé.
+  expiryReminderFor DateTime?
+  /// Échéance pour laquelle l'avis « offre arrivée à échéance » a été envoyé.
+  expiredNoticeFor  DateTime?
   /** Réglages des alertes au propriétaire (JSON, voir src/lib/alerts). */
   alerts         String?
   /** Pays (ISO) : format des numéros saisis sans indicatif, fuseau par défaut. */

@@ -7,6 +7,7 @@ import { isOrgAdmin, requireSession } from "@/lib/auth/session";
 import { PLANS } from "@/lib/billing/plans";
 import { applyPromo } from "@/lib/billing/subscription";
 import { activatePaidPlan, assignInvoiceNumber } from "@/lib/payments/confirm";
+import { sendPaymentReceipt } from "@/lib/payments/notify";
 import { getPack } from "@/lib/billing/topups";
 import { orgSubscription } from "@/lib/billing/limits";
 import { isRateLimited } from "@/lib/security/rate-limit";
@@ -61,6 +62,7 @@ async function activateFree(orgId: string, plan: string, code: string) {
   });
   await assignInvoiceNumber(p.id);
   await activatePaidPlan(orgId, plan);
+  await sendPaymentReceipt(p.id);
   revalidatePath("/billing");
   revalidatePath("/", "layout");
 }

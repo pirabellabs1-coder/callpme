@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/db/client";
 import { getGeniusPaymentStatus, isFailed, isPaid } from "@/lib/payments/geniuspay";
 import { extendPaidUntil } from "@/lib/billing/subscription";
+import { sendPaymentReceipt } from "@/lib/payments/notify";
 
 /**
  * Confirme un paiement (revérifie le statut côté GeniusPay, authentifié) et,
@@ -61,7 +62,10 @@ export async function confirmAndActivatePayment(
       });
       return true;
     });
-    if (done) await assignInvoiceNumber(payment.id);
+    if (done) {
+      await assignInvoiceNumber(payment.id);
+      await sendPaymentReceipt(payment.id);
+    }
     return "completed";
   }
 
@@ -77,6 +81,7 @@ export async function confirmAndActivatePayment(
       where: { id: payment.organizationId },
       data: { extraMinutes: { increment: Math.max(0, payment.minutes ?? 0) } },
     });
+    await sendPaymentReceipt(payment.id);
     return "completed";
   }
   await activatePaidPlan(payment.organizationId, payment.plan);
@@ -98,5 +103,7 @@ export async function confirmAndActivatePayment(
     }
   }
 
+  // Reçu + facture par e-mail (après l'activation, pour indiquer la nouvelle échéance).
+  await sendPaymentReceipt(payment.id);
   return "completed";
 }

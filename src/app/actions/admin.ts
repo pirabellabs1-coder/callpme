@@ -1,6 +1,7 @@
 "use server";
 
-import { extendPaidUntil, DEMO_DAYS } from "@/lib/billing/subscription";
+import { extendPaidUntil, DEMO_DAYS, TRIAL_MINUTES } from "@/lib/billing/subscription";
+import { billingRecipients } from "@/lib/payments/notify";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db/client";
 import { requireAdmin } from "@/lib/auth/session";
@@ -14,6 +15,7 @@ import { sendEmail, hasResend, type SendEmailResult } from "@/lib/email/resend";
 import {
   announcementEmail,
   subscriptionEmail,
+  demoAccessEmail,
 } from "@/lib/email/templates";
 import { getPlan } from "@/lib/billing/plans";
 import { buildDefaultConfig } from "@/lib/agents/build-config";
@@ -116,6 +118,16 @@ export async function setDemoAccess(orgId: string, days: number): Promise<AdminR
     where: { id: orgId },
     data: { trialEndsAt: days === 0 ? null : new Date(Date.now() + days * 86_400_000) },
   });
+  if (days > 0 && hasResend()) {
+    const endsAt = new Date(Date.now() + days * 86_400_000);
+    const members = await billingRecipients(orgId);
+    await Promise.allSettled(
+      members.map((m) => {
+        const mail = demoAccessEmail({ name: m.name ?? "", endsAt, minutes: TRIAL_MINUTES });
+        return sendEmail({ to: m.email, subject: mail.subject, html: mail.html, text: mail.text });
+      }),
+    );
+  }
   revalidatePath("/admin/organizations");
   return { ok: true };
 }

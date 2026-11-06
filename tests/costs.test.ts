@@ -52,9 +52,9 @@ describe("rentabilité", () => {
   it("la marge dépend des minutes réellement utilisées", () => {
     const full = planMargin("pro", 1, 0.07);
     const half = planMargin("pro", 0.5, 0.07);
-    expect(full.minutesUsed).toBe(3000);
+    expect(full.minutesUsed).toBe(1000);
     expect(half.margin).toBeGreaterThan(full.margin);
-    expect(full.margin).toBeLessThan(0); // 3 000 minutes à 149 € : à perte
+    expect(full.margin).toBeGreaterThan(40); // 1 000 minutes à 149 € : rentable même toutes utilisées
   });
 
   it("le bénéfice tient compte des frais fixes", () => {

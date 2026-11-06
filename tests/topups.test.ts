@@ -13,7 +13,7 @@ describe("recharges de minutes", () => {
     const perMinute = MINUTE_PACKS.map((p) => p.priceEur / p.minutes);
     expect(perMinute[0]).toBeGreaterThan(perMinute[1]);
     expect(perMinute[1]).toBeGreaterThan(perMinute[2]);
-    expect(getPack("m500")?.minutes).toBe(500);
+    expect(getPack("m300")?.minutes).toBe(300);
     expect(getPack("inconnu")).toBeUndefined();
   });
 });

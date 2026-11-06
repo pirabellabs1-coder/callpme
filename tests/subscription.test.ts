@@ -36,7 +36,7 @@ describe("abonnement", () => {
     const paidUntil = new Date(now.getTime() + 10 * DAY);
     const s = subscriptionState({ plan: "pro", createdAt: new Date(now.getTime() - 90 * DAY), paidUntil, trialEndsAt: null }, now);
     expect(s.status).toBe("active");
-    expect(s.minutesIncluded).toBe(3000);
+    expect(s.minutesIncluded).toBe(1000);
     expect(s.periodStart.getTime()).toBe(paidUntil.getTime() - 30 * DAY);
   });
 

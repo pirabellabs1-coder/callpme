@@ -11,9 +11,10 @@ export interface MinutePack {
 }
 
 export const MINUTE_PACKS: MinutePack[] = [
-  { id: "m100", minutes: 100, priceEur: 9, label: "100 minutes" },
-  { id: "m500", minutes: 500, priceEur: 39, label: "500 minutes" },
-  { id: "m2000", minutes: 2000, priceEur: 139, label: "2 000 minutes" },
+  // Prix inchangés, minutes ajustées au coût réel (≈ 0,067 € la minute) : marge ≈ 45 %.
+  { id: "m60", minutes: 60, priceEur: 9, label: "60 minutes" },
+  { id: "m300", minutes: 300, priceEur: 39, label: "300 minutes" },
+  { id: "m1100", minutes: 1100, priceEur: 139, label: "1 100 minutes" },
 ];
 
 export function getPack(id: string): MinutePack | undefined {

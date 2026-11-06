@@ -21,6 +21,7 @@ import {
   Lock,
   Hash,
   Calculator,
+  FileText,
 } from "lucide-react";
 import { cn, initials } from "@/lib/utils";
 import { logout } from "@/app/actions/auth";
@@ -29,6 +30,7 @@ import { lockAdmin } from "@/app/actions/admin-auth";
 const NAV = [
   { href: "/admin", label: "Revenus & métriques", icon: LayoutDashboard, exact: true },
   { href: "/admin/couts", label: "Coûts & rentabilité", icon: Calculator },
+  { href: "/admin/societe", label: "Société et factures", icon: FileText },
   { href: "/admin/organizations", label: "Organisations", icon: Building2 },
   { href: "/admin/users", label: "Utilisateurs", icon: Users },
   { href: "/admin/agents", label: "Agents", icon: Bot },

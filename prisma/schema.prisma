@@ -31,6 +31,10 @@ model Organization {
   expiryReminderFor DateTime?
   /// Échéance pour laquelle l'avis « offre arrivée à échéance » a été envoyé.
   expiredNoticeFor  DateTime?
+  /// Coordonnées de facturation du client (affichées sur ses factures).
+  billingName    String?
+  billingAddress String?
+  billingTaxId   String?
   /** Réglages des alertes au propriétaire (JSON, voir src/lib/alerts). */
   alerts         String?
   /** Pays (ISO) : format des numéros saisis sans indicatif, fuseau par défaut. */
@@ -487,6 +491,10 @@ model Payment {
 
   @@index([organizationId])
   @@index([reference])
+  /// Montant hors taxes (le montant payé `amountEur` est TTC quand la TVA s'applique).
+  amountHtEur    Float?
+  /// Instantané figé à l'émission de la facture : vendeur, client, TVA (JSON).
+  invoiceData    String?
 }
 
 // ----- Demandes d'offre Agence (devis sur-mesure) -----
@@ -746,4 +754,11 @@ model OutboundHold {
 
   @@index([organizationId])
   @@index([settled, createdAt])
+}
+
+// ----- Réglages de la plateforme (clé → JSON), ex. informations légales de la société -----
+model PlatformSetting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
 }

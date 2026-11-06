@@ -1,6 +1,7 @@
 "use server";
 
 import { CREDIT_PACKS } from "@/lib/billing/outbound-rates";
+import { getCompany, priceWithVat } from "@/lib/billing/company";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db/client";
 import { isOrgAdmin, requireSession } from "@/lib/auth/session";
@@ -93,20 +94,22 @@ export async function startCheckout(planId: string, promoCode = ""): Promise<Che
     }
   }
   if (!geniusConfigured()) return { error: "Paiement momentanément indisponible." };
-  if (eurToXof(amountEur) < MIN_XOF) return { error: "Montant trop faible pour un paiement en ligne." };
+  const price = priceWithVat(amountEur, await getCompany());
+  if (eurToXof(price.ttc) < MIN_XOF) return { error: "Montant trop faible pour un paiement en ligne." };
   const payment = await prisma.payment.create({
     data: {
       organizationId: session.org.id,
       kind: "subscription",
       plan: planId,
-      amountEur,
-      amountXof: eurToXof(amountEur),
+      amountEur: price.ttc,
+      amountHtEur: price.ht,
+      amountXof: eurToXof(price.ttc),
       status: "pending",
       promoCode: code,
     },
   });
   const result = await createGeniusPayment({
-    amountEur,
+    amountEur: price.ttc,
     description: `Abonnement Callpme — ${plan.name} (30 jours)`,
     customer: { name: session.user.name ?? session.user.email, email: session.user.email },
     metadata: { paymentId: payment.id, orgId: session.org.id, plan: planId, kind: "subscription" },
@@ -192,19 +195,20 @@ export async function payAgencyRequest(requestId: string): Promise<CheckoutResul
     return { error: "Le montant n'a pas encore été fixé par l'équipe." };
   }
   if (!geniusConfigured()) return { error: "Paiement momentanément indisponible." };
-  const amountEur = reqRow.quotedAmountEur;
+  const price = priceWithVat(reqRow.quotedAmountEur, await getCompany());
   const payment = await prisma.payment.create({
     data: {
       organizationId: session.org.id,
       kind: "agency",
       plan: "agency",
-      amountEur,
-      amountXof: eurToXof(amountEur),
+      amountEur: price.ttc,
+      amountHtEur: price.ht,
+      amountXof: eurToXof(price.ttc),
       status: "pending",
     },
   });
   const result = await createGeniusPayment({
-    amountEur,
+    amountEur: price.ttc,
     description: "Offre Agence Callpme",
     customer: { name: reqRow.contactName, email: reqRow.contactEmail },
     metadata: {
@@ -234,18 +238,20 @@ export async function startTopup(packId: string): Promise<CheckoutResult> {
   const sub = await orgSubscription(session.org.id);
   if (sub.status === "expired") return { error: "Renouvelez d'abord votre offre : les minutes rechargées s'utilisent avec une offre active." };
   if (!geniusConfigured()) return { error: "Paiement momentanément indisponible." };
+  const price = priceWithVat(pack.priceEur, await getCompany());
   const payment = await prisma.payment.create({
     data: {
       organizationId: session.org.id,
       kind: "topup",
       minutes: pack.minutes,
-      amountEur: pack.priceEur,
-      amountXof: eurToXof(pack.priceEur),
+      amountEur: price.ttc,
+      amountHtEur: price.ht,
+      amountXof: eurToXof(price.ttc),
       status: "pending",
     },
   });
   const result = await createGeniusPayment({
-    amountEur: pack.priceEur,
+    amountEur: price.ttc,
     description: `Recharge Callpme — ${pack.label}`,
     customer: { name: session.user.name ?? session.user.email, email: session.user.email },
     metadata: { paymentId: payment.id, orgId: session.org.id, kind: "topup", minutes: String(pack.minutes) },
@@ -260,6 +266,21 @@ export async function startTopup(packId: string): Promise<CheckoutResult> {
   return { url: result.checkoutUrl };
 }
 
+/** Coordonnées de facturation du client (figées sur chaque nouvelle facture). */
+export async function updateBillingDetails(input: { name: string; address: string; taxId: string }): Promise<BillingResult> {
+  const session = await requireSession();
+  if (!isOrgAdmin(session)) return { error: "Seul un administrateur peut modifier la facturation." };
+  const clean = (s: unknown, max: number) => String(s ?? "").trim().slice(0, max);
+  const name = clean(input?.name, 120);
+  if (name && name.length < 2) return { error: "Nom de facturation trop court." };
+  await prisma.organization.update({
+    where: { id: session.org.id },
+    data: { billingName: name || null, billingAddress: clean(input?.address, 400) || null, billingTaxId: clean(input?.taxId, 60) || null },
+  });
+  revalidatePath("/billing");
+  return { ok: true };
+}
+
 /** Recharge du crédit d'appels sortants (montant fixe en euros). */
 export async function startCreditTopup(amountEur: number): Promise<CheckoutResult> {
   const session = await requireSession();
@@ -268,17 +289,20 @@ export async function startCreditTopup(amountEur: number): Promise<CheckoutResul
   const sub = await orgSubscription(session.org.id);
   if (sub.status === "expired") return { error: "Choisissez d'abord une offre : le crédit d'appels sortants s'utilise avec une offre active." };
   if (!geniusConfigured()) return { error: "Paiement momentanément indisponible." };
+  // Le crédit vaut le montant HT ; la TVA éventuelle s'ajoute au paiement.
+  const price = priceWithVat(amountEur, await getCompany());
   const payment = await prisma.payment.create({
     data: {
       organizationId: session.org.id,
       kind: "credit",
-      amountEur,
-      amountXof: eurToXof(amountEur),
+      amountEur: price.ttc,
+      amountHtEur: price.ht,
+      amountXof: eurToXof(price.ttc),
       status: "pending",
     },
   });
   const result = await createGeniusPayment({
-    amountEur,
+    amountEur: price.ttc,
     description: `Crédit d'appels sortants Callpme — ${amountEur} €`,
     customer: { name: session.user.name ?? session.user.email, email: session.user.email },
     metadata: { paymentId: payment.id, orgId: session.org.id, kind: "credit" },

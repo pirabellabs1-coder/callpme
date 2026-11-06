@@ -2,6 +2,8 @@ import { prisma } from "@/lib/db/client";
 import { getGeniusPaymentStatus, isFailed, isPaid } from "@/lib/payments/geniuspay";
 import { extendPaidUntil } from "@/lib/billing/subscription";
 import { sendPaymentReceipt } from "@/lib/payments/notify";
+import { getCompany, type InvoiceSnapshot } from "@/lib/billing/company";
+import { getCountry } from "@/lib/geo/countries";
 
 /**
  * Confirme un paiement (revérifie le statut côté GeniusPay, authentifié) et,
@@ -20,8 +22,36 @@ export async function assignInvoiceNumber(paymentId: string): Promise<string | n
   await prisma.$executeRawUnsafe('CREATE SEQUENCE IF NOT EXISTS invoice_seq');
   const rows = await prisma.$queryRaw<{ n: bigint }[]>`SELECT nextval('invoice_seq') AS n`;
   const number = `FAC-${existing.createdAt.getFullYear()}-${String(rows[0].n).padStart(6, "0")}`;
-  await prisma.payment.updateMany({ where: { id: paymentId, invoiceNumber: null }, data: { invoiceNumber: number } });
+  const snapshot = await invoiceSnapshot(paymentId).catch(() => null);
+  await prisma.payment.updateMany({
+    where: { id: paymentId, invoiceNumber: null },
+    data: { invoiceNumber: number, ...(snapshot ? { invoiceData: JSON.stringify(snapshot) } : {}) },
+  });
   return number;
+}
+
+/**
+ * Instantané de la facture à son émission : vendeur, client et TVA tels
+ * qu'ils sont à cet instant. Une facture émise ne change plus ensuite.
+ */
+export async function invoiceSnapshot(paymentId: string): Promise<InvoiceSnapshot | null> {
+  const p = await prisma.payment.findUnique({
+    where: { id: paymentId },
+    include: { organization: { select: { name: true, country: true, billingName: true, billingAddress: true, billingTaxId: true } } },
+  });
+  if (!p) return null;
+  const seller = await getCompany();
+  const ht = p.amountHtEur ?? p.amountEur;
+  const vat = Math.round((p.amountEur - ht) * 100) / 100;
+  const o = p.organization;
+  return {
+    seller,
+    buyer: { name: o.billingName || o.name, address: o.billingAddress ?? "", taxId: o.billingTaxId ?? "", country: getCountry(o.country).name },
+    ht,
+    vat,
+    ttc: p.amountEur,
+    rate: ht > 0 ? Math.round((vat / ht) * 1000) / 10 : 0,
+  };
 }
 
 /** Applique l'offre payée et prolonge la période de 30 jours. */
@@ -58,7 +88,8 @@ export async function confirmAndActivatePayment(
       if (c.count !== 1) return false;
       await tx.organization.update({
         where: { id: payment.organizationId },
-        data: { callCreditCents: { increment: Math.max(0, Math.round(payment.amountEur * 100)) } },
+        // Le crédit vaut le montant HT (la TVA éventuelle n'est pas du crédit d'appels).
+        data: { callCreditCents: { increment: Math.max(0, Math.round((payment.amountHtEur ?? payment.amountEur) * 100)) } },
       });
       return true;
     });

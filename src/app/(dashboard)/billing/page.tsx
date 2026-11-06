@@ -1,5 +1,6 @@
 import { Bot, Hash, Clock, ShieldCheck } from "lucide-react";
-import { requireSession } from "@/lib/auth/session";
+import { isOrgAdmin, requireSession } from "@/lib/auth/session";
+import { BillingDetailsForm } from "@/components/billing/billing-details-form";
 import { prisma } from "@/lib/db/client";
 import { countAgents } from "@/lib/db/agents";
 import { extraMinutesBalance, minutesUsedSince, orgSubscription } from "@/lib/billing/limits";
@@ -117,6 +118,10 @@ export default async function BillingPage() {
     extraMinutesBalance(session.org.id),
     creditBalanceCents(session.org.id),
   ]);
+  const billingOrg = await prisma.organization.findUnique({
+    where: { id: session.org.id },
+    select: { billingName: true, billingAddress: true, billingTaxId: true },
+  });
   const dateFmt = new Intl.DateTimeFormat("fr-FR", { day: "numeric", month: "long", year: "numeric" });
   // Jamais payé et sans accès démo : aucune offre à afficher comme « actuelle ».
   const noOffer = sub.status === "expired" && sub.neverPaid;
@@ -250,6 +255,21 @@ export default async function BillingPage() {
           rates={OUTBOUND_DESTINATIONS.map((d) => ({ label: d.label, eur: outboundRateEur(d.sample) }))}
           packs={CREDIT_PACKS}
           disabledReason={sub.status === "expired" ? "Choisissez d'abord une offre : le crédit d'appels sortants s'utilise avec une offre active." : undefined}
+        />
+      </section>
+
+      {/* Coordonnées de facturation */}
+      <section aria-labelledby="billing-details-title" className="space-y-3">
+        <div>
+          <h2 id="billing-details-title" className="text-[0.95rem] font-semibold tracking-tight text-foreground">
+            Coordonnées de facturation
+          </h2>
+          <p className="text-sm text-muted-foreground">Elles figurent sur vos prochaines factures (les factures déjà émises ne changent pas).</p>
+        </div>
+        <BillingDetailsForm
+          orgName={session.org.name}
+          canEdit={isOrgAdmin(session)}
+          initial={{ name: billingOrg?.billingName ?? "", address: billingOrg?.billingAddress ?? "", taxId: billingOrg?.billingTaxId ?? "" }}
         />
       </section>
 

@@ -13,5 +13,5 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
     select: { document: true, documentMime: true, documentName: true },
   });
   if (!c) return notFound();
-  return binaryResponse(c.document, c.documentMime, c.documentName);
+  return binaryResponse(c.document, c.documentMime, c.documentName, "attachment");
 }

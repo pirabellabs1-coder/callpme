@@ -35,6 +35,11 @@ function workerSecret(): string | null {
   return s && s.length >= 32 ? s : null;
 }
 
+/** Adresse publique de Callpme (liens envoyés au worker ; jamais déduite d'un en-tête Host). */
+export function publicBaseUrl(): string {
+  return (process.env.PUBLIC_URL || "http://localhost:3000").replace(/\/+$/, "");
+}
+
 export const trainingConfigured = () => trainingWorkerUrl() !== null && workerSecret() !== null;
 
 /** Vérifie l'en-tête Authorization d'un appel du worker (comparaison à temps constant). */

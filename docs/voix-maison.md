@@ -154,7 +154,7 @@ D'après notre connaissance de cette licence, elle autorise l'usage commercial a
 
 - **Pièce calme**, traitée si possible (couvertures, mousse). Pas de ventilateur ni de climatisation pendant la prise.
 - **Le même micro** tout au long du projet (micro USB cardioïde correct ou micro XLR + interface). Distance constante de 15 à 20 cm, filtre anti-pop.
-- **Format** : WAV mono, 48 kHz (24 kHz minimum), 16 bits. L'admin refuse le stéréo et ce qui est sous 16 kHz.
+- **Format** : WAV mono non compressé, 48 kHz (24 kHz minimum), 16 bits. L'admin n'accepte **que le WAV** (la durée est relue dans le fichier). Il refuse le MP3, le stéréo et ce qui est sous 16 kHz. L'enregistrement au micro depuis la page produit directement un WAV.
 - **Clips de 3 à 15 secondes**, une phrase chacun. L'admin accepte de 1 à 30 s.
 - **Transcription exacte**, mot pour mot, y compris les hésitations si on les garde. Une erreur de transcription apprend une erreur au modèle.
 
@@ -228,16 +228,19 @@ Est-ce un problème ? Pour la voix, la latence réseau Europe ↔ Bénin (≈ 10
 - **Page super-admin `/admin/voix-maison`**, derrière la porte admin existante (URL secrète + phrase secrète + compte super-admin). On peut y :
   - créer une voix ;
   - déposer le consentement signé (PDF, JPEG ou PNG). Il est **obligatoire** : sans lui, aucun clip ;
-  - déposer des clips ou **les enregistrer au micro** dans le navigateur, convertis en WAV. Le format est vérifié sur les octets réels, ainsi que la durée et le mono ≥ 16 kHz. Chaque clip exige une attestation ;
+  - déposer des clips WAV ou **les enregistrer au micro** dans le navigateur (convertis en WAV). Le format, la durée et le mono ≥ 16 kHz sont vérifiés sur le fichier réel, côté serveur. Chaque clip exige une attestation. Plafond de 2 500 clips par voix ;
   - écouter et supprimer un clip, et suivre la progression vers le minimum ;
   - lancer, suivre ou annuler un entraînement (mode manuel inclus) ;
   - écouter une version avec un texte libre, la publier au catalogue ou la retirer ;
-  - **révoquer le consentement**. Cela annule les entraînements, retire les versions du catalogue et coupe immédiatement la voix au téléphone.
+  - **révoquer le consentement**. Cela annule les entraînements, retire les versions du catalogue, coupe immédiatement la voix au téléphone et **supprime tous les enregistrements** (clips et échantillons). Seuls le formulaire signé et la date de révocation restent, comme preuve.
 - **Fournisseur vocal « callpme »** dans le moteur téléphonique. Il appelle `CALLPME_TTS_URL` et diffuse le µ-law 8 kHz en flux. Il est **inactif sans cette variable**.
   - Les voix maison n'apparaissent alors pas aux clients.
   - Un agent qui en aurait une retombe automatiquement sur la voix ElevenLabs par défaut.
-  - Il en va de même si la voix est retirée ou si le consentement est révoqué.
+  - Il en va de même si la voix est retirée ou si le consentement est révoqué. Cette vérification lit la version publiée et le consentement, pas seulement le catalogue : réactiver la voix à la main dans « Voix » ne suffit pas.
+  - **En cours d'appel**, si le serveur maison tombe ou ne répond pas en 4 s, le moteur bascule sur la voix ElevenLabs du catalogue et redit la phrase. L'appelant n'entend pas de silence.
 - **Routes du serveur d'entraînement** (`/api/inhouse-training/...`), protégées par un secret partagé : manifeste du jeu de données, téléchargement des clips, rapports d'avancement.
+- **Sécurité** : envois admin refusés s'ils ne viennent pas de l'application (contrôle d'origine), fichiers servis sans cache et sans exécution possible, formulaire de consentement téléchargé plutôt qu'affiché.
+- **Ce qui ne supprime pas** côté serveur d'inférence : si un modèle a déjà été déployé, Callpme cesse de l'appeler à la révocation, mais l'équipe doit aussi **effacer le modèle sur le serveur GPU** (étape manuelle tant que ce serveur n'existe pas).
 
 ### Simulé ou à construire (dit clairement)
 
@@ -274,7 +277,7 @@ Est-ce un problème ? Pour la voix, la latence réseau Europe ↔ Bénin (≈ 10
 > 4. comprends que Callpme **n'utilisera pas** ma voix pour des contenus politiques, religieux, sexuels, diffamatoires ou frauduleux. Ses clients s'engagent à la même interdiction ;
 > 5. reçois en contrepartie : ………………… (montant, modalités, éventuelle redevance) ;
 > 6. consens pour une durée de ……… ans, renouvelable par écrit ;
-> 7. peux **retirer mon consentement à tout moment** par écrit à ………………… . Callpme cesse alors d'utiliser la voix au téléphone sous 72 h, n'entraîne plus de modèle avec mes enregistrements, et les supprime sur demande. Les sommes déjà versées restent acquises ;
+> 7. peux **retirer mon consentement à tout moment** par écrit à ………………… . Callpme cesse alors d'utiliser la voix au téléphone sous 72 h, supprime mes enregistrements et les modèles entraînés avec eux. Les sommes déjà versées restent acquises ;
 > 8. ai été informé(e) que ma voix est une donnée personnelle protégée par la loi béninoise (Code du numérique). Je dispose d'un droit d'accès, de rectification et de suppression.
 >
 > Fait à …………… , le …………… , en deux exemplaires.

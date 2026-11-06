@@ -496,7 +496,7 @@ export class CallSession {
     return run;
   }
 
-  private async speakNow(text: string, gen: number) {
+  private async speakNow(text: string, gen: number): Promise<void> {
     // Phrase abandonnée si l'appelant a interrompu l'agent entre-temps.
     if (!this.voice || this.ended || gen !== this.speechGen) return;
     const ctrl = new AbortController();
@@ -511,6 +511,14 @@ export class CallSession {
         this.playbackUntil = Math.max(this.playbackUntil, Date.now()) + (chunk.length / 8000) * 1000;
       }
     } catch (e) {
+      if (!ctrl.signal.aborted && this.voice?.provider === "callpme" && !this.ended && gen === this.speechGen) {
+        // Serveur de voix maison en panne : bascule définitive sur la voix du catalogue, phrase redite.
+        console.error("[voice] voix maison indisponible, repli :", e instanceof Error ? e.message : e);
+        const fallback = await defaultPlatformVoice().catch(() => null);
+        this.voice = resolveVoice(this.agent, fallback?.externalId, null, false);
+        if (this.speaking === ctrl) this.speaking = null;
+        if (this.voice && this.voice.provider !== "callpme") return this.speakNow(text, gen);
+      }
       if (!ctrl.signal.aborted) {
         // Détail technique dans les journaux serveur seulement.
         this.quality.ttsError();

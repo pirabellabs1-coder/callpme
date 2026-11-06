@@ -5,7 +5,7 @@ import { prisma } from "@/lib/db/client";
 import { getAdminSession } from "@/lib/auth/session";
 import { badRequest, notFound, ok } from "@/lib/api/respond";
 import { CONSENT_DOC, CONSENT_FORM_VERSION } from "@/lib/voices/inhouse/rules";
-import { readFormFile, sniffConsentDocument } from "@/lib/voices/inhouse/http";
+import { readFormFile, sameOrigin, sniffConsentDocument } from "@/lib/voices/inhouse/http";
 
 export const dynamic = "force-dynamic";
 
@@ -29,6 +29,7 @@ const schema = z.object({
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
   const session = await getAdminSession();
   if (!session) return notFound();
+  if (!sameOrigin(req)) return badRequest("Origine refusée.");
   const voice = await prisma.inhouseVoice.findUnique({ where: { id: params.id }, include: { consent: { select: { id: true } } } });
   if (!voice) return notFound();
   if (voice.consent) return badRequest("Un consentement est déjà enregistré pour cette voix.");

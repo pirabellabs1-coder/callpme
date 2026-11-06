@@ -3,9 +3,9 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db/client";
 import { getAdminSession } from "@/lib/auth/session";
 import { badRequest, notFound, ok } from "@/lib/api/respond";
-import { checkClip, CLIP_LIMITS, consentValid } from "@/lib/voices/inhouse/rules";
+import { checkClip, CLIP_LIMITS, consentValid, MAX_CLIPS_PER_VOICE } from "@/lib/voices/inhouse/rules";
 import { sniffAudio, wavInfo } from "@/lib/voices/inhouse/audio-format";
-import { readFormFile } from "@/lib/voices/inhouse/http";
+import { readFormFile, sameOrigin } from "@/lib/voices/inhouse/http";
 
 export const dynamic = "force-dynamic";
 
@@ -17,22 +17,25 @@ export const dynamic = "force-dynamic";
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
   const session = await getAdminSession();
   if (!session) return notFound();
+  if (!sameOrigin(req)) return badRequest("Origine refusée.");
   const voice = await prisma.inhouseVoice.findUnique({ where: { id: params.id }, include: { consent: { select: { revokedAt: true } } } });
   if (!voice) return notFound();
   if (!consentValid(voice.consent)) return badRequest("Consentement signé requis (absent ou révoqué) avant d'ajouter des clips.");
+
+  if ((await prisma.inhouseVoiceClip.count({ where: { voiceId: voice.id } })) >= MAX_CLIPS_PER_VOICE) {
+    return badRequest(`Plafond de ${MAX_CLIPS_PER_VOICE} clips atteint pour cette voix.`);
+  }
 
   const form = await req.formData().catch(() => null);
   if (!form) return badRequest("Formulaire invalide.");
   const file = await readFormFile(form, "audio", CLIP_LIMITS.maxBytes);
   if ("error" in file) return badRequest(file.error);
 
-  const declared = Number(form.get("durationMs"));
   const checked = checkClip({
     attested: form.get("attest") === "on",
     transcript: String(form.get("transcript") ?? ""),
     mime: sniffAudio(file.bytes),
     wav: wavInfo(file.bytes),
-    declaredMs: Number.isFinite(declared) ? declared : null,
   });
   if ("error" in checked) return badRequest(checked.error);
 

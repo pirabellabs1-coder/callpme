@@ -19,11 +19,23 @@ vi.mock("@/lib/voice-engine/stt", () => ({
   sttConfigured: () => true,
 }));
 
-const tts = vi.hoisted(() => ({ spoken: [] as string[], slow: false }));
+const tts = vi.hoisted(() => ({
+  spoken: [] as string[],
+  slow: false,
+  /** Voix renvoyées par resolveVoice, dans l'ordre (sinon voix ElevenLabs). */
+  voices: [] as { provider: string; voiceId: string; language: string }[],
+  resolvedWith: [] as (string | null | undefined)[],
+  /** Serveur de voix maison en panne. */
+  callpmeDown: false,
+}));
 vi.mock("@/lib/voice-engine/tts", () => ({
-  resolveVoice: () => ({ provider: "elevenlabs", voiceId: "v", language: "fr-FR" }),
+  resolveVoice: (_a: unknown, fallbackId?: string | null) => {
+    tts.resolvedWith.push(fallbackId);
+    return tts.voices.shift() ?? { provider: "elevenlabs", voiceId: "v", language: "fr-FR" };
+  },
   ttsConfigured: () => true,
-  async *streamSpeech(text: string, _v: unknown, signal: AbortSignal) {
+  async *streamSpeech(text: string, v: { provider: string }, signal: AbortSignal) {
+    if (v.provider === "callpme" && tts.callpmeDown) throw new Error("Synthèse vocale refusée (callpme, HTTP 503).");
     tts.spoken.push(text);
     for (let i = 0; i < 4; i++) {
       if (signal.aborted) return;
@@ -143,6 +155,9 @@ beforeEach(() => {
   stt.closed = false;
   tts.spoken = [];
   tts.slow = false;
+  tts.voices = [];
+  tts.resolvedWith = [];
+  tts.callpmeDown = false;
   brain.reply = "Bien sûr, jeudi à 16 h vous convient ?";
   brain.toolCalls = [];
   brain.histories = [];
@@ -154,6 +169,20 @@ beforeEach(() => {
 });
 
 describe("CallSession (moteur vocal)", () => {
+  it("voix maison en panne pendant l'appel : bascule sur la voix du catalogue et redit la phrase", async () => {
+    tts.voices = [{ provider: "callpme", voiceId: "cpm_awa", language: "fr-FR" }];
+    tts.callpmeDown = true;
+    const { t, transport } = makeTransport();
+    const s = new CallSession(ctx, transport);
+    await s.start();
+    // L'accueil est quand même prononcé, avec la voix de secours du catalogue.
+    expect(tts.spoken[0]).toBe("Cabinet Diallo, bonjour.");
+    expect(t.audio.length).toBeGreaterThan(0);
+    expect(tts.resolvedWith.at(-1)).toBe("voix-catalogue");
+    expect(t.events.some((e) => e.type === "error")).toBe(false);
+    await s.end("completed");
+  });
+
   it("prononce l'accueil puis répond à l'appelant", async () => {
     const { t, transport } = makeTransport();
     const s = new CallSession(ctx, transport);

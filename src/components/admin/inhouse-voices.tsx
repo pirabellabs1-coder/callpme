@@ -196,14 +196,15 @@ export function ConsentSection({ voiceId, consent, formVersion }: { voiceId: str
         </div>
         {consent.revokedAt ? (
           <p className="text-sm text-muted-foreground">
-            Motif : {consent.revokeReason}. Cette voix ne peut plus être enrichie, entraînée ni publiée. Supprimez ses clips si le locuteur le demande.
+            Motif : {consent.revokeReason}. Les enregistrements ont été supprimés ; seul le formulaire signé est conservé comme preuve. Cette voix ne peut plus être
+            enrichie, entraînée ni publiée.
           </p>
         ) : (
           <form
             className="flex flex-wrap items-end gap-2"
             onSubmit={(e) => {
               e.preventDefault();
-              if (!confirm("Révoquer le consentement ? Les entraînements seront annulés et la voix retirée du catalogue.")) return;
+              if (!confirm("Révoquer le consentement ? Les entraînements seront annulés, la voix retirée du catalogue et tous ses enregistrements supprimés définitivement.")) return;
               revoke.run(() => revokeInhouseConsent(voiceId, reason));
             }}
           >
@@ -301,16 +302,23 @@ function useRecorder() {
     [],
   );
 
+  const starting = useRef(false);
+
   async function start(onDone: (wav: Blob, durationMs: number) => void) {
+    // Double clic pendant l'autorisation du micro : un seul enregistreur.
+    if (starting.current || rec.current?.state === "recording") return;
+    starting.current = true;
     setError(null);
     let stream: MediaStream;
     try {
       // Traitements désactivés : on veut la voix brute, pas débruitée par le navigateur.
       stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false, channelCount: 1 } });
     } catch {
+      starting.current = false;
       setError("Micro inaccessible : autorisez-le dans le navigateur.");
       return;
     }
+    starting.current = false;
     const chunks: Blob[] = [];
     const r = new MediaRecorder(stream);
     r.ondataavailable = (e) => e.data.size && chunks.push(e.data);
@@ -322,8 +330,11 @@ function useRecorder() {
         const ctx = new AudioContext();
         const decoded = await ctx.decodeAudioData(await new Blob(chunks).arrayBuffer());
         void ctx.close();
-        const wav = pcm16ToWav(floatToPcm16(decoded.getChannelData(0)), decoded.sampleRate);
-        onDone(new Blob([wav], { type: "audio/wav" }), Math.round(decoded.duration * 1000));
+        // Coupé à la durée maximale : l'arrêt automatique déborde toujours de quelques centaines de ms.
+        const maxSamples = Math.floor((CLIP_LIMITS.maxMs / 1000) * decoded.sampleRate);
+        const samples = decoded.getChannelData(0).subarray(0, maxSamples);
+        const wav = pcm16ToWav(floatToPcm16(samples), decoded.sampleRate);
+        onDone(new Blob([wav], { type: "audio/wav" }), Math.round((samples.length / decoded.sampleRate) * 1000));
       } catch {
         setError("Enregistrement illisible, recommencez.");
       }
@@ -389,18 +400,6 @@ export function DatasetSection({
     form.set("audio", audio, recorded ? "enregistrement.wav" : (file?.name ?? "clip"));
     form.set("transcript", transcript);
     form.set("source", recorded ? "record" : "upload");
-    if (recorded) form.set("durationMs", String(recorded.durationMs));
-    else if (file) {
-      // Durée mesurée par le navigateur pour les formats compressés (le serveur relit celle des WAV).
-      const probe = URL.createObjectURL(file);
-      const ms = await new Promise<number>((resolve) => {
-        const a = new Audio(probe);
-        a.onloadedmetadata = () => resolve(Number.isFinite(a.duration) ? Math.round(a.duration * 1000) : 0);
-        a.onerror = () => resolve(0);
-      });
-      URL.revokeObjectURL(probe);
-      form.set("durationMs", String(ms));
-    }
     if (attest) form.set("attest", "on");
     setSending(true);
     const err = await postForm(`/api/admin/inhouse-voices/${voiceId}/clips`, form);
@@ -461,8 +460,8 @@ export function DatasetSection({
             <Input
               ref={fileInput}
               type="file"
-              accept="audio/wav,audio/x-wav,audio/flac,audio/mpeg,audio/ogg,audio/webm"
-              aria-label="Fichier audio du clip"
+              accept="audio/wav,audio/x-wav,.wav"
+              aria-label="Fichier WAV du clip (mono, 16 kHz minimum)"
               className="max-w-xs"
               onChange={(e) => {
                 setRecorded(null);

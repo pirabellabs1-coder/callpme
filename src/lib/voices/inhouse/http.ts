@@ -1,15 +1,40 @@
 /** Petits utilitaires HTTP des routes voix maison. */
 
-/** Réponse binaire privée (jamais mise en cache par un proxy). */
-export function binaryResponse(bytes: Uint8Array, mime: string, filename?: string): Response {
+/**
+ * Réponse binaire privée : jamais mise en cache, jamais interprétée comme une
+ * page (nosniff + CSP sandbox, même si le contenu était piégé).
+ */
+export function binaryResponse(bytes: Uint8Array, mime: string, filename?: string, disposition: "inline" | "attachment" = "inline"): Response {
   const headers: Record<string, string> = {
     "Content-Type": mime,
     "Content-Length": String(bytes.byteLength),
     "Cache-Control": "private, no-store",
     "X-Content-Type-Options": "nosniff",
+    "Content-Security-Policy": "sandbox; default-src 'none'",
   };
-  if (filename) headers["Content-Disposition"] = `inline; filename="${filename.replace(/[^\w.-]/g, "_")}"`;
+  if (filename || disposition === "attachment") {
+    const safe = (filename ?? "fichier").replace(/[^\w.-]/g, "_");
+    headers["Content-Disposition"] = `${disposition}; filename="${safe}"`;
+  }
   return new Response(Buffer.from(bytes), { headers });
+}
+
+/**
+ * Défense CSRF en profondeur (en plus des cookies SameSite=Lax) : une requête
+ * qui modifie des données doit venir de l'application elle-même.
+ */
+export function sameOrigin(req: Request): boolean {
+  const origin = req.headers.get("origin");
+  if (!origin) return false;
+  const allowed = new Set([new URL(req.url).origin]);
+  if (process.env.PUBLIC_URL) {
+    try {
+      allowed.add(new URL(process.env.PUBLIC_URL).origin);
+    } catch {
+      /* PUBLIC_URL invalide : seule l'origine de la requête compte */
+    }
+  }
+  return allowed.has(origin);
 }
 
 /** Lit un fichier d'un FormData en refusant les fichiers trop gros. */

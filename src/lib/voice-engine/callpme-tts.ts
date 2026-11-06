@@ -78,18 +78,64 @@ export function callpmeSpeechRequest(input: CallpmeSpeechInput, format: CallpmeA
   };
 }
 
-/** Lance la synthèse ; le corps de la réponse est le flux audio. */
-export function callpmeSpeech(input: CallpmeSpeechInput, signal: AbortSignal): Promise<Response> {
+/** Délai maximal avant la réponse du serveur : au-delà, l'appelant entendrait un silence. */
+export const FIRST_BYTE_TIMEOUT_MS = 4_000;
+
+/**
+ * Lance la synthèse ; le corps de la réponse est le flux audio. Échoue si le
+ * serveur ne répond pas en FIRST_BYTE_TIMEOUT_MS (le moteur bascule alors sur
+ * la voix de secours).
+ */
+export async function callpmeSpeech(input: CallpmeSpeechInput, signal: AbortSignal): Promise<Response> {
   const { url, init } = callpmeSpeechRequest(input);
-  return fetch(url, { ...init, signal });
+  const ctrl = new AbortController();
+  const forward = () => ctrl.abort();
+  if (signal.aborted) ctrl.abort();
+  signal.addEventListener("abort", forward, { once: true });
+  const timer = setTimeout(() => ctrl.abort(), FIRST_BYTE_TIMEOUT_MS);
+  try {
+    return await fetch(url, { ...init, signal: ctrl.signal });
+  } catch (e) {
+    if (!signal.aborted && ctrl.signal.aborted) throw new Error("Serveur de voix maison : pas de réponse à temps.");
+    throw e;
+  } finally {
+    clearTimeout(timer);
+  }
 }
+
+/** 2 minutes de µ-law 8 kHz : au-delà, la réponse est anormale. */
+export const MAX_BUFFERED_BYTES = 8000 * 120;
 
 /** Synthèse complète (aperçus, échantillon publié), bornée en taille et en temps. */
 export async function callpmeSpeechBuffer(input: CallpmeSpeechInput, timeoutMs = 30_000): Promise<Uint8Array> {
-  const res = await callpmeSpeech(input, AbortSignal.timeout(timeoutMs));
-  if (!res.ok) throw new Error(`Serveur de voix maison : HTTP ${res.status}.`);
-  const buf = new Uint8Array(await res.arrayBuffer());
-  if (buf.length === 0) throw new Error("Serveur de voix maison : audio vide.");
-  if (buf.length > 8000 * 120) throw new Error("Serveur de voix maison : audio trop long.");
-  return buf;
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+  try {
+    const res = await callpmeSpeech(input, ctrl.signal);
+    if (!res.ok || !res.body) throw new Error(`Serveur de voix maison : HTTP ${res.status}.`);
+    // Lecture en flux, coupée dès le plafond : jamais tout en mémoire d'abord.
+    const reader = res.body.getReader();
+    const parts: Uint8Array[] = [];
+    let total = 0;
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      total += value.byteLength;
+      if (total > MAX_BUFFERED_BYTES) {
+        ctrl.abort();
+        throw new Error("Serveur de voix maison : audio trop long.");
+      }
+      parts.push(value);
+    }
+    if (total === 0) throw new Error("Serveur de voix maison : audio vide.");
+    const out = new Uint8Array(total);
+    let at = 0;
+    for (const p of parts) {
+      out.set(p, at);
+      at += p.byteLength;
+    }
+    return out;
+  } finally {
+    clearTimeout(timer);
+  }
 }

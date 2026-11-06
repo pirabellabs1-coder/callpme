@@ -2,11 +2,12 @@
  * Accès base des voix maison (serveur uniquement).
  * Les octets audio ne sont jamais chargés dans les listes : seulement à l'écoute.
  */
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db/client";
 import { decodeMulaw } from "@/lib/voice-engine/audio";
 import { callpmeSpeechBuffer } from "@/lib/voice-engine/callpme-tts";
 import { pcm16ToWav } from "./audio-format";
-import { ACTIVE_JOB_STATUSES, modelRefForJob, type DatasetSummary } from "./rules";
+import { modelRefForJob, type DatasetSummary } from "./rules";
 
 const clipMeta = {
   id: true,
@@ -25,10 +26,6 @@ export async function datasetSummary(voiceId: string): Promise<DatasetSummary> {
     _sum: { durationMs: true },
   });
   return { clips: agg._count._all, durationMs: agg._sum.durationMs ?? 0 };
-}
-
-export async function hasActiveJob(voiceId: string): Promise<boolean> {
-  return (await prisma.inhouseTrainingJob.count({ where: { voiceId, status: { in: [...ACTIVE_JOB_STATUSES] } } })) > 0;
 }
 
 export async function listInhouseVoices() {
@@ -72,13 +69,38 @@ export async function getInhouseVoice(id: string) {
   });
 }
 
+type Db = Prisma.TransactionClient | typeof prisma;
+
+/**
+ * Passe un entraînement à « réussi » ET crée sa version brouillon, dans une
+ * seule transaction : jamais d'entraînement réussi sans version. Ne s'applique
+ * que si l'état n'a pas changé depuis sa lecture (`from`). Renvoie false sinon.
+ */
+export async function completeTraining(jobId: string, from: string, message: string): Promise<boolean> {
+  try {
+    return await prisma.$transaction(async (tx) => {
+      const moved = await tx.inhouseTrainingJob.updateMany({
+        where: { id: jobId, status: from },
+        data: { status: "succeeded", progress: 100, message, finishedAt: new Date() },
+      });
+      if (moved.count === 0) return false;
+      await createDraftVersion(jobId, tx);
+      return true;
+    });
+  } catch (e) {
+    // Course entre le worker et la confirmation manuelle : l'autre a gagné.
+    if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") return false;
+    throw e;
+  }
+}
+
 /** Crée la version brouillon produite par un entraînement réussi (idempotent). */
-export async function createDraftVersion(jobId: string) {
-  const job = await prisma.inhouseTrainingJob.findUnique({ where: { id: jobId }, include: { version: true } });
+export async function createDraftVersion(jobId: string, db: Db = prisma) {
+  const job = await db.inhouseTrainingJob.findUnique({ where: { id: jobId }, include: { version: true } });
   if (!job) throw new Error("Entraînement introuvable.");
   if (job.version) return job.version;
-  const last = await prisma.inhouseVoiceVersion.aggregate({ where: { voiceId: job.voiceId }, _max: { number: true } });
-  return prisma.inhouseVoiceVersion.create({
+  const last = await db.inhouseVoiceVersion.aggregate({ where: { voiceId: job.voiceId }, _max: { number: true } });
+  return db.inhouseVoiceVersion.create({
     data: {
       voiceId: job.voiceId,
       jobId: job.id,

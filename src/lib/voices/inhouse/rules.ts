@@ -23,33 +23,35 @@ export type ClipCheck =
 
 /**
  * Valide un clip avant enregistrement. `mime` et `wav` viennent de l'analyse
- * des octets réels ; `declaredMs` (durée mesurée par le navigateur) ne sert
- * que pour les formats compressés, dont l'en-tête n'est pas lu ici.
+ * des octets réels. Seul le WAV est accepté : sa durée est relue dans l'en-tête
+ * côté serveur (aucune valeur fournie par le navigateur n'est crue).
  */
 export function checkClip(input: {
   attested: boolean;
   transcript: string;
   mime: string | null;
   wav: { channels: number; sampleRate: number; durationMs: number } | null;
-  declaredMs: number | null;
 }): ClipCheck {
   if (!input.attested) return { error: "Attestation de consentement requise pour chaque clip." };
   const transcript = input.transcript.trim().replace(/\s+/g, " ");
   if (transcript.length < CLIP_LIMITS.transcriptMin || transcript.length > CLIP_LIMITS.transcriptMax) {
     return { error: `Transcription exacte requise (${CLIP_LIMITS.transcriptMin} à ${CLIP_LIMITS.transcriptMax} caractères).` };
   }
-  if (!input.mime) return { error: "Format audio non reconnu (WAV, FLAC, MP3, OGG ou WebM)." };
-  if (input.wav && (input.wav.channels !== 1 || input.wav.sampleRate < 16_000)) {
+  if (input.mime !== "audio/wav" || !input.wav) {
+    return { error: "Format refusé : WAV non compressé uniquement (ou enregistrez depuis la page)." };
+  }
+  if (input.wav.channels !== 1 || input.wav.sampleRate < 16_000) {
     return { error: "WAV attendu en mono, 16 kHz minimum (idéalement 24 ou 48 kHz)." };
   }
-  const declared = input.declaredMs !== null && input.declaredMs > 0 ? Math.round(input.declaredMs) : null;
-  const durationMs = input.wav?.durationMs ?? declared;
-  if (durationMs === null) return { error: "Durée du clip inconnue : envoyez un WAV ou enregistrez depuis la page." };
+  const { durationMs } = input.wav;
   if (durationMs < CLIP_LIMITS.minMs || durationMs > CLIP_LIMITS.maxMs) {
     return { error: `Un clip doit durer entre ${CLIP_LIMITS.minMs / 1000} et ${CLIP_LIMITS.maxMs / 1000} secondes.` };
   }
   return { transcript, mime: input.mime, durationMs };
 }
+
+/** Plafond de clips par voix (≈ 3 h à 5 s par clip) : évite de gonfler la base. */
+export const MAX_CLIPS_PER_VOICE = 2_500;
 
 /** Document de consentement signé : PDF ou photo, 4 Mo maximum. */
 export const CONSENT_DOC = {

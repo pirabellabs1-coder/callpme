@@ -10,15 +10,19 @@ import { z } from "zod";
 import { prisma } from "@/lib/db/client";
 import { requireAdmin } from "@/lib/auth/session";
 import { callpmeTtsConfigured } from "@/lib/voice-engine/callpme-tts";
-import { createDraftVersion, datasetSummary, hasActiveJob, synthesizeWav } from "@/lib/voices/inhouse/store";
+import { Prisma } from "@prisma/client";
+import { completeTraining, datasetSummary, synthesizeWav } from "@/lib/voices/inhouse/store";
 import { canTransition, consentValid, isBaseModel, isActiveJob, modelRefForJob, SAMPLE_TEXT, trainingBlocker } from "@/lib/voices/inhouse/rules";
-import { submitTrainingJob, trainingConfigured } from "@/lib/voices/inhouse/worker";
+import { publicBaseUrl, submitTrainingJob, trainingConfigured } from "@/lib/voices/inhouse/worker";
 
 export interface InhouseActionResult {
   ok?: boolean;
   error?: string;
   id?: string;
 }
+
+/** Refus métier levé dans une transaction (annule ses écritures). */
+class BlockedError extends Error {}
 
 const message = (e: unknown) => (e instanceof Error ? e.message : "Erreur inattendue.");
 
@@ -48,9 +52,10 @@ export async function createInhouseVoice(input: z.input<typeof voiceSchema>): Pr
 }
 
 /**
- * Révoque le consentement : plus aucun clip ni entraînement, entraînements en
- * cours annulés, versions publiées retirées du catalogue. Les clips restent
- * stockés jusqu'à leur suppression (preuve), mais ne servent plus.
+ * Révoque le consentement : entraînements en cours annulés, versions publiées
+ * retirées du catalogue (coupure immédiate au téléphone), et **données vocales
+ * supprimées** (clips et échantillons). Seuls le formulaire signé et la date
+ * de révocation sont conservés, comme preuve.
  */
 export async function revokeInhouseConsent(voiceId: string, reason: string): Promise<InhouseActionResult> {
   await requireAdmin();
@@ -68,7 +73,9 @@ export async function revokeInhouseConsent(voiceId: string, reason: string): Pro
       data: { status: "canceled", message: "Annulé : consentement révoqué.", finishedAt: new Date() },
     }),
     prisma.inhouseVoiceVersion.updateMany({ where: { voiceId, status: "published" }, data: { status: "retired" } }),
+    prisma.inhouseVoiceVersion.updateMany({ where: { voiceId }, data: { sampleAudio: null } }),
     prisma.platformVoice.updateMany({ where: { id: { in: ids } }, data: { active: false } }),
+    prisma.inhouseVoiceClip.deleteMany({ where: { voiceId } }),
   ]);
   refresh(voiceId);
   return { ok: true };
@@ -94,24 +101,40 @@ export async function startInhouseTraining(voiceId: string, baseModel: string): 
   const voice = await prisma.inhouseVoice.findUnique({ where: { id: voiceId }, include: { consent: { select: { revokedAt: true } } } });
   if (!voice) return { error: "Voix introuvable." };
   const dataset = await datasetSummary(voiceId);
-  const blocker = trainingBlocker({ consent: voice.consent, dataset, hasActiveJob: await hasActiveJob(voiceId) });
-  if (blocker) return { error: blocker };
-
-  const job = await prisma.inhouseTrainingJob.create({
-    data: {
-      voiceId,
-      baseModel,
-      clipCount: dataset.clips,
-      totalDurationMs: dataset.durationMs,
-      createdById: session.user.id,
-      message: trainingConfigured()
-        ? "Envoi au serveur d'entraînement…"
-        : "En attente : aucun serveur d'entraînement GPU n'est configuré (CALLPME_TRAINING_URL).",
-    },
-  });
+  // Vérification et création atomiques (Serializable) : un double clic ne crée pas deux entraînements.
+  let job: { id: string };
+  try {
+    job = await prisma.$transaction(
+      async (tx) => {
+        const active = await tx.inhouseTrainingJob.count({ where: { voiceId, status: { in: ["queued", "submitted", "running"] } } });
+        const blocker = trainingBlocker({ consent: voice.consent, dataset, hasActiveJob: active > 0 });
+        if (blocker) throw new BlockedError(blocker);
+        return tx.inhouseTrainingJob.create({
+          data: {
+            voiceId,
+            baseModel,
+            clipCount: dataset.clips,
+            totalDurationMs: dataset.durationMs,
+            createdById: session.user.id,
+            message: trainingConfigured()
+              ? "Envoi au serveur d'entraînement…"
+              : "En attente : aucun serveur d'entraînement GPU n'est configuré (CALLPME_TRAINING_URL).",
+          },
+          select: { id: true },
+        });
+      },
+      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+    );
+  } catch (e) {
+    if (e instanceof BlockedError) return { error: e.message };
+    if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2034") {
+      return { error: "Un entraînement vient d'être lancé pour cette voix." };
+    }
+    throw e;
+  }
 
   if (trainingConfigured()) {
-    const base = (process.env.PUBLIC_URL || "http://localhost:3000").replace(/\/+$/, "");
+    const base = publicBaseUrl();
     try {
       const { externalJobId } = await submitTrainingJob({
         jobId: job.id,
@@ -121,13 +144,14 @@ export async function startInhouseTraining(voiceId: string, baseModel: string): 
         datasetUrl: `${base}/api/inhouse-training/jobs/${job.id}/dataset`,
         statusUrl: `${base}/api/inhouse-training/jobs/${job.id}/status`,
       });
-      await prisma.inhouseTrainingJob.update({
-        where: { id: job.id },
+      // Le worker a pu rendre compte entre-temps : on n'écrase que l'état « en attente ».
+      await prisma.inhouseTrainingJob.updateMany({
+        where: { id: job.id, status: "queued" },
         data: { status: "submitted", externalJobId, message: "Reçu par le serveur d'entraînement.", startedAt: new Date() },
       });
     } catch (e) {
-      await prisma.inhouseTrainingJob.update({
-        where: { id: job.id },
+      await prisma.inhouseTrainingJob.updateMany({
+        where: { id: job.id, status: "queued" },
         data: { status: "failed", message: message(e), finishedAt: new Date() },
       });
     }
@@ -142,10 +166,11 @@ export async function cancelInhouseTraining(jobId: string): Promise<InhouseActio
   const job = await prisma.inhouseTrainingJob.findUnique({ where: { id: jobId } });
   if (!job) return { error: "Entraînement introuvable." };
   if (!canTransition(job.status, "canceled")) return { error: "Cet entraînement est déjà terminé." };
-  await prisma.inhouseTrainingJob.update({
-    where: { id: jobId },
+  const moved = await prisma.inhouseTrainingJob.updateMany({
+    where: { id: jobId, status: job.status },
     data: { status: "canceled", message: "Annulé par l'administrateur.", finishedAt: new Date() },
   });
+  if (moved.count === 0) return { error: "L'état de l'entraînement vient de changer : rechargez la page." };
   refresh(job.voiceId);
   return { ok: true };
 }
@@ -167,11 +192,9 @@ export async function confirmInhouseTrainingDone(jobId: string): Promise<Inhouse
   } catch (e) {
     return { error: `Le modèle ${modelRefForJob(job.id)} ne répond pas : ${message(e)}` };
   }
-  await prisma.inhouseTrainingJob.update({
-    where: { id: jobId },
-    data: { status: "succeeded", progress: 100, message: "Confirmé manuellement : modèle disponible.", finishedAt: new Date() },
-  });
-  await createDraftVersion(jobId);
+  if (!(await completeTraining(jobId, job.status, "Confirmé manuellement : modèle disponible."))) {
+    return { error: "L'état de l'entraînement vient de changer : rechargez la page." };
+  }
   refresh(job.voiceId);
   return { ok: true };
 }
@@ -206,15 +229,33 @@ export async function publishInhouseVersion(versionId: string): Promise<InhouseA
     previewUrl: `/api/voices/inhouse/${version.id}/sample`,
     active: true,
   };
-  const platform = await prisma.platformVoice.upsert({
-    where: { externalId: version.modelRef },
-    create: { ...catalog, externalId: version.modelRef, sortOrder: (last._max.sortOrder ?? 0) + 1 },
-    update: catalog,
-  });
-  await prisma.inhouseVoiceVersion.update({
-    where: { id: versionId },
-    data: { status: "published", publishedAt: new Date(), platformVoiceId: platform.id, sampleAudio: Buffer.from(sample) },
-  });
+  try {
+    await prisma.$transaction(
+      async (tx) => {
+        // La synthèse a pris du temps : le consentement est relu au moment d'écrire.
+        const consent = await tx.inhouseVoiceConsent.findUnique({ where: { voiceId: v.id }, select: { revokedAt: true } });
+        if (!consentValid(consent)) throw new BlockedError("Consentement révoqué pendant la publication.");
+        const moved = await tx.inhouseVoiceVersion.updateMany({
+          where: { id: versionId, status: { not: "published" } },
+          data: { status: "published", publishedAt: new Date(), sampleAudio: Buffer.from(sample) },
+        });
+        if (moved.count === 0) throw new BlockedError("Cette version vient d'être publiée.");
+        const platform = await tx.platformVoice.upsert({
+          where: { externalId: version.modelRef },
+          create: { ...catalog, externalId: version.modelRef, sortOrder: (last._max.sortOrder ?? 0) + 1 },
+          update: catalog,
+        });
+        await tx.inhouseVoiceVersion.update({ where: { id: versionId }, data: { platformVoiceId: platform.id } });
+      },
+      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+    );
+  } catch (e) {
+    if (e instanceof BlockedError) return { error: e.message };
+    if (e instanceof Prisma.PrismaClientKnownRequestError && (e.code === "P2002" || e.code === "P2034")) {
+      return { error: "Publication simultanée : rechargez la page." };
+    }
+    throw e;
+  }
   refresh(v.id);
   return { ok: true };
 }
@@ -230,7 +271,8 @@ export async function retireInhouseVersion(versionId: string): Promise<InhouseAc
   if (!version) return { error: "Version introuvable." };
   await prisma.$transaction([
     prisma.inhouseVoiceVersion.update({ where: { id: versionId }, data: { status: "retired" } }),
-    ...(version.platformVoiceId ? [prisma.platformVoice.update({ where: { id: version.platformVoiceId }, data: { active: false } })] : []),
+    // updateMany : l'entrée du catalogue a pu être supprimée depuis /admin/voices.
+    ...(version.platformVoiceId ? [prisma.platformVoice.updateMany({ where: { id: version.platformVoiceId }, data: { active: false } })] : []),
   ]);
   refresh(version.voiceId);
   return { ok: true };

@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { forbidden, notFound, ok, unauthorized } from "@/lib/api/respond";
 import { consentValid, isActiveJob, modelRefForJob } from "@/lib/voices/inhouse/rules";
-import { workerAuthorized } from "@/lib/voices/inhouse/worker";
+import { publicBaseUrl, workerAuthorized } from "@/lib/voices/inhouse/worker";
 
 export const dynamic = "force-dynamic";
 
@@ -33,7 +33,7 @@ export async function GET(req: NextRequest, { params }: { params: { jobId: strin
     consentFormVersion: job.voice.consent?.formVersion,
     clips: clips.map((c) => ({
       ...c,
-      url: new URL(`/api/inhouse-training/jobs/${job.id}/clips/${c.id}`, req.url).toString(),
+      url: `${publicBaseUrl()}/api/inhouse-training/jobs/${job.id}/clips/${c.id}`,
     })),
   });
 }

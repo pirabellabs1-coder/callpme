@@ -121,10 +121,15 @@ export function StepVoice({
             language={s.language}
             speed={s.speed}
             gender={selected.gender}
-            provider={selected.provider}
-            externalVoiceId={selected.providerVoiceId}
-            studioVoiceId={selected.catalog ? undefined : selected.id}
-            label="Écouter avec votre accueil"
+            {...(selected.provider === "callpme"
+              ? // Voix maison : l'échantillon généré à la publication (pas de GPU à chaque écoute).
+                { sampleUrl: selected.sampleUrl }
+              : {
+                  provider: selected.provider,
+                  externalVoiceId: selected.providerVoiceId,
+                  studioVoiceId: selected.catalog ? undefined : selected.id,
+                })}
+            label={selected.provider === "callpme" ? "Écouter un échantillon" : "Écouter avec votre accueil"}
           />
         </div>
       )}

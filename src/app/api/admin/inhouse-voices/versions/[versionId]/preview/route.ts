@@ -6,7 +6,7 @@ import { badRequest, notFound } from "@/lib/api/respond";
 import { isRateLimited } from "@/lib/security/rate-limit";
 import { callpmeTtsConfigured } from "@/lib/voice-engine/callpme-tts";
 import { synthesizeWav } from "@/lib/voices/inhouse/store";
-import { binaryResponse } from "@/lib/voices/inhouse/http";
+import { binaryResponse, sameOrigin } from "@/lib/voices/inhouse/http";
 
 export const dynamic = "force-dynamic";
 
@@ -16,6 +16,7 @@ const schema = z.object({ text: z.string().trim().min(1).max(400) });
 export async function POST(req: NextRequest, { params }: { params: { versionId: string } }) {
   const session = await getAdminSession();
   if (!session) return notFound();
+  if (!sameOrigin(req)) return badRequest("Origine refusée.");
   if (!callpmeTtsConfigured()) return badRequest("Serveur d'inférence non configuré (CALLPME_TTS_URL).");
   if (isRateLimited(`inhouse-preview:${session.user.id}`, 60, 10 * 60_000)) return badRequest("Trop d'écoutes, patientez.");
   const parsed = schema.safeParse(await req.json().catch(() => null));

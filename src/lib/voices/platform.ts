@@ -48,11 +48,21 @@ export async function defaultPlatformVoice(gender?: string | null) {
 }
 
 /**
- * Une voix maison n'est utilisable au téléphone que si elle est encore
- * publiée et active au catalogue (retrait ou consentement révoqué = coupure).
+ * Une voix maison n'est utilisable au téléphone que si sa version est publiée,
+ * que le consentement du locuteur n'est pas révoqué ET que l'entrée du
+ * catalogue est active. Le statut du catalogue seul ne suffit pas (il peut
+ * être réactivé à la main depuis /admin/voices).
  */
 export async function inhouseVoiceAvailable(externalId: string | null | undefined): Promise<boolean> {
   if (!externalId) return false;
-  const v = await prisma.platformVoice.findFirst({ where: { externalId, provider: "callpme", active: true }, select: { id: true } });
-  return Boolean(v);
+  const version = await prisma.inhouseVoiceVersion.findFirst({
+    where: { modelRef: externalId, status: "published", voice: { consent: { is: { revokedAt: null } } } },
+    select: { platformVoiceId: true },
+  });
+  if (!version?.platformVoiceId) return false;
+  const entry = await prisma.platformVoice.findFirst({
+    where: { id: version.platformVoiceId, provider: "callpme", active: true },
+    select: { id: true },
+  });
+  return Boolean(entry);
 }

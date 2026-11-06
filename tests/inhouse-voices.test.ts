@@ -13,8 +13,8 @@ import {
   trainingBlocker,
   TRAINING_MINIMUM,
 } from "@/lib/voices/inhouse/rules";
-import { sniffConsentDocument } from "@/lib/voices/inhouse/http";
-import { callpmeSpeechRequest, callpmeTtsConfigured, callpmeTtsUrl } from "@/lib/voice-engine/callpme-tts";
+import { binaryResponse, sameOrigin, sniffConsentDocument } from "@/lib/voices/inhouse/http";
+import { callpmeSpeech, callpmeSpeechBuffer, callpmeSpeechRequest, FIRST_BYTE_TIMEOUT_MS, callpmeTtsConfigured, callpmeTtsUrl, MAX_BUFFERED_BYTES } from "@/lib/voice-engine/callpme-tts";
 import { resolveVoice, streamSpeech, usesInhouseVoice } from "@/lib/voice-engine/tts";
 import { voiceSchema } from "@/lib/validation/agent";
 import type { Agent } from "@/lib/shared/types";
@@ -77,7 +77,7 @@ describe("formats audio des clips", () => {
 
 describe("validation d'un clip", () => {
   const wav = { channels: 1, sampleRate: 24000, durationMs: 4000 };
-  const base = { attested: true, transcript: "  Bonjour,   bienvenue chez Callpme. ", mime: "audio/wav", wav, declaredMs: null };
+  const base = { attested: true, transcript: "  Bonjour,   bienvenue chez Callpme. ", mime: "audio/wav", wav };
 
   it("accepte un clip attesté et normalise la transcription", () => {
     expect(checkClip(base)).toEqual({ transcript: "Bonjour, bienvenue chez Callpme.", mime: "audio/wav", durationMs: 4000 });
@@ -100,13 +100,10 @@ describe("validation d'un clip", () => {
     expect(checkClip({ ...base, transcript: "a".repeat(CLIP_LIMITS.transcriptMax + 1) })).toHaveProperty("error");
   });
 
-  it("pour un format compressé, prend la durée mesurée par le navigateur", () => {
-    expect(checkClip({ ...base, mime: "audio/webm", wav: null, declaredMs: 5200.4 })).toMatchObject({ durationMs: 5200 });
-    expect(checkClip({ ...base, mime: "audio/webm", wav: null, declaredMs: null })).toHaveProperty("error");
-  });
-
-  it("la durée lue dans le WAV prime sur celle déclarée", () => {
-    expect(checkClip({ ...base, declaredMs: 29_000 })).toMatchObject({ durationMs: 4000 });
+  it("n'accepte que le WAV, dont la durée est relue côté serveur", () => {
+    expect(checkClip({ ...base, mime: "audio/webm", wav: null })).toHaveProperty("error");
+    expect(checkClip({ ...base, mime: "audio/mpeg", wav: null })).toHaveProperty("error");
+    expect(checkClip({ ...base, wav: null })).toHaveProperty("error"); // signature WAV mais en-tête illisible
   });
 
   it("reconnaît les documents de consentement acceptés", () => {
@@ -260,6 +257,70 @@ describe("fournisseur TTS callpme (serveur d'inférence maison)", () => {
     const voice = { provider: "callpme" as const, voiceId: "cpm_voixawa01", language: "fr-FR" };
     const it = streamSpeech("Bonjour", voice, new AbortController().signal);
     await expect(it.next()).rejects.toThrow(/callpme, HTTP 503/);
+  });
+});
+
+describe("lecture complète d'un audio maison (aperçus)", () => {
+  const streamOf = (chunks: Uint8Array[]) =>
+    new ReadableStream({
+      start(c) {
+        chunks.forEach((x) => c.enqueue(x));
+        c.close();
+      },
+    });
+
+  it("assemble les morceaux reçus", async () => {
+    setEnv({ CALLPME_TTS_URL: "https://tts.callpme.com" });
+    vi.stubGlobal("fetch", async () => new Response(streamOf([new Uint8Array([1, 2]), new Uint8Array([3])])));
+    expect(Array.from(await callpmeSpeechBuffer({ text: "x", modelRef: "cpm_abcdef", language: "fr" }))).toEqual([1, 2, 3]);
+  });
+
+  it("coupe une réponse trop longue sans tout charger", async () => {
+    setEnv({ CALLPME_TTS_URL: "https://tts.callpme.com" });
+    const big = new Uint8Array(MAX_BUFFERED_BYTES / 2 + 1);
+    vi.stubGlobal("fetch", async () => new Response(streamOf([big, big, big])));
+    await expect(callpmeSpeechBuffer({ text: "x", modelRef: "cpm_abcdef", language: "fr" })).rejects.toThrow(/trop long/);
+  });
+
+  it("abandonne si le serveur ne répond pas à temps (le moteur bascule alors sur la voix de secours)", async () => {
+    setEnv({ CALLPME_TTS_URL: "https://tts.callpme.com" });
+    vi.useFakeTimers();
+    vi.stubGlobal(
+      "fetch",
+      (_u: string, init: { signal: AbortSignal }) =>
+        new Promise((_r, reject) => init.signal.addEventListener("abort", () => reject(new Error("aborted")))),
+    );
+    const pending = callpmeSpeech({ text: "x", modelRef: "cpm_abcdef", language: "fr" }, new AbortController().signal);
+    const check = expect(pending).rejects.toThrow(/pas de réponse à temps/);
+    await vi.advanceTimersByTimeAsync(FIRST_BYTE_TIMEOUT_MS + 10);
+    await check;
+    vi.useRealTimers();
+  });
+
+  it("refuse un audio vide", async () => {
+    setEnv({ CALLPME_TTS_URL: "https://tts.callpme.com" });
+    vi.stubGlobal("fetch", async () => new Response(streamOf([])));
+    await expect(callpmeSpeechBuffer({ text: "x", modelRef: "cpm_abcdef", language: "fr" })).rejects.toThrow(/vide/);
+  });
+});
+
+describe("routes binaires et CSRF", () => {
+  it("les fichiers servis ne peuvent pas s'exécuter comme une page", () => {
+    const res = binaryResponse(new Uint8Array([1]), "application/pdf", "consentement awa.pdf", "attachment");
+    expect(res.headers.get("x-content-type-options")).toBe("nosniff");
+    expect(res.headers.get("content-security-policy")).toContain("sandbox");
+    expect(res.headers.get("cache-control")).toBe("private, no-store");
+    expect(res.headers.get("content-disposition")).toBe('attachment; filename="consentement_awa.pdf"');
+  });
+
+  it("n'accepte les envois que depuis l'application", () => {
+    setEnv({ PUBLIC_URL: "https://callpme.com" });
+    const req = (origin?: string) =>
+      new Request("https://callpme.com/api/admin/inhouse-voices/x/clips", { method: "POST", headers: origin ? { origin } : {} });
+    expect(sameOrigin(req("https://callpme.com"))).toBe(true);
+    expect(sameOrigin(req("https://evil.callpme.com"))).toBe(false);
+    expect(sameOrigin(req("https://exemple.org"))).toBe(false);
+    expect(sameOrigin(req())).toBe(false);
   });
 });
 

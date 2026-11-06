@@ -39,7 +39,7 @@ echo "Envoi vers le site (Vercel)…"
 for k in RESEND_API_KEY RESEND_FROM; do
   v="$(grep "^$k=" .env | head -1 | cut -d= -f2-)"
   npx vercel env rm "$k" production --yes >/dev/null 2>&1 || true
-  printf '%s' "$v" | npx vercel env add "$k" production >/dev/null 2>&1 </dev/stdin
+  printf "%s" "$v" | timeout 120 npx vercel env add "$k" production >/dev/null 2>&1 || echo "  ! $k : envoi à refaire"
   echo "  ✓ $k"
 done
 unset v key

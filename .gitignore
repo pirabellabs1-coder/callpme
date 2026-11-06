@@ -43,3 +43,6 @@ next-env.d.ts
 
 .vercel
 .neon
+
+# Configuration Asterisk réelle (secrets, identifiants opérateur) : jamais dans git
+infra/asterisk/*.conf

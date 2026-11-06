@@ -1,0 +1,66 @@
+; Plan de numérotation de la passerelle SIP Callpme (Asterisk 18 ou plus récent,
+; modules app_audiosocket, func_curl, app_amd).
+; Copiez en extensions.conf. Le secret est dans un fichier à part, non versionné :
+;   callpme-secrets.conf  ->  CALLPME_KEY=<même valeur que SIP_GATEWAY_SECRET>
+
+[globals]
+#include callpme-secrets.conf
+CALLPME_API=https://app.votre-domaine.com     ; application Callpme
+CALLPME_VOICE=10.0.0.10:4200                  ; serveur vocal (VOICE_AUDIOSOCKET_PORT)
+CALLPME_COUNTRY=225                           ; indicatif ajouté aux numéros reçus en format national
+TRUNK=operateur                               ; point de terminaison PJSIP de l'opérateur
+; Destinations autorisées en sortie et en transfert (miroir de
+; src/lib/telephony/destinations.ts, sans surtaxés). Protège contre la fraude
+; même si l'accès ARI venait à fuiter. Pas de virgule ni de point-virgule ici.
+CALLPME_ALLOWED=^[+](33[1-79]|32|41|225|221|237|229|228|223)[0-9]+$
+
+; ---------------------------------------------------------------------------
+; Appels ENTRANTS : contexte de l'endpoint de l'opérateur (pjsip.conf).
+; ---------------------------------------------------------------------------
+[callpme-inbound]
+exten => _[+0-9].,1,NoOp(Callpme : appel entrant)
+ same => n,Set(TO=${FILTER(0-9+,${EXTEN})})
+ same => n,ExecIf($["${TO:0:2}" = "00"]?Set(TO=+${TO:2}))
+ same => n,ExecIf($["${TO:0:1}" != "+"]?Set(TO=+${CALLPME_COUNTRY}${TO}))
+ ; Secret dans un en-tête (jamais dans l'URL, qui finit dans les journaux).
+ same => n,Set(CURLOPT(httpheader)=X-Callpme-Key: ${CALLPME_KEY})
+ ; L'application choisit l'agent du numéro et prépare une session (identifiant à usage unique).
+ same => n,Set(SESSION=${CURL(${CALLPME_API}/api/telephony/sip/inbound?to=${URIENCODE(${TO})}&from=${URIENCODE(${CALLERID(num)})}&channel=${CHANNEL(uniqueid)})})
+ same => n,GotoIf($[${LEN(${SESSION})} != 36]?refuse)
+ same => n,Answer()
+ same => n,AudioSocket(${SESSION},${CALLPME_VOICE})
+ ; Transfert demandé par l'agent : le serveur a renseigné TRANSFER_TO avant de fermer le flux.
+ same => n,GotoIf($["${TRANSFER_TO}" != ""]?transfer)
+ same => n,Hangup()
+ same => n(transfer),GotoIf($[${REGEX("${CALLPME_ALLOWED}" ${TRANSFER_TO})}]?:refuse)
+ same => n,Dial(PJSIP/${TRANSFER_TO}@${TRUNK},600,L(600000))
+ same => n,Hangup()
+ same => n(refuse),Answer()
+ same => n,Playback(ss-noservice)
+ same => n,Hangup()
+
+; ---------------------------------------------------------------------------
+; Appels SORTANTS : l'application crée un canal Local via ARI.
+;  - moitié « opérateur » : compose le numéro (liste blanche) et signale un échec ;
+;  - moitié « agent » : au décroché, détection de répondeur puis flux audio.
+; ---------------------------------------------------------------------------
+[callpme-dial]
+exten => _+X.,1,GotoIf($[${REGEX("${CALLPME_ALLOWED}" ${EXTEN})}]?:deny)
+ same => n,Dial(PJSIP/${EXTEN}@${TRUNK},40)
+ same => n,Set(CURLOPT(httpheader)=X-Callpme-Key: ${CALLPME_KEY})
+ same => n,Set(R=${CURL(${CALLPME_API}/api/telephony/sip/event?type=dial&uuid=${CALLPME_UUID}&status=${DIALSTATUS})})
+ same => n,Hangup()
+ same => n(deny),Hangup(21)
+
+[callpme-outbound]
+exten => s,1,Answer()
+ same => n,AMD()
+ same => n,Set(CURLOPT(httpheader)=X-Callpme-Key: ${CALLPME_KEY})
+ same => n,Set(GO=${CURL(${CALLPME_API}/api/telephony/sip/event?type=answered&uuid=${CALLPME_UUID}&amd=${AMDSTATUS})})
+ same => n,GotoIf($["${GO}" != "CONNECT"]?done)
+ same => n,AudioSocket(${CALLPME_UUID},${CALLPME_VOICE})
+ same => n,GotoIf($["${TRANSFER_TO}" != ""]?transfer)
+ same => n(done),Hangup()
+ same => n(transfer),GotoIf($[${REGEX("${CALLPME_ALLOWED}" ${TRANSFER_TO})}]?:done)
+ same => n,Dial(PJSIP/${TRANSFER_TO}@${TRUNK},600,L(600000))
+ same => n,Hangup()

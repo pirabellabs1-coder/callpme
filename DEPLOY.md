@@ -87,7 +87,7 @@ données de l'application.
   web ; recherche plein texte en français sans configuration, recherche par
   le sens si `OPENAI_API_KEY` est défini (modèle `EMBEDDING_MODEL`).
 
-### Téléphonie (Twilio ou Telnyx)
+### Téléphonie (Twilio, Telnyx ou passerelle SIP)
 
 - `TELEPHONY_PROVIDER` = `twilio` ou `telnyx`, avec les identifiants et le
   numéro d'appel sortant (`*_FROM_NUMBER`).
@@ -121,6 +121,46 @@ données de l'application.
 - Attribuez ensuite ce numéro à un agent dans le tableau de bord.
 - **Test** : sans téléphone, la page « Tester » d'un agent permet de lui parler
   au micro via le même moteur.
+
+### Passerelle SIP (opérateur local, sans Twilio)
+
+Pour les pays où Twilio et Telnyx ne vendent pas de numéros (Afrique de
+l'Ouest et centrale notamment), Callpme se raccorde directement à un opérateur
+local (Orange, MTN, Moov, opérateur VoIP…) via un serveur Asterisk.
+
+1. **Asterisk 18+** sur un serveur (VPS) avec les modules `app_audiosocket`,
+   `func_curl` et `app_amd`. Modèles dans `infra/asterisk/`, à copier sans
+   l'extension `.example` : `extensions.conf` (plan de numérotation),
+   `pjsip.conf` (liaison opérateur), `ari.conf` (+ `http.conf`). Le secret va
+   dans `callpme-secrets.conf` (`CALLPME_KEY=…`). Les vrais `.conf` sont
+   ignorés par git : ne les commitez jamais.
+2. **Liaison opérateur** : demandez à l'opérateur un « trunk SIP » (identifiant
+   et mot de passe, ou authentification par IP) et les numéros associés.
+   Codecs G.711 (`alaw`/`ulaw`).
+3. **Application** : `TELEPHONY_PROVIDER=sip`, `ASTERISK_ARI_URL`
+   (HTTPS, ex. `https://sip.votre-domaine.com:8089`), `ASTERISK_ARI_USER`,
+   `ASTERISK_ARI_PASSWORD`, `SIP_GATEWAY_SECRET` (même valeur que `CALLPME_KEY`,
+   24 caractères minimum, envoyé par Asterisk dans l'en-tête `X-Callpme-Key`),
+   `SIP_FROM_NUMBER` (numéro présenté en sortant) et, si possible,
+   `SIP_GATEWAY_ALLOW` (IP de l'Asterisk).
+4. **Serveur vocal** : `VOICE_AUDIOSOCKET_PORT=4200` et
+   `VOICE_AUDIOSOCKET_ALLOW=<IP de l'Asterisk>` (obligatoire : sans liste, le
+   port reste fermé). Pare-feu : ce port ouvert uniquement à l'Asterisk.
+5. **Sécurité de l'Asterisk** : ARI en HTTPS seulement (l'application sur
+   Vercel n'a pas d'IP fixe) avec un mot de passe long ; port SIP 5060 ouvert
+   aux seules IP de l'opérateur, fail2ban, aucun endpoint `anonymous`. La liste
+   `CALLPME_ALLOWED` du plan de numérotation limite les pays composables ;
+   demandez aussi un plafond de dépense à l'opérateur.
+6. **Numéros** : le client déclare son numéro local dans « Numéros » ; il est
+   activé après vérification par l'équipe (espace d'administration).
+
+Fonctionnement : à l'arrivée d'un appel, Asterisk demande à l'application
+(`/api/telephony/sip/inbound`) quel agent répond, puis ouvre le flux audio vers
+le serveur vocal. En sortant (campagnes, rappels), l'application pilote Asterisk
+via ARI ; la détection de répondeur et les non-réponses remontent par
+`/api/telephony/sip/event`. Transfert vers un humain : géré par le plan de
+numérotation. Les SMS ne passent pas par la passerelle SIP.
+**À valider sur une vraie liaison opérateur avant la mise en production.**
 
 ## 4. Build
 

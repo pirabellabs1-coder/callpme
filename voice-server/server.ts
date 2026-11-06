@@ -18,12 +18,27 @@
  * Lancement : npm run voice:dev (développement) / npm run voice:start (production).
  */
 import http from "node:http";
+import net from "node:net";
 import { WebSocketServer, type WebSocket, type RawData } from "ws";
 import { consumeVoiceToken, verifyVoiceToken, type VoiceTokenPayload } from "../src/lib/voice-engine/token";
 import { CallSession, type VoiceTransport } from "../src/lib/voice-engine/session";
 import { transferCall } from "../src/lib/telephony/provider";
 import { frames } from "../src/lib/voice-engine/audio";
 import { tickCampaigns } from "../src/lib/campaigns/engine";
+import { consumeSipSession } from "../src/lib/telephony/sip";
+import {
+  AS_AUDIO,
+  AS_DTMF,
+  AS_ERROR,
+  AS_HANGUP,
+  AS_UUID,
+  AudioSocketParser,
+  encodeMessage,
+  mulawToSlin,
+  SlinPacer,
+  slinToMulaw,
+  uuidFromBytes,
+} from "../src/lib/voice-engine/audiosocket";
 
 // Sans secret robuste, les jetons seraient forgeables : on refuse de démarrer.
 if (!process.env.NEXTAUTH_SECRET || process.env.NEXTAUTH_SECRET.length < 32) {
@@ -126,6 +141,11 @@ server.on("upgrade", (req, socket, head) => {
 
 /** Enregistre la session et libère sa place à la fin. */
 function attach(ws: WebSocket, payload: VoiceTokenPayload, session: CallSession) {
+  attachTo((cb) => ws.once("close", cb), payload, session);
+}
+
+/** Enregistre la session ; `onClose` branche la libération sur la fin du transport. */
+function attachTo(onClose: (cb: () => void) => void, payload: VoiceTokenPayload, session: CallSession) {
   sessions.add(session);
   let closed = false;
   const done = () => {
@@ -134,7 +154,7 @@ function attach(ws: WebSocket, payload: VoiceTokenPayload, session: CallSession)
     sessions.delete(session);
     release(payload);
   };
-  ws.once("close", () => {
+  onClose(() => {
     void session.onTransportClosed().finally(done);
   });
 }
@@ -281,6 +301,125 @@ const campaignTimer =
           .finally(() => (ticking = false));
       }, 30_000);
 
+/* --------------------- Passerelle SIP (Asterisk AudioSocket) --------------------- */
+
+// Asterisk ouvre une connexion TCP par appel et envoie d'abord l'identifiant de
+// session préparé par l'application. Port désactivé si VOICE_AUDIOSOCKET_PORT
+// est vide. À exposer uniquement à l'Asterisk de la plateforme : liste
+// d'adresses autorisées (VOICE_AUDIOSOCKET_ALLOW) et pare-feu.
+const AS_PORT = Number(process.env.VOICE_AUDIOSOCKET_PORT || 0);
+const AS_ALLOW = (process.env.VOICE_AUDIOSOCKET_ALLOW || "")
+  .split(",")
+  .map((x) => x.trim())
+  .filter(Boolean);
+
+/** Connexions AudioSocket ouvertes qui n'ont pas encore présenté de session. */
+let asPending = 0;
+const AS_START_TIMEOUT_MS = 3_000;
+
+function onAudioSocket(socket: net.Socket) {
+  const ip = (socket.remoteAddress ?? "").replace(/^::ffff:/, "");
+  // Fermé par défaut : seule l'Asterisk de la plateforme peut se connecter.
+  if (!AS_ALLOW.includes(ip) || asPending >= MAX_PENDING) return socket.destroy();
+  asPending++;
+  let waiting = true;
+  const leaveWait = () => {
+    if (!waiting) return;
+    waiting = false;
+    asPending--;
+  };
+  socket.setNoDelay(true);
+  const parser = new AudioSocketParser();
+  const pacer = new SlinPacer((frame) => {
+    if (!socket.destroyed) socket.write(encodeMessage(AS_AUDIO, frame));
+  });
+  let session: CallSession | null = null;
+  let channelId: string | null = null;
+  let starting = false;
+  const closeLine = (delayMs = 200) =>
+    setTimeout(() => {
+      pacer.stop();
+      if (!socket.destroyed) {
+        socket.write(encodeMessage(AS_HANGUP));
+        socket.end();
+      }
+    }, delayMs);
+  // Sans identifiant valide très vite, on coupe.
+  const startTimeout = setTimeout(() => !session && socket.destroy(), AS_START_TIMEOUT_MS);
+
+  const transport: VoiceTransport = {
+    sendAudio: (mulaw) => pacer.push(mulawToSlin(mulaw)),
+    clearAudio: () => pacer.clear(),
+    // Laisse finir la dernière phrase avant de libérer la ligne.
+    hangup: () => closeLine(pacer.queuedMs + 200),
+    transfer: async (to) => {
+      if (!channelId) return false;
+      const ok = await transferCall(channelId, to);
+      // Le plan de numérotation compose le numéro dès la fin du flux audio.
+      if (ok) closeLine(pacer.queuedMs + 200);
+      return ok;
+    },
+  };
+
+  socket.on("data", (chunk: Buffer) => {
+    let messages;
+    try {
+      messages = parser.push(chunk);
+    } catch {
+      return socket.destroy();
+    }
+    for (const msg of messages) {
+      if (msg.type === AS_UUID && !session && !starting) {
+        const uuid = uuidFromBytes(msg.payload);
+        if (!uuid) return socket.destroy();
+        starting = true;
+        consumeSipSession(uuid)
+          .then((payload) => {
+          if (!payload || socket.destroyed) return socket.destroy();
+          if (!reserve(payload)) return socket.destroy();
+          clearTimeout(startTimeout);
+          leaveWait();
+          channelId = payload.channelId;
+          session = new CallSession(payload, transport);
+          session.setProviderCallId(payload.channelId);
+          attachTo((cb) => socket.once("close", cb), payload, session);
+          void session.start().catch(() => socket.destroy());
+          })
+          .catch((e) => {
+            console.error("[voice] AudioSocket : ouverture de session impossible", e instanceof Error ? e.message : e);
+            socket.destroy();
+          });
+      } else if (msg.type === AS_AUDIO && session) {
+        session.onAudio(slinToMulaw(msg.payload));
+      } else if (msg.type === AS_DTMF && session) {
+        session.onDtmf(msg.payload.toString("utf8").slice(0, 1));
+      } else if (msg.type === AS_HANGUP || msg.type === AS_ERROR) {
+        socket.end();
+      }
+    }
+  });
+  socket.on("close", () => {
+    clearTimeout(startTimeout);
+    leaveWait();
+    pacer.stop();
+  });
+  socket.on("error", () => socket.destroy());
+}
+
+if (AS_PORT && !AS_ALLOW.length) {
+  console.error("[voice] VOICE_AUDIOSOCKET_ALLOW vide : passerelle SIP désactivée (indiquez l'adresse IP de l'Asterisk).");
+}
+const audioSocketServer = AS_PORT && AS_ALLOW.length ? net.createServer(onAudioSocket) : null;
+if (audioSocketServer) audioSocketServer.maxConnections = MAX_SESSIONS + MAX_PENDING;
+audioSocketServer?.listen(AS_PORT, () => {
+  console.log(`[voice] Passerelle SIP (AudioSocket) à l'écoute sur :${AS_PORT} (autorisé : ${AS_ALLOW.join(", ")})`);
+});
+
+// Filet de sécurité : une erreur oubliée ne doit pas couper tous les appels en cours.
+process.on("unhandledRejection", (e) => {
+  console.error("[voice] Erreur asynchrone non gérée", e instanceof Error ? e.message : e);
+});
+
 server.listen(PORT, () => {
   console.log(`[voice] Serveur vocal Callpme à l'écoute sur :${PORT} (max ${MAX_SESSIONS} sessions, ${MAX_PER_ORG} par organisation)`);
 });
@@ -294,6 +433,7 @@ for (const sig of ["SIGINT", "SIGTERM"] as const) {
     stopping = true;
     console.log(`[voice] Arrêt : enregistrement de ${sessions.size} appel(s) en cours…`);
     server.close();
+    audioSocketServer?.close();
     if (campaignTimer) clearInterval(campaignTimer);
     // Filet de sécurité si un enregistrement reste bloqué.
     setTimeout(() => process.exit(0), 15_000).unref();

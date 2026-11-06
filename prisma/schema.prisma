@@ -538,3 +538,23 @@ model TestRun {
 
   @@index([scenarioId, createdAt])
 }
+
+// ----- Passerelle SIP (Asterisk) : sessions d'appel préparées -----
+// Asterisk demande une session à l'application (appel entrant) ou l'application
+// la crée (appel sortant) ; le serveur vocal la consomme une seule fois quand
+// Asterisk ouvre le flux audio (AudioSocket) avec cet identifiant.
+model SipSession {
+  id             String    @id // UUID transmis à AudioSocket
+  organizationId String
+  agentId        String
+  direction      String // inbound | outbound
+  fromNumber     String
+  toNumber       String
+  metadata       String? // JSON : contactId, campaignId, voicemail…
+  channelId      String? // canal Asterisk (transfert, raccroché)
+  expiresAt      DateTime
+  usedAt         DateTime?
+  createdAt      DateTime  @default(now())
+
+  @@index([expiresAt])
+}

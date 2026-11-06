@@ -6,7 +6,7 @@
  * notre moteur qui écoute, réfléchit et parle. Telnyx accepte le même langage
  * (TeXML, compatible TwiML) : un seul format d'instructions pour les deux.
  *
- * Variables : TELEPHONY_PROVIDER (twilio | telnyx), VOICE_SERVER_URL (wss://…),
+ * Variables : TELEPHONY_PROVIDER (twilio | telnyx | sip), VOICE_SERVER_URL (wss://…),
  * PUBLIC_URL, et selon l'opérateur :
  *  - Twilio : TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_FROM_NUMBER
  *  - Telnyx : TELNYX_API_KEY, TELNYX_TEXML_APP_ID, TELNYX_FROM_NUMBER, TELNYX_PUBLIC_KEY
@@ -18,11 +18,14 @@ import { sttConfigured } from "../voice-engine/stt";
 import { ttsConfigured } from "../voice-engine/tts";
 import { toE164 } from "./e164";
 import { checkDestination } from "./destinations";
+import { createSipSession, originateSipCall, setSipTransfer, sipConfigured } from "./sip";
 
-export type TelephonyProvider = "twilio" | "telnyx";
+export type TelephonyProvider = "twilio" | "telnyx" | "sip";
 
 export function telephonyProvider(): TelephonyProvider | null {
   const wanted = process.env.TELEPHONY_PROVIDER;
+  // Passerelle SIP propre (Asterisk) : n'importe quel opérateur, sans Twilio ni Telnyx.
+  if (wanted === "sip") return sipConfigured() ? "sip" : null;
   if (wanted === "telnyx" && process.env.TELNYX_API_KEY) return "telnyx";
   if (wanted === "twilio" && process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN) return "twilio";
   if (process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN) return "twilio";
@@ -48,6 +51,7 @@ function fromNumber(): string | null {
   const p = telephonyProvider();
   if (p === "twilio") return process.env.TWILIO_FROM_NUMBER || null;
   if (p === "telnyx") return process.env.TELNYX_FROM_NUMBER || null;
+  if (p === "sip") return process.env.SIP_FROM_NUMBER || null;
   return null;
 }
 
@@ -100,6 +104,23 @@ export async function placeOutboundCall(opts: {
   const to = toE164(opts.toNumber);
   if (!to) return { ok: false, error: "Numéro invalide (format attendu : +33…)." };
   const from = fromNumber()!;
+
+  // Passerelle SIP : session préparée puis appel lancé par Asterisk (ARI).
+  if (provider === "sip") {
+    const dest = checkDestination(to);
+    if (!dest.ok) return { ok: false, error: dest.reason ?? "Destination non autorisée." };
+    const sessionId = await createSipSession({
+      organizationId: opts.agent.organizationId,
+      agentId: opts.agent.id,
+      direction: "outbound",
+      from,
+      to,
+      metadata: opts.metadata,
+    });
+    const r = await originateSipCall({ sessionId, to, from });
+    return r.ok ? { ok: true, callId: r.channelId, status: "queued" } : { ok: false, error: r.error };
+  }
+
   // Détection de répondeur : l'opérateur attend la fin de l'annonce (bip)
   // avant de nous appeler, avec « AnsweredBy » (human / machine_end_beep…).
   const detect = (opts.agent.config.voicemail?.action ?? "message") !== "off";
@@ -186,6 +207,8 @@ export async function transferCall(
   const to = toE164(toNumber);
   if (!provider || !to || !providerCallId) return false;
   if (!checkDestination(to).ok) return false;
+  // SIP : providerCallId = canal Asterisk de la session (lié côté serveur, pas annoncé par le flux).
+  if (provider === "sip") return setSipTransfer(providerCallId, to);
   try {
     if (provider === "twilio") {
       const sid = process.env.TWILIO_ACCOUNT_SID!;

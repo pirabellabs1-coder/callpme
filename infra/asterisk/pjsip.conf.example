@@ -1,0 +1,59 @@
+; Liaison SIP avec l'opérateur local — modèle à adapter avec les informations
+; fournies par l'opérateur (Orange, MTN, Moov, opérateur VoIP…).
+; Copiez en pjsip.conf ; les identifiants restent sur le serveur, jamais dans git.
+
+[global]
+type=global
+; Reconnaître l'opérateur par son IP avant l'identifiant.
+endpoint_identifier_order=ip,username
+
+; N'ajoutez JAMAIS d'endpoint « anonymous » : n'importe qui sur internet
+; pourrait appeler les agents et consommer les minutes des clients.
+; Pare-feu : port 5060 (et RTP) ouvert uniquement aux IP de l'opérateur ; fail2ban.
+
+[transport-udp]
+type=transport
+protocol=udp
+bind=0.0.0.0:5060
+
+; --- Cas 1 : l'opérateur authentifie par identifiant / mot de passe ---
+[operateur]
+type=endpoint
+transport=transport-udp
+context=callpme-inbound          ; appels reçus -> plan de numérotation Callpme
+disallow=all
+allow=alaw,ulaw                  ; G.711, l'audio du moteur vocal est en 8 kHz
+outbound_auth=operateur-auth
+aors=operateur
+from_domain=sip.operateur.example
+direct_media=no
+rtp_symmetric=yes
+force_rport=yes
+rewrite_contact=yes
+
+[operateur-auth]
+type=auth
+auth_type=userpass
+username=IDENTIFIANT_FOURNI_PAR_L_OPERATEUR
+password=MOT_DE_PASSE_FOURNI_PAR_L_OPERATEUR
+
+[operateur]
+type=aor
+contact=sip:sip.operateur.example:5060
+
+[operateur-reg]
+type=registration
+transport=transport-udp
+outbound_auth=operateur-auth
+server_uri=sip:sip.operateur.example
+client_uri=sip:IDENTIFIANT_FOURNI_PAR_L_OPERATEUR@sip.operateur.example
+retry_interval=60
+
+; Appels reçus : rattachés à l'opérateur par son adresse IP (dans les deux cas).
+[operateur-ip]
+type=identify
+endpoint=operateur
+match=IP.DE.L.OPERATEUR
+
+; --- Cas 2 : l'opérateur authentifie par adresse IP (liaison dédiée) ---
+; Supprimez simplement les sections auth et registration ci-dessus.

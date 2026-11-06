@@ -40,6 +40,9 @@ export interface AvailableNumber {
 
 export class NumberError extends Error {}
 
+const SIP_NUMBERS =
+  "Avec la passerelle SIP, les numéros sont fournis par votre opérateur local : déclarez-les dans « Numéros », l'équipe les active une fois raccordés.";
+
 const PURCHASE_REFUSED =
   "L'opérateur a refusé cet achat (un justificatif d'identité ou d'adresse peut être exigé pour ce pays). Contactez-nous si le problème persiste.";
 
@@ -77,6 +80,7 @@ export async function searchNumbers(opts: {
   const provider = telephonyProvider();
   const country = countryInfo(opts.country);
   if (!provider) throw new NumberError("Téléphonie non configurée sur la plateforme.");
+  if (provider === "sip") throw new NumberError(SIP_NUMBERS);
   if (!country || !country.types.includes(opts.type)) throw new NumberError("Pays ou type de numéro non proposé.");
   const contains = (opts.contains ?? "").replace(/[^\d]/g, "").slice(0, 8);
 
@@ -128,6 +132,7 @@ export async function searchNumbers(opts: {
 export async function buyNumber(phoneNumber: string): Promise<{ providerRef: string; provider: "twilio" | "telnyx" }> {
   const provider = telephonyProvider();
   if (!provider) throw new NumberError("Téléphonie non configurée sur la plateforme.");
+  if (provider === "sip") throw new NumberError(SIP_NUMBERS);
   const inbound = `${publicUrl()}/api/telephony/inbound`;
 
   if (provider === "twilio") {

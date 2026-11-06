@@ -18,6 +18,7 @@ export function smsConfigured(): boolean {
   const p = telephonyProvider();
   if (p === "twilio") return Boolean(process.env.TWILIO_SMS_FROM || process.env.TWILIO_FROM_NUMBER);
   if (p === "telnyx") return Boolean(process.env.TELNYX_SMS_FROM || process.env.TELNYX_FROM_NUMBER);
+  // Passerelle SIP : la voix seulement (les SMS passent par l'opérateur local).
   return false;
 }
 

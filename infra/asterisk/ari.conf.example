@@ -1,0 +1,26 @@
+; Interface ARI : utilisée par l'application Callpme pour lancer les appels
+; sortants et les transferts. N'exposez pas ARI sur internet : réseau privé
+; entre l'application/serveur vocal et Asterisk (ou tunnel), mot de passe long.
+; Copiez en ari.conf. À reporter dans ASTERISK_ARI_USER / ASTERISK_ARI_PASSWORD.
+
+[general]
+enabled = yes
+pretty = no
+
+[callpme]
+type = user
+read_only = no
+password = MOT_DE_PASSE_LONG_ET_ALEATOIRE
+
+; http.conf (requis par ARI). L'application (Vercel) n'a pas d'IP fixe : ARI
+; est alors joint en HTTPS uniquement, avec un mot de passe long (40+ caractères).
+; [general]
+; enabled = yes
+; bindaddr = 127.0.0.1        ; HTTP local seulement
+; tlsenable = yes
+; tlsbindaddr = 0.0.0.0:8089  ; HTTPS (ou reverse proxy HTTPS devant 127.0.0.1:8088)
+; tlscertfile = /etc/asterisk/keys/fullchain.pem
+; tlsprivatekey = /etc/asterisk/keys/privkey.pem
+; Même en cas de fuite de cet accès, les numéros composables sont limités par
+; CALLPME_ALLOWED dans extensions.conf. Demandez aussi à l'opérateur un plafond
+; de dépense et le blocage de l'international hors offre.

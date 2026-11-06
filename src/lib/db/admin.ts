@@ -21,7 +21,7 @@ export async function getPlatformStats() {
 }
 
 /** Prix mensuel par offre. Agency = « sur devis » → 0 € de MRR fixe (revenu suivi à part). */
-const PLAN_PRICE: Record<string, number> = { starter: 49, pro: 149, agency: 0 };
+const PLAN_PRICE: Record<string, number> = { essentiel: 19, starter: 49, pro: 149, agency: 0 };
 
 export interface PlatformAnalytics {
   mrr: number;
@@ -113,7 +113,7 @@ export async function getPlatformAnalytics(): Promise<PlatformAnalytics> {
     activeAgents: agents.filter((a) => a.status === "active").length,
     calls: calls.length,
     voices: voiceCount,
-    byPlan: (["starter", "pro", "agency"] as const).map((p) => ({
+    byPlan: (["essentiel", "starter", "pro", "agency"] as const).map((p) => ({
       plan: p,
       count: byPlanCount[p] ?? 0,
       mrr: (byPlanCount[p] ?? 0) * (PLAN_PRICE[p] ?? 0),

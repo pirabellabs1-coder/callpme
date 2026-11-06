@@ -2,7 +2,7 @@
  * Catalogue des offres Callpme. Source de vérité pour les prix, les limites
  * (appliquées réellement à la création d'agents / numéros) et l'affichage.
  */
-export type PlanId = "starter" | "pro" | "agency";
+export type PlanId = "essentiel" | "starter" | "pro" | "agency";
 
 export interface Plan {
   id: PlanId;
@@ -22,6 +22,23 @@ export interface Plan {
 export const UNLIMITED = 100000;
 
 export const PLANS: Record<PlanId, Plan> = {
+  essentiel: {
+    id: "essentiel",
+    name: "Essentiel",
+    tagline: "Pour découvrir avec un petit volume d'appels.",
+    priceLabel: "19 €",
+    priceMonthly: 19,
+    period: "/ mois",
+    maxAgents: 1,
+    maxNumbers: 1,
+    minutes: 100,
+    features: [
+      "1 agent vocal",
+      "1 numéro inclus",
+      "100 minutes / mois",
+      "Statistiques de base",
+    ],
+  },
   starter: {
     id: "starter",
     name: "Starter",
@@ -80,7 +97,7 @@ export const PLANS: Record<PlanId, Plan> = {
   },
 };
 
-export const PLAN_ORDER: PlanId[] = ["starter", "pro", "agency"];
+export const PLAN_ORDER: PlanId[] = ["essentiel", "starter", "pro", "agency"];
 export const PLAN_IDS: readonly string[] = PLAN_ORDER;
 
 export function isPlanId(x: string): x is PlanId {

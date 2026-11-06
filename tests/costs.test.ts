@@ -103,3 +103,13 @@ describe("appels sortants et marges", () => {
     }
   });
 });
+
+describe("offre d'entrée Essentiel", () => {
+  it("19 € pour 100 minutes, au moins 40 % de marge même toutes les minutes utilisées", async () => {
+    const { PLANS, PLAN_ORDER } = await import("@/lib/billing/plans");
+    expect(PLAN_ORDER[0]).toBe("essentiel");
+    expect(PLANS.essentiel).toMatchObject({ priceMonthly: 19, minutes: 100, maxAgents: 1, maxNumbers: 1 });
+    const m = planMargin("essentiel", 1, minuteCostEur().total);
+    expect(m.margin / m.price).toBeGreaterThanOrEqual(0.4);
+  });
+});

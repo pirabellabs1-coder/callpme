@@ -72,7 +72,7 @@ export default async function AdminCostsPage() {
   const observed = minutes >= 30;
   const minute = minuteCostEur(observed ? { llmUsdPerMin: llmUsd / minutes, ttsCharsPerMin: ttsChars / minutes } : {});
   const per = minute.total;
-  const margins = [1, 0.5].flatMap((u) => (["starter", "pro"] as const).map((p) => ({ u, m: planMargin(p, u, per) })));
+  const margins = [1, 0.5].flatMap((u) => (["essentiel", "starter", "pro"] as const).map((p) => ({ u, m: planMargin(p, u, per) })));
 
   return (
     <div className="space-y-8">
@@ -115,7 +115,7 @@ export default async function AdminCostsPage() {
         <Table
           head={["Offre", "Minutes utilisées", "Prix", "Coût des minutes", "Numéros", "Frais de paiement", "Il nous reste"]}
           rows={margins.map(({ u, m }) => [
-            `${m.plan === "pro" ? "Pro" : "Starter"} (${u === 1 ? "toutes les minutes" : "la moitié"})`,
+            `${m.plan === "pro" ? "Pro" : m.plan === "essentiel" ? "Essentiel" : "Starter"} (${u === 1 ? "toutes les minutes" : "la moitié"})`,
             m.minutesUsed,
             eur(m.price),
             eur(m.minutesCost),

@@ -19,33 +19,33 @@ export const metadata: Metadata = {
 
 type Cell = boolean | string;
 const fmt = (n: number) => (n >= UNLIMITED ? "Illimité" : new Intl.NumberFormat("fr-FR").format(n));
-const [S, P, A] = PLAN_ORDER.map((id) => BILLING_PLANS[id]);
+const [E, S, P, A] = PLAN_ORDER.map((id) => BILLING_PLANS[id]);
 
 // Comparatif dérivé du catalogue de facturation (limites réellement appliquées).
-const COMPARISON: { group: string; rows: { label: string; values: [Cell, Cell, Cell] }[] }[] = [
+const COMPARISON: { group: string; rows: { label: string; values: [Cell, Cell, Cell, Cell] }[] }[] = [
   {
     group: "Usage",
     rows: [
-      { label: "Minutes incluses par mois", values: [fmt(S.minutes), fmt(P.minutes), "Sur mesure"] },
-      { label: "Agents vocaux", values: [fmt(S.maxAgents), fmt(P.maxAgents), fmt(A.maxAgents)] },
-      { label: "Numéros inclus", values: [fmt(S.maxNumbers), fmt(P.maxNumbers), "Au volume"] },
+      { label: "Minutes incluses par mois", values: [fmt(E.minutes), fmt(S.minutes), fmt(P.minutes), "Sur mesure"] },
+      { label: "Agents vocaux", values: [fmt(E.maxAgents), fmt(S.maxAgents), fmt(P.maxAgents), fmt(A.maxAgents)] },
+      { label: "Numéros inclus", values: [fmt(E.maxNumbers), fmt(S.maxNumbers), fmt(P.maxNumbers), "Au volume"] },
     ],
   },
   {
     group: "Fonctionnalités",
     rows: [
-      { label: "Statistiques", values: ["De base", "Avancées", "Avancées"] },
-      { label: "Clés d'API", values: [true, true, true] },
-      { label: "Webhooks et API complète", values: [false, true, true] },
-      { label: "Tous les outils et garde-fous", values: [false, true, true] },
+      { label: "Statistiques", values: ["De base", "De base", "Avancées", "Avancées"] },
+      { label: "Clés d'API", values: [true, true, true, true] },
+      { label: "Webhooks et API complète", values: [false, false, true, true] },
+      { label: "Tous les outils et garde-fous", values: [false, false, true, true] },
     ],
   },
   {
     group: "Agences",
     rows: [
-      { label: "Espaces clients (multi-organisations)", values: [false, false, true] },
-      { label: "Support dédié", values: [false, false, true] },
-      { label: "Engagement de service (SLA)", values: [false, false, true] },
+      { label: "Espaces clients (multi-organisations)", values: [false, false, false, true] },
+      { label: "Support dédié", values: [false, false, false, true] },
+      { label: "Engagement de service (SLA)", values: [false, false, false, true] },
     ],
   },
 ];
@@ -54,11 +54,11 @@ const BILLING_FAQ = [
   { q: "Puis-je changer de forfait ?", a: "Oui, depuis la page Facturation de votre tableau de bord. L'offre Agence se fait sur devis : envoyez une demande et l'équipe vous recontacte." },
   { q: "Que se passe-t-il si j'approche de ma limite ?", a: "Votre tableau de bord affiche votre consommation et vous alerte à 80 % puis à 100 % de votre forfait. Vous pouvez alors passer à l'offre supérieure." },
   { q: "Quels moyens de paiement acceptez-vous ?", a: "Carte bancaire, Orange Money, MTN Mobile Money, Wave et Moov Money. Tous les prix sont en euros, quel que soit votre pays." },
-  { q: "Y a-t-il un engagement ?", a: "Non. Starter et Pro sont des forfaits mensuels, sans engagement." },
+  { q: "Y a-t-il un engagement ?", a: "Non. Essentiel, Starter et Pro sont des forfaits mensuels, sans engagement." },
   { q: "Les prix incluent-ils la TVA ?", a: "Les prix sont indiqués hors taxes. La TVA applicable dans votre pays est ajoutée à la facture." },
 ];
 
-const PLAN_NAMES = ["Starter", "Pro", "Agence"];
+const PLAN_NAMES = ["Essentiel", "Starter", "Pro", "Agence"];
 
 function CellValue({ v }: { v: Cell }) {
   if (v === true) return <Check className="mx-auto size-4 text-brand" strokeWidth={2} aria-label="Inclus" />;
@@ -87,7 +87,7 @@ export default function TarifsPage() {
           <div className="bezel">
             <div className="bezel-core overflow-x-auto">
               <table className="w-full min-w-[560px] text-sm">
-                <caption className="sr-only">Comparatif des forfaits Starter, Pro et Agence</caption>
+                <caption className="sr-only">Comparatif des forfaits Essentiel, Starter, Pro et Agence</caption>
                 <thead>
                   <tr className="border-b border-border">
                     <th scope="col" className="px-5 py-4 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">
@@ -103,7 +103,7 @@ export default function TarifsPage() {
                 {COMPARISON.map((g) => (
                   <tbody key={g.group}>
                     <tr className="bg-foreground/[0.02]">
-                      <th colSpan={4} scope="colgroup" className="px-5 py-2.5 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                      <th colSpan={5} scope="colgroup" className="px-5 py-2.5 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">
                         {g.group}
                       </th>
                     </tr>

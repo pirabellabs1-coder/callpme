@@ -30,6 +30,7 @@ export function OrgPlanSelect({ orgId, plan }: { orgId: string; plan: string }) 
         className="h-8 w-28 text-xs"
         aria-label="Offre de l'organisation"
       >
+        <option value="essentiel">Essentiel</option>
         <option value="starter">Starter</option>
         <option value="pro">Pro</option>
         <option value="agency">Agence</option>

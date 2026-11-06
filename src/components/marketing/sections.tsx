@@ -265,7 +265,7 @@ export function StepsList() {
 export function PricingCards() {
   return (
     <>
-      <div className="grid gap-4 lg:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {PLANS.map((p, i) => (
           <BlurFade key={p.name} delay={i * 0.08} className="h-full">
             <div className={cn("bezel h-full", p.highlight && "ring-brand/40")}>

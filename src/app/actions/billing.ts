@@ -72,7 +72,7 @@ async function activateFree(orgId: string, plan: string, code: string) {
 export async function startCheckout(planId: string, promoCode = ""): Promise<CheckoutResult> {
   const session = await requireSession();
   if (!isOrgAdmin(session)) return { error: "Seul un administrateur peut gérer l'abonnement." };
-  if (planId !== "starter" && planId !== "pro") {
+  if (planId !== "essentiel" && planId !== "starter" && planId !== "pro") {
     return { error: "Cette offre n'est pas payable directement." };
   }
   const plan = PLANS[planId];

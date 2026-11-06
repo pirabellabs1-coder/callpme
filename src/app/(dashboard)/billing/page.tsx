@@ -194,7 +194,7 @@ export default async function BillingPage() {
           {sub.status === "active" ? "Renouveler ou changer d'offre" : "Choisir une offre"}
         </h2>
         <p className="mb-5 max-w-2xl text-sm text-muted-foreground">
-          Starter et Pro se règlent en ligne. L&apos;offre Agence se fait sur devis :
+          Essentiel, Starter et Pro se règlent en ligne. L&apos;offre Agence se fait sur devis :
           envoyez une demande, l&apos;équipe fixe le montant, puis vous réglez.
         </p>
         <BillingPlans currentPlan={session.org.plan} status={sub.status} agency={agency} />

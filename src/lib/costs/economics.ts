@@ -51,7 +51,7 @@ export function minuteCostEur(
 }
 
 export interface PlanMargin {
-  plan: "starter" | "pro";
+  plan: "essentiel" | "starter" | "pro";
   price: number;
   minutesUsed: number;
   minutesCost: number;
@@ -61,7 +61,7 @@ export interface PlanMargin {
 }
 
 /** Marge mensuelle d'un abonné, selon la part des minutes incluses réellement utilisée (0 – 1). */
-export function planMargin(plan: "starter" | "pro", usage: number, perMinuteEur: number): PlanMargin {
+export function planMargin(plan: "essentiel" | "starter" | "pro", usage: number, perMinuteEur: number): PlanMargin {
   const p = PLANS[plan];
   const price = p.priceMonthly ?? 0;
   const minutesUsed = Math.round(p.minutes * Math.min(1, Math.max(0, usage)));

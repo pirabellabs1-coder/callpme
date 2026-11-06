@@ -76,7 +76,7 @@ export function DevTeaser() {
 export function PricingTeaser() {
   return (
     <div className="flex flex-col items-center gap-10">
-      <div className="grid w-full max-w-3xl gap-3 sm:grid-cols-3">
+      <div className="grid w-full max-w-4xl gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {PLANS.map((p) => (
           <Link
             key={p.name}

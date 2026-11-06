@@ -110,7 +110,8 @@ export function AdminPromos({ initial }: { initial: PromoRecord[] }) {
                   value={form.grantPlan}
                   onChange={(e) => setForm({ ...form, grantPlan: e.target.value })}
                 >
-                  <option value="starter">Starter</option>
+                  <option value="essentiel">Essentiel</option>
+        <option value="starter">Starter</option>
                   <option value="pro">Pro</option>
                   <option value="agency">Agence</option>
                 </Select>

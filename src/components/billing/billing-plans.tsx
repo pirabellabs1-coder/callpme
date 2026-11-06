@@ -131,7 +131,7 @@ export function BillingPlans({
         </p>
       )}
 
-      <ul className="grid grid-cols-1 gap-5 pt-3 lg:grid-cols-3">
+      <ul className="grid grid-cols-1 gap-5 pt-3 sm:grid-cols-2 xl:grid-cols-4">
         {PLAN_ORDER.map((id) => {
           const plan = PLANS[id];
           const isCurrent = currentPlan === id;

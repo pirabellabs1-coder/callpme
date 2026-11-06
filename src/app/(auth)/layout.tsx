@@ -32,21 +32,8 @@ export default async function AuthLayout({
   }
   return (
     <div className="grid min-h-screen lg:grid-cols-2">
-      {/* Colonne formulaire */}
-      <div className="flex flex-col bg-background px-6 py-8 sm:px-10">
-        <Link href="/" aria-label="Accueil Callpme" className="inline-flex">
-          <Logo markSize={28} />
-        </Link>
-        <div className="flex flex-1 items-center justify-center py-10">
-          <div className="w-full max-w-sm">{children}</div>
-        </div>
-        <p className="text-xs text-muted-foreground">
-          © {new Date().getFullYear()} Callpme · Conçu en France
-        </p>
-      </div>
-
       {/* Colonne marque */}
-      <div className="relative hidden overflow-hidden border-l border-border bg-card lg:block">
+      <div className="relative hidden overflow-hidden border-r border-border bg-card lg:block">
         <div
           className="pointer-events-none absolute inset-0 opacity-50"
           style={{
@@ -82,6 +69,19 @@ export default async function AuthLayout({
             ))}
           </ul>
         </div>
+      </div>
+
+      {/* Colonne formulaire */}
+      <div className="flex flex-col bg-background px-6 py-8 sm:px-10">
+        <Link href="/" aria-label="Accueil Callpme" className="inline-flex">
+          <Logo markSize={28} />
+        </Link>
+        <div className="flex flex-1 items-center justify-center py-10">
+          <div className="w-full max-w-sm">{children}</div>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          © {new Date().getFullYear()} Callpme · Conçu en France
+        </p>
       </div>
     </div>
   );

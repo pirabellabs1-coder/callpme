@@ -23,7 +23,7 @@ flyctl auth whoami >/dev/null 2>&1 || { echo "Connectez-vous d'abord : fly auth 
 [ -n "$(val DEEPGRAM_API_KEY .env)" ] || { echo "DEEPGRAM_API_KEY est vide dans .env : sans elle l'agent n'entend pas l'appelant."; exit 1; }
 
 echo "Application Fly.io : $APP"
-flyctl apps create "$APP" >/dev/null 2>&1 && echo "  ✓ créée" || echo "  - existe déjà (ou nom pris : relancez avec VOICE_APP=autre-nom)"
+flyctl apps create "$APP" --org "${FLY_ORG:-personal}" >/dev/null 2>&1 && echo "  ✓ créée" || echo "  - existe déjà (ou nom pris : relancez avec VOICE_APP=autre-nom)"
 
 # Processus long : pooler Supabase en mode session (port 5432), pas le mode transaction.
 DB_SESSION="$(val DATABASE_URL .env | sed 's/:6543\/postgres?.*$/:5432\/postgres/')"
@@ -37,7 +37,8 @@ echo "Secrets du serveur vocal :"
   for k in ANTHROPIC_API_KEY OPENAI_API_KEY MISTRAL_API_KEY DEEPGRAM_API_KEY ELEVENLABS_API_KEY CARTESIA_API_KEY \
            VOICE_TTS_PROVIDER VOICE_DEFAULT_FEMALE_ID VOICE_DEFAULT_MALE_ID \
            TWILIO_ACCOUNT_SID TWILIO_AUTH_TOKEN RESEND_API_KEY RESEND_FROM; do
-    v="$(val "$k" .env)"; [ -n "$v" ] && printf '%s=%s\n' "$k" "$v"
+    v="$(val "$k" .env)"
+    if [ -n "$v" ]; then printf '%s=%s\n' "$k" "$v"; fi
   done
 } | flyctl secrets import -a "$APP" --stage >/dev/null
 echo "  ✓ enregistrés"

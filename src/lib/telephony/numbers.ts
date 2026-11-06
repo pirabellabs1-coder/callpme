@@ -40,6 +40,23 @@ export interface AvailableNumber {
 
 export class NumberError extends Error {}
 
+const PURCHASE_REFUSED =
+  "L'opérateur a refusé cet achat (un justificatif d'identité ou d'adresse peut être exigé pour ce pays). Contactez-nous si le problème persiste.";
+
+/** Pays proposé correspondant à un numéro E.164 (null si hors liste). */
+export function countryOfNumber(e164: string): NumberCountry | null {
+  const DIAL: [string, string][] = [
+    ["+225", "CI"],
+    ["+221", "SN"],
+    ["+33", "FR"],
+    ["+32", "BE"],
+    ["+41", "CH"],
+    ["+1", "US"],
+  ];
+  const code = DIAL.find(([d]) => e164.startsWith(d))?.[1];
+  return code ? countryInfo(code) ?? null : null;
+}
+
 function publicUrl(): string {
   return (process.env.PUBLIC_URL || "http://localhost:3000").replace(/\/$/, "");
 }
@@ -74,7 +91,10 @@ export async function searchNumbers(opts: {
       available_phone_numbers?: { phone_number: string; locality?: string; region?: string }[];
       message?: string;
     };
-    if (!res.ok) throw new NumberError(data.message || `Recherche refusée par l'opérateur (HTTP ${res.status}).`);
+    if (!res.ok) {
+      console.error("[numéros] recherche Twilio :", res.status, data.message);
+      throw new NumberError("Recherche impossible pour le moment chez l'opérateur.");
+    }
     return (data.available_phone_numbers ?? []).map((n) => ({ phoneNumber: n.phone_number, locality: n.locality || null, region: n.region || null }));
   }
 
@@ -93,7 +113,10 @@ export async function searchNumbers(opts: {
     data?: { phone_number: string; region_information?: { region_type: string; region_name: string }[] }[];
     errors?: { detail?: string }[];
   };
-  if (!res.ok) throw new NumberError(data.errors?.[0]?.detail || `Recherche refusée par l'opérateur (HTTP ${res.status}).`);
+  if (!res.ok) {
+    console.error("[numéros] recherche Telnyx :", res.status, data.errors?.[0]?.detail);
+    throw new NumberError("Recherche impossible pour le moment chez l'opérateur.");
+  }
   return (data.data ?? []).map((n) => ({
     phoneNumber: n.phone_number,
     locality: n.region_information?.find((r) => r.region_type === "location")?.region_name ?? null,
@@ -122,7 +145,10 @@ export async function buyNumber(phoneNumber: string): Promise<{ providerRef: str
       signal: AbortSignal.timeout(15000),
     });
     const data = (await res.json().catch(() => ({}))) as { sid?: string; message?: string };
-    if (!res.ok || !data.sid) throw new NumberError(data.message || `Achat refusé par l'opérateur (HTTP ${res.status}).`);
+    if (!res.ok || !data.sid) {
+      console.error("[numéros] achat Twilio refusé :", res.status, data.message);
+      throw new NumberError(PURCHASE_REFUSED);
+    }
     return { providerRef: data.sid, provider };
   }
 
@@ -137,7 +163,10 @@ export async function buyNumber(phoneNumber: string): Promise<{ providerRef: str
     signal: AbortSignal.timeout(15000),
   });
   const data = (await res.json().catch(() => ({}))) as { data?: { id?: string }; errors?: { detail?: string }[] };
-  if (!res.ok || !data.data?.id) throw new NumberError(data.errors?.[0]?.detail || `Achat refusé par l'opérateur (HTTP ${res.status}).`);
+  if (!res.ok || !data.data?.id) {
+    console.error("[numéros] achat Telnyx refusé :", res.status, data.errors?.[0]?.detail);
+    throw new NumberError(PURCHASE_REFUSED);
+  }
   return { providerRef: data.data.id, provider };
 }
 
@@ -153,12 +182,22 @@ export async function releaseNumber(provider: string, providerRef: string, phone
       return res.ok || res.status === 404;
     }
     if (provider === "telnyx" && process.env.TELNYX_API_KEY) {
-      const res = await fetch(`https://api.telnyx.com/v2/phone_numbers/${encodeURIComponent(phoneNumber)}`, {
+      const headers = { Authorization: `Bearer ${process.env.TELNYX_API_KEY}` };
+      // La suppression se fait par identifiant de ressource : on le retrouve d'abord.
+      const lookup = await fetch(
+        `https://api.telnyx.com/v2/phone_numbers?${new URLSearchParams({ "filter[phone_number]": phoneNumber })}`,
+        { headers, signal: AbortSignal.timeout(10000) },
+      );
+      if (!lookup.ok) return false;
+      const found = (await lookup.json().catch(() => ({}))) as { data?: { id: string }[] };
+      // Plus sur le compte : déjà rendu.
+      if (!found.data?.length) return true;
+      const res = await fetch(`https://api.telnyx.com/v2/phone_numbers/${encodeURIComponent(found.data[0].id)}`, {
         method: "DELETE",
-        headers: { Authorization: `Bearer ${process.env.TELNYX_API_KEY}` },
+        headers,
         signal: AbortSignal.timeout(10000),
       });
-      return res.ok || res.status === 404;
+      return res.ok;
     }
   } catch {
     return false;

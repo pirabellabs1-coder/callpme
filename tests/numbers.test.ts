@@ -23,7 +23,7 @@ describe("achat de numéros (Twilio)", () => {
     vi.stubGlobal("fetch", fetchMock);
     const res = await searchNumbers({ country: "FR", type: "local", contains: "18 4" });
     expect(res).toEqual([{ phoneNumber: "+33184801199", locality: "Paris", region: "IDF" }]);
-    expect(String(fetchMock.mock.calls[0][0])).toContain("/AvailablePhoneNumbers/FR/Local.json?PageSize=20&VoiceEnabled=true&Contains=184");
+    expect(String((fetchMock.mock.calls[0] as unknown as [string])[0])).toContain("/AvailablePhoneNumbers/FR/Local.json?PageSize=20&VoiceEnabled=true&Contains=184");
   });
 
   it("refuse un pays ou un type non proposé", async () => {
@@ -41,12 +41,23 @@ describe("achat de numéros (Twilio)", () => {
     expect(body.get("VoiceUrl")).toBe("https://app.callpme.test/api/telephony/inbound");
 
     vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ message: "Un justificatif d'adresse est requis." }), { status: 400 })));
-    await expect(buyNumber("+33184801199")).rejects.toThrow("Un justificatif d'adresse est requis.");
+    // Le détail de l'opérateur reste dans les journaux ; le client reçoit un message générique.
+    await expect(buyNumber("+33184801199")).rejects.toThrow("justificatif d'identité ou d'adresse");
   });
 
   it("rend un numéro à l'opérateur", async () => {
     twilio();
     vi.stubGlobal("fetch", vi.fn(async () => new Response(null, { status: 204 })));
     await expect(releaseNumber("twilio", "PN123", "+33184801199")).resolves.toBe(true);
+  });
+});
+
+import { countryOfNumber } from "@/lib/telephony/numbers";
+
+describe("pays des numéros achetés", () => {
+  it("n'accepte que les pays proposés, avec leur prix", () => {
+    expect(countryOfNumber("+33184801199")?.monthlyEur).toBe(3);
+    expect(countryOfNumber("+2250701020304")?.code).toBe("CI");
+    expect(countryOfNumber("+237612345678")).toBeNull(); // Cameroun : non proposé à l'achat
   });
 });

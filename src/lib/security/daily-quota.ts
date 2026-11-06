@@ -4,7 +4,7 @@
  */
 import { prisma } from "../db/client";
 
-export const DAILY_LIMITS = { sms: 200, email: 100 } as const;
+export const DAILY_LIMITS = { sms: 200, email: 100, number: 10 } as const;
 export type DailyKind = keyof typeof DAILY_LIMITS;
 
 /** Réserve une unité ; false si le plafond du jour est atteint. */
@@ -24,4 +24,14 @@ export function containsLink(text: string): boolean {
   return /(https?:\/\/|www\.|\b[a-z0-9-]+\.(com|fr|net|org|io|co|app|link|ly|info|biz|xyz|me|site|online|click|top|shop|store|be|ch|ca|ci|sn|cm|bj|tg|ml)\b)/i.test(
     text,
   );
+}
+
+/** Somme d'un compteur sur les N derniers jours (ex. numéros achetés sur 30 jours). */
+export async function countSince(organizationId: string, kind: DailyKind, days: number): Promise<number> {
+  const from = new Date(Date.now() - days * 86_400_000).toISOString().slice(0, 10);
+  const agg = await prisma.dailyCounter.aggregate({
+    where: { organizationId, kind, day: { gte: from } },
+    _sum: { count: true },
+  });
+  return agg._sum.count ?? 0;
 }

@@ -18,6 +18,8 @@ import { makeResetToken, verifyResetToken } from "@/lib/auth/reset-token";
 const PUBLIC_URL = process.env.PUBLIC_URL || "https://www.callpme.com";
 
 export interface AuthResult {
+  /** Page où envoyer l'utilisateur après l'action. */
+  next?: string;
   ok?: boolean;
   error?: string;
 }
@@ -78,8 +80,10 @@ export async function register(formData: FormData): Promise<AuthResult> {
   if (existing) {
     return { error: "Un compte existe déjà avec cet e-mail." };
   }
-  const plan =
-    parsed.data.plan && isPlanId(parsed.data.plan) ? parsed.data.plan : "starter";
+  // L'offre ne s'obtient qu'après paiement confirmé (src/lib/payments/confirm.ts) :
+  // l'inscription démarre toujours en Starter ; l'offre choisie mène au paiement.
+  const plan = "starter";
+  const wanted = parsed.data.plan && isPlanId(parsed.data.plan) ? parsed.data.plan : null;
   const passwordHash = await hashPassword(parsed.data.password);
 
   const org = await prisma.organization.create({
@@ -113,7 +117,7 @@ export async function register(formData: FormData): Promise<AuthResult> {
     text: wel.text,
   }).catch(() => {});
 
-  return { ok: true };
+  return { ok: true, next: wanted && wanted !== "starter" ? `/billing?plan=${wanted}` : "/overview" };
 }
 
 export async function logout(): Promise<void> {

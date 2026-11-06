@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { z } from "zod";
-import { getSession } from "@/lib/auth/session";
+import { getSession, isOrgAdmin } from "@/lib/auth/session";
+import { isRateLimited } from "@/lib/security/rate-limit";
 import { prisma } from "@/lib/db/client";
 import { createPhoneNumber } from "@/lib/db/numbers";
 import { toE164 } from "@/lib/telephony/e164";
@@ -26,6 +27,10 @@ export async function POST(req: NextRequest) {
   try {
     const session = await getSession();
     if (!session) return unauthorized();
+    if (!isOrgAdmin(session)) return forbidden("Réservé aux administrateurs de l'organisation.");
+    if (isRateLimited(`numdeclare:${session.org.id}`, 10, 60 * 60_000)) {
+      return badRequest("Trop de numéros déclarés en peu de temps. Réessayez plus tard.");
+    }
     const body = await req.json().catch(() => null);
     const parsed = schema.safeParse(body);
     if (!parsed.success) {

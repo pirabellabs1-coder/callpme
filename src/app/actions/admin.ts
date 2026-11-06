@@ -372,7 +372,9 @@ export async function reloadDemoData(): Promise<AdminResult> {
 
 /** Active (raccordement vérifié) ou refuse un numéro déclaré par un client. */
 export async function reviewPhoneNumber(id: string, action: "activate" | "reject"): Promise<AdminResult> {
-  await requireAdmin();
+  const admin = await requireAdmin();
+  if (action !== "activate" && action !== "reject") return { error: "Action inconnue." };
+  console.info(`[numéros] ${action === "activate" ? "activation" : "refus"} de ${id} par ${admin.user.id}`);
   const row = await prisma.phoneNumber.findUnique({ where: { id }, select: { status: true, purchased: true, number: true, organizationId: true } });
   if (!row || row.status !== "pending" || row.purchased) return { error: "Numéro introuvable ou déjà traité." };
   if (action === "activate") {

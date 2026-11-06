@@ -57,7 +57,7 @@ export function BuyNumber({
   }
 
   async function buy(n: Available) {
-    if (!window.confirm(`Acheter le ${n.phoneNumber} pour ${info.monthlyEur} € par mois ? Il sera facturé avec votre abonnement.`)) return;
+    if (!window.confirm(`Acheter le ${n.phoneNumber} (coût indicatif : ${info.monthlyEur} € par mois) ?`)) return;
     setBusy(n.phoneNumber);
     setError(null);
     const res = await fetch("/api/numbers/purchase", {

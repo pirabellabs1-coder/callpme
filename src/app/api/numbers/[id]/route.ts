@@ -16,6 +16,6 @@ export async function DELETE(
     const removed = await deletePhoneNumber(session.org.id, params.id);
     return removed ? ok({ success: true }) : notFound("Numéro introuvable");
   } catch (e) {
-    return serverError(e instanceof Error && e.message.startsWith("Libération") ? e.message : undefined);
+    return serverError(e instanceof Error && /^Libération/.test(e.message) ? e.message : undefined);
   }
 }

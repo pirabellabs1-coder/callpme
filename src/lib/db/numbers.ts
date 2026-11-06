@@ -77,10 +77,18 @@ export async function deletePhoneNumber(orgId: string, id: string) {
   const row = await prisma.phoneNumber.findUnique({ where: { id } });
   if (!row || row.organizationId !== orgId) return false;
   // Numéro acheté via la plateforme : rendu à l'opérateur (fin de facturation).
+  if (row.status === "provisioning" || row.status === "releasing") {
+    throw new Error("Libération impossible : une opération est déjà en cours sur ce numéro.");
+  }
   if (row.purchased && row.providerRef) {
+    // Plus d'appels routés pendant la libération ; état restauré en cas d'échec.
+    await prisma.phoneNumber.update({ where: { id }, data: { status: "releasing" } });
     const { releaseNumber } = await import("../telephony/numbers");
     const released = await releaseNumber(row.provider, row.providerRef, row.number);
-    if (!released) throw new Error("Libération du numéro impossible chez l'opérateur.");
+    if (!released) {
+      await prisma.phoneNumber.update({ where: { id }, data: { status: row.status } });
+      throw new Error("Libération du numéro impossible chez l'opérateur.");
+    }
   }
   // Agent relié : il perd ce numéro.
   await prisma.agent.updateMany({ where: { organizationId: orgId, phoneNumber: row.number }, data: { phoneNumber: null } });

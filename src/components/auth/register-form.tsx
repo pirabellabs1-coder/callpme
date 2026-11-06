@@ -39,7 +39,7 @@ export function RegisterForm({ plan }: { plan?: string }) {
         setError(res.error);
         return;
       }
-      router.push("/overview");
+      router.push(res?.next ?? "/overview");
       router.refresh();
     });
   }

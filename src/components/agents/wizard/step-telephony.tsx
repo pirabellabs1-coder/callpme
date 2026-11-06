@@ -38,6 +38,28 @@ export function StepTelephony({
         onChange={(n) => set({ phoneNumber: n })}
       />
 
+      <div className="space-y-1.5">
+        <label htmlFor="transfer-number" className="text-sm font-medium text-foreground">
+          Numéro de transfert vers un humain{" "}
+          <span className="font-normal text-muted-foreground">(facultatif)</span>
+        </label>
+        <input
+          id="transfer-number"
+          type="tel"
+          inputMode="tel"
+          autoComplete="off"
+          placeholder="+33 1 23 45 67 89"
+          value={s.transferNumber}
+          onChange={(e) => set({ transferNumber: e.target.value })}
+          aria-describedby="transfer-number-help"
+          className="flex h-10 w-full rounded-lg border border-input bg-background/60 px-3 py-2 text-sm placeholder:text-muted-foreground/60 focus-visible:border-brand/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/15"
+        />
+        <p id="transfer-number-help" className="text-xs text-muted-foreground">
+          Quand l&apos;appelant demande à parler à quelqu&apos;un, l&apos;agent transfère l&apos;appel vers ce numéro
+          (format international). Activez aussi l&apos;outil « Transférer à un humain ».
+        </p>
+      </div>
+
       <fieldset className="space-y-2">
         <legend className="mb-2 text-sm font-medium text-foreground">
           État à l&apos;enregistrement

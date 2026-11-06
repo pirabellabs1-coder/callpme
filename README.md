@@ -8,8 +8,8 @@ Afrique francophone (paiement Mobile Money via GeniusPay).
 ## Stack
 
 Next.js 14 (App Router, TypeScript) · Tailwind CSS · Prisma + **PostgreSQL**
-(Neon) · Zod · Vapi (téléphonie) · Resend (e-mails) · GeniusPay (paiements) ·
-Vitest (tests).
+(Neon) · Zod · **moteur vocal Callpme** (Deepgram, ElevenLabs/Cartesia,
+Twilio/Telnyx) · Resend (e-mails) · GeniusPay (paiements) · Vitest (tests).
 
 ## Démarrage local
 
@@ -34,6 +34,7 @@ Compte de démo (base de développement uniquement) : `demo@callpme.dev` /
 | `npm run dev` | Serveur de développement |
 | `npm run build` / `npm start` | Build et serveur de production |
 | `npm test` | Tests (Vitest) |
+| `npm run voice:dev` | Serveur vocal (moteur Callpme) en développement, port 4100 |
 | `npm run db:seed` | Données de démo (avec `ALLOW_SEED=1`) |
 | `npm run db:studio` | Explorer la base (Prisma Studio) |
 
@@ -57,6 +58,7 @@ src/
 ├── components/        UI par domaine + kit ui/
 └── lib/               db (dépôts Prisma), auth, billing, telephony, net,
                        crypto, security, validation…
+voice-server/          serveur vocal (WebSocket : téléphonie + test micro)
 prisma/                schema.prisma (PostgreSQL) + seed.ts
 tests/                 tests Vitest
 ```

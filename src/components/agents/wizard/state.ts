@@ -43,6 +43,8 @@ export interface WizardState {
   firstMessage: string;
   firstSpeaker: FirstSpeaker;
   maxDurationMin: number;
+  /** Numéro de transfert vers un humain (E.164), vide = aucun. */
+  transferNumber: string;
   guardrails: string[];
   persona: string;
   tools: string[];
@@ -88,6 +90,7 @@ export function initialState(
       persona: agent.config.persona ?? "",
       tools: agent.config.tools,
       phoneNumber: agent.phoneNumber ?? null,
+      transferNumber: agent.config.transferNumber ?? "",
       knowledgeBaseId: agent.knowledgeBaseId ?? "",
     };
   }
@@ -112,6 +115,7 @@ export function initialState(
     persona: template?.persona ?? "",
     tools: template ? ROLE_META[template.role].defaultTools : [],
     phoneNumber: null,
+    transferNumber: "",
     knowledgeBaseId: "",
   };
 }
@@ -228,6 +232,7 @@ export function buildPayload(
           }
         : undefined,
     maxDurationSec: s.maxDurationMin > 0 ? s.maxDurationMin * 60 : undefined,
+    ...(s.transferNumber.trim() ? { transferNumber: s.transferNumber.trim() } : {}),
   };
   return {
     name: s.name.trim() || "Agent sans nom",

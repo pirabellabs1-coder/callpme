@@ -12,7 +12,8 @@ import { Card } from "@/components/ui/card";
 import { TestCallPanel } from "@/components/agents/test-call-panel";
 import { CloneServerConfig } from "@/components/agents/clone-server-config";
 import { RealCallCard } from "@/components/agents/real-call-card";
-import { telephonyConfigured } from "@/lib/telephony/provider";
+import { telephonyConfigured, voiceEngineMissing } from "@/lib/telephony/provider";
+import { VoiceTestPanel } from "@/components/agents/voice-test-panel";
 
 export const metadata = { title: "Test d'appel" };
 export const dynamic = "force-dynamic";
@@ -124,6 +125,16 @@ export default async function TestAgentPage({
         </div>
 
         <div className="space-y-5 lg:col-span-2">
+          {voiceEngineMissing().length === 0 ? (
+            <VoiceTestPanel agentId={agent.id} agentName={agent.name} />
+          ) : (
+            <Card className="p-5">
+              <h2 className="text-[0.95rem] font-semibold tracking-tight">Test vocal en direct</h2>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Pour parler à l'agent au micro avec le moteur vocal Callpme, configurez : {voiceEngineMissing().join(", ")}.
+              </p>
+            </Card>
+          )}
           {telephonyConfigured() && <RealCallCard agentId={agent.id} />}
           {studioVoice?.sampleUrl && <CloneServerConfig />}
           <Card className="p-5">

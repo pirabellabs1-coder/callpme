@@ -19,6 +19,7 @@ import type { CallStatus, TranscriptTurn } from "../shared/types";
 import type { Agent } from "../shared/types";
 import { agentReply, type Turn } from "./brain";
 import { SentenceChunker } from "./chunker";
+import { applyBehavior, pickVariant } from "../agents/versions";
 import { openDeepgram, type SttStream } from "./stt";
 import { resolveVoice, streamSpeech, type TtsVoice } from "./tts";
 import { finishCall } from "./persist";
@@ -59,6 +60,8 @@ const STOP_WORDS =/^(stop|non|attendez|attends|pardon|excusez|arr[eê]te[zr]?|wa
 
 export class CallSession {
   private agent!: Agent;
+  /** Test A/B : variante utilisée pour cet appel. */
+  private variant: "A" | "B" | null = null;
   private organizationName = "";
   private voice: TtsVoice | null = null;
   private stt: SttStream | null = null;
@@ -111,7 +114,7 @@ export class CallSession {
       this.ended = true;
       return this.transport.hangup();
     }
-    this.agent = agent;
+    this.agent = await this.withAbVariant(agent);
     const org = await prisma.organization.findUnique({
       where: { id: agent.organizationId },
       select: { name: true, plan: true },
@@ -172,6 +175,31 @@ export class CallSession {
       this.history.push({ role: "assistant", content: greeting });
       this.addTurn("agent", greeting);
       await this.speak(greeting);
+    }
+  }
+
+  /**
+   * Test A/B : une part des appels utilise la version testée (variante B).
+   * Les tests du navigateur restent sur la version actuelle.
+   */
+  private async withAbVariant(agent: Agent): Promise<Agent> {
+    const ab = agent.config.abTest;
+    if (!ab?.enabled || this.ctx.metadata?.channel === "preview") return agent;
+    if (this.ctx.direction === "web" && this.ctx.metadata?.channel !== "widget") return agent;
+    this.variant = pickVariant(ab.share);
+    if (this.variant === "A") return agent;
+    const version = await prisma.agentVersion
+      .findFirst({ where: { id: ab.versionId, agentId: agent.id }, select: { config: true } })
+      .catch(() => null);
+    if (!version) {
+      this.variant = "A";
+      return agent;
+    }
+    try {
+      return { ...agent, config: applyBehavior(agent.config, JSON.parse(version.config) as Agent["config"]) };
+    } catch {
+      this.variant = "A";
+      return agent;
     }
   }
 
@@ -516,6 +544,7 @@ export class CallSession {
         status: this.hasCallerSpoken() || status === "transferred" ? status : "missed",
         ...(this.voicemailLeft ? { outcome: "Message laissé sur répondeur", voicemail: true } : {}),
         metadata: this.ctx.metadata,
+        variant: this.variant ?? undefined,
         providerCallId: this.providerCallId,
       });
       this.transport.sendEvent?.({ type: "ended", callId: call.id });

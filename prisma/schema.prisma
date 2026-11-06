@@ -162,6 +162,7 @@ model Agent {
   config          String // JSON: AgentConfig (voice, model, prompt, tools, guardrails)
   phoneNumber     String?        @unique
   calls           Call[]
+  versions        AgentVersion[]
   campaigns       Campaign[]
   appointments    Appointment[]
   leads           Lead[]
@@ -186,6 +187,8 @@ model Call {
   transcript     String // JSON: TranscriptTurn[]
   audioUrl       String? // enregistrement réel de l'appel (data URL), si capté
   providerCallId String?     @unique // identifiant de l'appel chez l'opérateur téléphonique
+  /** Test A/B : variante de l'agent utilisée pour cet appel (A = actuelle, B = version testée). */
+  variant        String?
   summary        String?
   outcome        String?
   /// JSON : données relevées en fin d'appel (champs définis sur l'agent).
@@ -665,4 +668,20 @@ model ChannelEvent {
   createdAt DateTime @default(now())
 
   @@index([createdAt])
+}
+
+/// Version enregistrée de la configuration d'un agent (historique, restauration, test A/B).
+model AgentVersion {
+  id        String   @id @default(cuid())
+  agentId   String
+  agent     Agent    @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  number    Int
+  /** Configuration complète (JSON) au moment de l'enregistrement. */
+  config    String
+  /** Ce qui a changé (résumé lisible). */
+  note      String?
+  createdAt DateTime @default(now())
+
+  @@unique([agentId, number])
+  @@index([agentId, createdAt])
 }

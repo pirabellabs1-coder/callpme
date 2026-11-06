@@ -172,6 +172,17 @@ export interface AgentConfig {
   flow?: ConversationFlow;
   /** Bouton à intégrer sur le site web du client. */
   widget?: WidgetConfig;
+  /** Test A/B : une part des appels utilise une version enregistrée. */
+  abTest?: AbTestConfig;
+}
+
+export interface AbTestConfig {
+  enabled: boolean;
+  /** Version testée (variante B). */
+  versionId: string;
+  /** Part des appels pour la variante B, en %. */
+  share: number;
+  startedAt: string;
 }
 
 export interface WidgetConfig {

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutGrid, SlidersHorizontal, PlayCircle, FlaskConical, Workflow, Globe, Rocket } from "lucide-react";
+import { LayoutGrid, SlidersHorizontal, PlayCircle, FlaskConical, Workflow, Globe, Rocket, History } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 /** Onglets de l'espace de travail d'un agent. */
@@ -17,6 +17,7 @@ export function AgentTabs({ agentId }: { agentId: string }) {
     { href: `${base}/test`, label: "Tester", icon: PlayCircle, active: pathname === `${base}/test` },
     { href: `${base}/widget`, label: "Site web", icon: Globe, active: pathname.startsWith(`${base}/widget`) },
     { href: `${base}/tests`, label: "Scénarios de test", icon: FlaskConical, active: pathname.startsWith(`${base}/tests`) },
+    { href: `${base}/versions`, label: "Versions", icon: History, active: pathname.startsWith(`${base}/versions`) },
   ];
   return (
     <nav aria-label="Sections de l'agent" className="-mb-px flex gap-1 overflow-x-auto">

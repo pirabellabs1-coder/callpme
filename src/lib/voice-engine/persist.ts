@@ -20,6 +20,8 @@ export interface FinishCallInput {
   transcript: TranscriptTurn[];
   status: CallStatus;
   metadata?: Record<string, string>;
+  /** Test A/B : variante de l'agent utilisée. */
+  variant?: "A" | "B";
   /** Identifiant de l'appel chez l'opérateur (Twilio CallSid, Telnyx…). */
   providerCallId?: string | null;
   /** Identifiant de session vocale (jeton) utilisé par les outils pendant l'appel. */
@@ -53,6 +55,7 @@ export async function finishCall(input: FinishCallInput) {
       outcome,
       extracted: extracted ? JSON.stringify(extracted) : null,
       providerCallId: input.providerCallId ?? null,
+      variant: input.variant ?? null,
       // Évaluation enregistrée pour chaque appel où l'appelant s'est exprimé.
       ...(analysis && input.transcript.some((t) => t.speaker === "caller")
         ? {

@@ -2,6 +2,7 @@
  * Dépôt « Agents » — accès typé aux agents, avec (dé)sérialisation de la
  * config JSON et statistiques d'appels agrégées (sans requête N+1).
  */
+import { behaviorChanges } from "../agents/versions";
 import { bookingConfig } from "../agenda/slots";
 import { getCountry } from "../geo/countries";
 import { orgCountry } from "../geo/org-country";
@@ -284,6 +285,13 @@ export async function updateAgent(
     ? { ...parseConfig(existing.config), ...patch.config }
     : undefined;
 
+  // Historique : chaque changement de comportement enregistre une version.
+  if (mergedConfig) {
+    const before = parseConfig(existing.config);
+    const changes = behaviorChanges(before, mergedConfig);
+    if (changes.length) await recordVersion(id, before, mergedConfig, changes).catch(() => {});
+  }
+
   const row = await prisma.agent.update({
     where: { id },
     data: {
@@ -317,4 +325,30 @@ export async function assignNumber(
     data: { phoneNumber },
   });
   return toAgent(row);
+}
+
+const MAX_VERSIONS = 30;
+
+/** Enregistre la nouvelle version (et l'état initial s'il n'existe pas encore). */
+async function recordVersion(agentId: string, before: AgentConfig, after: AgentConfig, changes: string[]) {
+  const last = await prisma.agentVersion.findFirst({ where: { agentId }, orderBy: { number: "desc" }, select: { number: true } });
+  let number = last?.number ?? 0;
+  if (!last) {
+    number += 1;
+    await prisma.agentVersion.create({ data: { agentId, number, config: JSON.stringify(before), note: "Version initiale" } });
+  }
+  number += 1;
+  await prisma.agentVersion.create({
+    data: { agentId, number, config: JSON.stringify(after), note: `Modifié : ${changes.join(", ")}` },
+  });
+  // On garde les 30 dernières versions, sauf celle qui est en test A/B.
+  const old = await prisma.agentVersion.findMany({
+    where: { agentId },
+    orderBy: { number: "desc" },
+    skip: MAX_VERSIONS,
+    select: { id: true },
+  });
+  const testing = after.abTest?.enabled ? after.abTest.versionId : null;
+  const ids = old.map((o) => o.id).filter((x) => x !== testing);
+  if (ids.length) await prisma.agentVersion.deleteMany({ where: { id: { in: ids } } });
 }

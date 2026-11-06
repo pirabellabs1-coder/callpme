@@ -107,7 +107,10 @@ function offsetMs(d: Date): number {
 }
 
 export function isYmd(value: string | undefined | null): value is string {
-  return Boolean(value && /^\d{4}-\d{2}-\d{2}$/.test(value) && !Number.isNaN(Date.parse(value)));
+  // Rejette aussi les dates impossibles (ex. 2026-02-31, que Date.parse accepte).
+  return Boolean(
+    value && /^\d{4}-\d{2}-\d{2}$/.test(value) && !Number.isNaN(Date.parse(value)) && addDaysYmd(value, 0) === value,
+  );
 }
 
 /** Ajoute `n` jours à une date calendaire AAAA-MM-JJ. */

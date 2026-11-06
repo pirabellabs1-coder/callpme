@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth/session";
-import { listCallsForExport } from "@/lib/db/calls";
+import { listCallsForExport, zonedParts } from "@/lib/db/calls";
 import { unauthorized, serverError } from "@/lib/api/respond";
 import {
   CALL_STATUS_LABELS,
@@ -25,7 +25,9 @@ const dateFmt = new Intl.DateTimeFormat("fr-FR", {
  */
 function cell(value: string | number | null | undefined): string {
   let s = value == null ? "" : String(value);
-  if (/^[=+\-@\t\r]/.test(s)) s = `'${s}`;
+  // Un numéro de téléphone (+33…) reste lisible ; tout autre début dangereux,
+  // y compris précédé d'espaces ou de sauts de ligne, est neutralisé.
+  if (!/^\+\d[\d ]*$/.test(s) && /^\s*[=+\-@\t\r\n|]/.test(s)) s = `'${s}`;
   return /[";\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
 
@@ -72,7 +74,7 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    const stamp = new Date().toISOString().slice(0, 10);
+    const stamp = zonedParts(new Date()).ymd; // date du jour, heure de Paris
     // BOM UTF-8 : Excel affiche correctement les accents.
     return new NextResponse(`﻿${lines.join("\r\n")}\r\n`, {
       headers: {

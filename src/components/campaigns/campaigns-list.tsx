@@ -198,7 +198,7 @@ export function CampaignsList({
         <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {campaigns.map((c) => {
             const pct = c.total > 0 ? Math.round((c.called / c.total) * 100) : 0;
-            const created = new Date(c.createdAt).toLocaleDateString("fr-FR", {
+            const created = new Date(c.createdAt).toLocaleDateString("fr-FR", { timeZone: "Europe/Paris",
               day: "numeric",
               month: "short",
               year: "numeric",

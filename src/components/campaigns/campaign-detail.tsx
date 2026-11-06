@@ -273,7 +273,7 @@ export function CampaignDetail({
   }
 
   const created = campaign.createdAt
-    ? new Date(campaign.createdAt).toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" })
+    ? new Date(campaign.createdAt).toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric", timeZone: "Europe/Paris" })
     : null;
 
   return (
@@ -652,7 +652,7 @@ export function CampaignDetail({
                       </td>
                       <td className="hidden whitespace-nowrap px-5 py-3 text-xs text-muted-foreground md:table-cell">
                         {c.calledAt
-                          ? new Date(c.calledAt).toLocaleString("fr-FR", { dateStyle: "short", timeStyle: "short" })
+                          ? new Date(c.calledAt).toLocaleString("fr-FR", { dateStyle: "short", timeStyle: "short", timeZone: "Europe/Paris" })
                           : "—"}
                       </td>
                     </tr>

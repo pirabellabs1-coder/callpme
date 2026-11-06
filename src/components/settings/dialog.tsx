@@ -163,8 +163,10 @@ export function Dialog({
           <button
             type="button"
             onClick={requestClose}
-            disabled={!dismissible}
-            className="inline-flex size-8 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/55 disabled:opacity-50"
+            // aria-disabled (et non disabled) : le bouton garde le focus pendant
+            // un envoi, sinon le focus tombe sur <body> et sort de la modale.
+            aria-disabled={!dismissible || undefined}
+            className="inline-flex size-8 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/55 aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
             aria-label="Fermer"
           >
             <X className="size-4" aria-hidden="true" />

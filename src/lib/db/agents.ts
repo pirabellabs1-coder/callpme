@@ -3,6 +3,7 @@
  * config JSON et statistiques d'appels agrégées (sans requête N+1).
  */
 import { prisma } from "./client";
+import { zonedDayStart, zonedParts } from "./calls";
 import type {
   Agent,
   AgentConfig,
@@ -77,15 +78,9 @@ function toAgent(row: AgentRow, stats?: AgentStats): Agent {
 
 /* ------------------------------ Statistiques ----------------------------- */
 
-/** Minuit aujourd'hui à l'heure de Paris (indépendant du fuseau du serveur). */
+/** Minuit aujourd'hui à l'heure de Paris (changements d'heure compris). */
 function startOfToday(): Date {
-  const now = new Date();
-  const parts = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Paris", year: "numeric", month: "2-digit", day: "2-digit" }).format(now);
-  // Décalage de Paris par rapport à UTC à cet instant (heure d'été comprise).
-  const paris = new Date(now.toLocaleString("en-US", { timeZone: "Europe/Paris" }));
-  const utc = new Date(now.toLocaleString("en-US", { timeZone: "UTC" }));
-  const offsetMs = paris.getTime() - utc.getTime();
-  return new Date(new Date(`${parts}T00:00:00Z`).getTime() - offsetMs);
+  return zonedDayStart(zonedParts(new Date()).ymd);
 }
 
 /** Agrège, pour chaque agent de l'org, total / aujourd'hui / durée moy. / taux de résolution. */

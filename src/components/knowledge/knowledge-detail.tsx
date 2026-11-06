@@ -177,7 +177,7 @@ export function KnowledgeDetail({
   }
 
   const fmtDate = (iso: string) =>
-    new Date(iso).toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric" });
+    new Date(iso).toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric", timeZone: "Europe/Paris" });
 
   return (
     <div className="space-y-6">

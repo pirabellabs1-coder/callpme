@@ -1,6 +1,6 @@
 /**
  * Contenus partagés des pages marketing (accueil, produit, tarifs, etc.).
- * Les tarifs sont des hypothèses du cahier des charges, à valider avant publication.
+ * Les offres (PLANS) sont dérivées du catalogue de facturation src/lib/billing/plans.ts.
  */
 
 import { PLANS as BILLING_PLANS, PLAN_ORDER, UNLIMITED } from "@/lib/billing/plans";

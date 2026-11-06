@@ -115,6 +115,7 @@ model Agent {
   campaigns       Campaign[]
   appointments    Appointment[]
   leads           Lead[]
+  testScenarios   TestScenario[]
   createdAt       DateTime       @default(now())
   updatedAt       DateTime       @updatedAt
 
@@ -497,4 +498,39 @@ model DailyCounter {
   updatedAt      DateTime @updatedAt
 
   @@unique([organizationId, day, kind])
+}
+
+// ----- Tests par simulation : scénarios rejoués avant mise en ligne -----
+model TestScenario {
+  id             String    @id @default(cuid())
+  organizationId String
+  agentId        String
+  agent          Agent     @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  name           String
+  /// « persona » : un appelant joué par l'IA ; « script » : répliques fixes.
+  mode           String    @default("script")
+  /// Persona de l'appelant (mode persona) ou répliques, une par ligne (mode script).
+  callerPrompt   String
+  /// JSON : attentes (outils à appeler / à éviter, mots à dire / à éviter, critère libre).
+  expectations   String
+  maxTurns       Int       @default(8)
+  runs           TestRun[]
+  createdAt      DateTime  @default(now())
+
+  @@index([agentId])
+  @@index([organizationId])
+}
+
+model TestRun {
+  id         String       @id @default(cuid())
+  scenarioId String
+  scenario   TestScenario @relation(fields: [scenarioId], references: [id], onDelete: Cascade)
+  passed     Boolean
+  /// Part des vérifications réussies (0–100).
+  score      Int
+  transcript String // JSON : TranscriptTurn[]
+  checks     String // JSON : CheckResult[]
+  createdAt  DateTime     @default(now())
+
+  @@index([scenarioId, createdAt])
 }

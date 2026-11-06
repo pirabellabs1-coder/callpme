@@ -4,6 +4,8 @@
  * code pour pouvoir évoluer sans toucher à l'UI.
  */
 
+import { bilingualRequired, isSelectableLanguage, VOICE_LANGUAGES } from "../voice-engine/languages";
+
 export const VOICE_PROVIDERS = [
   { id: "elevenlabs", label: "ElevenLabs", note: "Voix françaises très naturelles" },
   { id: "azure", label: "Azure Neural", note: "Large couverture linguistique" },
@@ -35,11 +37,30 @@ export const VOICES: Record<string, VoiceOption[]> = {
   ],
 };
 
-export const LANGUAGES = [
-  { id: "fr-FR", label: "Français (France)" },
-  { id: "fr-BE", label: "Français (Belgique)" },
-  { id: "fr-CA", label: "Français (Canada)" },
-] as const;
+export interface LanguageOption {
+  id: string;
+  label: string;
+  /** Langue locale d'Afrique de l'Ouest. */
+  local: boolean;
+  /** « disponible » seulement si le moteur sait la transcrire ET la parler, et qu'elle est activée. */
+  availability: "disponible" | "bientôt";
+  /** Mode bilingue français + langue locale imposé (Claude trop faible dans la langue seule). */
+  bilingualOnly: boolean;
+  note?: string;
+}
+
+/**
+ * Langues proposées dans l'assistant. Une langue « bientôt » s'affiche mais ne
+ * peut pas être choisie : l'interface ne promet jamais ce que le moteur ne sait pas faire.
+ */
+export const LANGUAGES: LanguageOption[] = VOICE_LANGUAGES.map((l) => ({
+  id: l.id,
+  label: l.label,
+  local: l.local,
+  availability: isSelectableLanguage(l.id) ? "disponible" : "bientôt",
+  bilingualOnly: bilingualRequired(l.id),
+  ...(l.note ? { note: l.note } : {}),
+}));
 
 export const MODEL_PROVIDERS = [
   { id: "openai", label: "OpenAI" },

@@ -12,7 +12,8 @@ const stt = vi.hoisted(() => ({
   closed: false,
 }));
 vi.mock("@/lib/voice-engine/stt", () => ({
-  openDeepgram: (_lang: string, events: typeof stt.events) => {
+  sttProviderFor: () => "deepgram",
+  openStt: (_lang: string, events: typeof stt.events) => {
     stt.events = events;
     return { send: (b: Buffer) => stt.sent.push(b), close: () => (stt.closed = true) };
   },

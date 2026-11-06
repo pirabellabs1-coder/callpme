@@ -62,3 +62,91 @@ export function frames(buf: Buffer, size = 160): Buffer[] {
   for (let i = 0; i < buf.length; i += size) out.push(buf.subarray(i, Math.min(i + size, buf.length)));
   return out;
 }
+
+/**
+ * Rééchantillonne un PCM 16 bits vers 8 kHz (interpolation linéaire, avec un
+ * filtre moyenneur simple pour limiter le repliement). Sert aux fournisseurs
+ * de voix qui ne livrent pas directement le format téléphonique.
+ */
+export function resampleTo8k(pcm: Int16Array, fromRate: number): Int16Array {
+  if (fromRate === 8000) return pcm;
+  const ratio = fromRate / 8000;
+  const outLen = Math.floor(pcm.length / ratio);
+  const out = new Int16Array(outLen);
+  const half = Math.max(0, Math.floor(ratio / 2));
+  for (let i = 0; i < outLen; i++) {
+    const center = i * ratio;
+    const i0 = Math.floor(center);
+    let sum = 0;
+    let n = 0;
+    for (let k = i0 - half; k <= i0 + half; k++) {
+      if (k >= 0 && k < pcm.length) {
+        sum += pcm[k];
+        n++;
+      }
+    }
+    out[i] = n ? Math.round(sum / n) : 0;
+  }
+  return out;
+}
+
+/** PCM 16 bits little-endian (Buffer) -> Int16Array. Un octet impair final est ignoré. */
+export function pcm16FromBytes(buf: Uint8Array): Int16Array {
+  const n = Math.floor(buf.length / 2);
+  const out = new Int16Array(n);
+  for (let i = 0; i < n; i++) {
+    const v = buf[2 * i] | (buf[2 * i + 1] << 8);
+    out[i] = v >= 0x8000 ? v - 0x10000 : v;
+  }
+  return out;
+}
+
+/** Enveloppe un PCM 16 bits mono dans un fichier WAV (pour les API de transcription par fichier). */
+export function wavFromPcm16(pcm: Int16Array, sampleRate = 8000): Buffer {
+  const data = Buffer.alloc(pcm.length * 2);
+  for (let i = 0; i < pcm.length; i++) data.writeInt16LE(pcm[i], i * 2);
+  const h = Buffer.alloc(44);
+  h.write("RIFF", 0);
+  h.writeUInt32LE(36 + data.length, 4);
+  h.write("WAVE", 8);
+  h.write("fmt ", 12);
+  h.writeUInt32LE(16, 16);
+  h.writeUInt16LE(1, 20); // PCM
+  h.writeUInt16LE(1, 22); // mono
+  h.writeUInt32LE(sampleRate, 24);
+  h.writeUInt32LE(sampleRate * 2, 28);
+  h.writeUInt16LE(2, 32);
+  h.writeUInt16LE(16, 34);
+  h.write("data", 36);
+  h.writeUInt32LE(data.length, 40);
+  return Buffer.concat([h, data]);
+}
+
+/**
+ * Extrait le PCM d'un WAV 16 bits mono (en-tête RIFF lu, blocs inconnus sautés).
+ * Renvoie null si ce n'est pas un WAV PCM 16 bits mono.
+ */
+export function parseWav(buf: Buffer): { pcm: Int16Array; sampleRate: number } | null {
+  if (buf.length < 12 || buf.toString("ascii", 0, 4) !== "RIFF" || buf.toString("ascii", 8, 12) !== "WAVE") return null;
+  let off = 12;
+  let rate = 0;
+  let ok = false;
+  while (off + 8 <= buf.length) {
+    const id = buf.toString("ascii", off, off + 4);
+    const size = buf.readUInt32LE(off + 4);
+    const body = off + 8;
+    if (id === "fmt ") {
+      const format = buf.readUInt16LE(body);
+      const channels = buf.readUInt16LE(body + 2);
+      rate = buf.readUInt32LE(body + 4);
+      const bits = buf.readUInt16LE(body + 14);
+      ok = format === 1 && channels === 1 && bits === 16;
+    } else if (id === "data") {
+      if (!ok) return null;
+      const end = Math.min(buf.length, body + size);
+      return { pcm: pcm16FromBytes(buf.subarray(body, end)), sampleRate: rate };
+    }
+    off = body + size + (size % 2);
+  }
+  return null;
+}

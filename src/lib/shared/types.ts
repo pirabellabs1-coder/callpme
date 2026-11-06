@@ -64,6 +64,11 @@ export interface VoiceConfig {
   voiceLabel?: string;
   /** Identifiant de la voix chez le fournisseur (voix Studio clonée ou ajoutée par ID). */
   providerVoiceId?: string;
+  /**
+   * Langue locale : mode bilingue. L'appelant peut mélanger le français et la
+   * langue locale ; l'agent répond dans la langue de l'appelant.
+   */
+  bilingual?: boolean;
 }
 
 export interface ModelConfig {

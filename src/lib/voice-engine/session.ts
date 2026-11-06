@@ -20,7 +20,8 @@ import type { Agent } from "../shared/types";
 import { agentReply, type Turn } from "./brain";
 import { SentenceChunker } from "./chunker";
 import { applyBehavior, pickVariant } from "../agents/versions";
-import { openDeepgram, type SttStream } from "./stt";
+import { openStt, sttProviderFor, type SttStream } from "./stt";
+import { effectiveBilingual } from "./languages";
 import { resolveVoice, streamSpeech, type TtsVoice } from "./tts";
 import { finishCall } from "./persist";
 import { CALLBACK_CONTEXT, callbackGreeting, callbackSettings } from "../callbacks/settings";
@@ -163,6 +164,15 @@ export class CallSession {
       this.transport.sendEvent?.({ type: "error", message: "Aucune voix configurée pour le moteur vocal." });
       return this.end("failed");
     }
+    // Langue locale sans fournisseur de transcription configuré : l'appel ne peut pas se faire.
+    const language = agent.config.voice.language || "fr-FR";
+    const bilingual = effectiveBilingual(language, agent.config.voice.bilingual);
+    const sttProvider = sttProviderFor(language, bilingual);
+    if (!sttProvider) {
+      this.transport.sendEvent?.({ type: "error", message: "Aucune transcription configurée pour cette langue." });
+      return this.end("failed");
+    }
+    this.costs.setProviders(sttProvider, this.voice.provider);
 
     // Contact de campagne : nom et colonnes importées, pour personnaliser l'appel.
     if (this.ctx.metadata?.contactId) await this.loadContact(this.ctx.metadata.contactId, agent.organizationId);
@@ -185,12 +195,17 @@ ${CALLBACK_CONTEXT}` : CALLBACK_CONTEXT;
     // Répondeur détecté par l'opérateur (après le bip) : message, puis raccroché.
     if (this.ctx.metadata?.voicemail === "1") return this.leaveVoicemail();
 
-    this.stt = openDeepgram(agent.config.voice.language || "fr-FR", {
-      onSpeechStarted: () => this.onCallerSpeech(),
-      onTranscript: (text, isFinal) => this.onTranscript(text, isFinal),
-      onUtteranceEnd: () => void this.onUtteranceEnd(),
-      onError: () => this.transport.sendEvent?.({ type: "error", message: "Transcription interrompue." }),
-    });
+    // Fournisseur de transcription choisi selon la langue de l'agent (français : Deepgram).
+    this.stt = openStt(
+      language,
+      {
+        onSpeechStarted: () => this.onCallerSpeech(),
+        onTranscript: (text, isFinal) => this.onTranscript(text, isFinal),
+        onUtteranceEnd: () => void this.onUtteranceEnd(),
+        onError: () => this.transport.sendEvent?.({ type: "error", message: "Transcription interrompue." }),
+      },
+      { bilingual },
+    );
 
     // 0 = pas de limite propre à l'agent, mais un plafond technique s'applique toujours.
     const configured = agent.config.maxDurationSec ?? 0;
@@ -540,13 +555,17 @@ ${CALLBACK_CONTEXT}` : CALLBACK_CONTEXT;
     const ctrl = new AbortController();
     this.speaking = ctrl;
     this.transport.sendEvent?.({ type: "speaking", text });
-    // ElevenLabs facture chaque caractère envoyé, même si la phrase est coupée.
-    this.costs.addTts(text);
+    // ElevenLabs facture chaque caractère envoyé, même si la phrase est coupée ;
+    // Spitch facture la durée d'audio produite (comptée plus bas).
+    const voice = this.voice;
+    if (voice.provider !== "spitch") this.costs.addTts(text, voice.model);
+    let audioBytes = 0;
     try {
       for await (const chunk of streamSpeech(text, this.voice, ctrl.signal)) {
         if (ctrl.signal.aborted || this.ended) break;
         this.quality.firstAudio();
         this.transport.sendAudio(chunk);
+        audioBytes += chunk.length;
         // 8 000 octets µ-law = 1 seconde d'audio.
         this.playbackUntil = Math.max(this.playbackUntil, Date.now()) + (chunk.length / 8000) * 1000;
       }
@@ -558,6 +577,7 @@ ${CALLBACK_CONTEXT}` : CALLBACK_CONTEXT;
         this.transport.sendEvent?.({ type: "error", message: "Synthèse vocale impossible." });
       }
     } finally {
+      if (voice.provider === "spitch") this.costs.addTtsAudio(audioBytes);
       if (this.speaking === ctrl) this.speaking = null;
       this.lastActivity = Date.now();
     }

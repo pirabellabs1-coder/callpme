@@ -3,6 +3,7 @@ import { z } from "zod";
 import { authenticateApiKey } from "@/lib/auth/api-key";
 import { listAgents, createAgent } from "@/lib/db/agents";
 import { buildDefaultConfig } from "@/lib/agents/build-config";
+import { languageField } from "@/lib/validation/agent";
 import { canCreateAgent } from "@/lib/billing/limits";
 import { dispatchEvent } from "@/lib/webhooks/dispatch";
 import {
@@ -74,7 +75,7 @@ const v1CreateSchema = z.object({
     .object({
       provider: z.enum(["elevenlabs", "azure", "playht"]).optional(),
       voiceId: z.string().max(120).optional(),
-      language: z.string().max(12).optional(),
+      language: languageField.optional(),
       speed: z.number().min(0.5).max(2).optional(),
     })
     .optional(),

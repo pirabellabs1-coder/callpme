@@ -16,6 +16,7 @@ import type {
 } from "@/lib/shared/types";
 import { ROLE_META } from "@/lib/agents/roles";
 import { callbackSettings, DEFAULT_CALLBACK } from "@/lib/callbacks/settings";
+import { bilingualRequired, isRejectedLanguage, voiceLanguage } from "@/lib/voice-engine/languages";
 import type { ExtractField } from "@/lib/analysis/fields";
 import type { AgentTemplate } from "@/lib/agents/templates";
 import type { PromptParams } from "@/lib/agents/role-templates";
@@ -39,6 +40,8 @@ export interface WizardState {
   voiceProvider: VoiceProvider;
   voiceId: string;
   language: string;
+  /** Langue locale : l'appelant peut mélanger le français et la langue locale. */
+  bilingual: boolean;
   speed: number;
   modelProvider: ModelProvider;
   modelId: string;
@@ -96,6 +99,7 @@ export function initialState(
       voiceProvider: agent.config.voice.provider,
       voiceId: agent.config.voice.voiceId,
       language: agent.config.voice.language,
+      bilingual: agent.config.voice.bilingual ?? false,
       speed: agent.config.voice.speed,
       modelProvider: agent.config.model.provider,
       modelId: agent.config.model.modelId,
@@ -130,6 +134,7 @@ export function initialState(
     // Choisie à l'étape « Voix » (première voix du catalogue par défaut).
     voiceId: "",
     language: "fr-FR",
+    bilingual: false,
     speed: 1,
     modelProvider: "openai",
     modelId: "gpt-4o",
@@ -186,6 +191,8 @@ export function validateStep(step: number, s: WizardState): StepErrors {
   if (step === 2) {
     if (!s.voiceId) e.voice = "Choisissez une voix.";
     if (!s.language) e.language = "Choisissez une langue.";
+    else if (isRejectedLanguage(s.language))
+      e.language = "Cette langue n'est pas encore disponible au téléphone. Choisissez-en une autre.";
   }
   if (step === 3) {
     if (s.firstMessage.length > 2000)
@@ -238,6 +245,7 @@ export function buildPayload(
       voiceId: s.voiceId,
       ...(studio?.providerVoiceId ? { providerVoiceId: studio.providerVoiceId } : {}),
       language: s.language,
+      ...(voiceLanguage(s.language)?.local ? { bilingual: s.bilingual || bilingualRequired(s.language) } : {}),
       speed: s.speed,
       kind: studio ? (studio.providerVoiceId ? "provider" : "custom") : "preset",
       // Voix enregistrée au Studio : on embarque l'enregistrement réel pour qu'il soit rejoué tel quel.

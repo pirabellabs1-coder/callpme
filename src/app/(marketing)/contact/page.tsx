@@ -1,64 +1,118 @@
-import { Mail, Building2, ExternalLink, LifeBuoy } from "lucide-react";
+import type { Metadata } from "next";
+import { Clock, ExternalLink, LifeBuoy, Mail } from "lucide-react";
+import { BlurFade } from "@/components/magicui/blur-fade";
+import { LeadForm, type Field } from "@/components/marketing/lead-form";
+import { PageHero } from "@/components/marketing/sections";
+import { sendContact } from "@/app/actions/contact";
 
-export const metadata = { title: "Contact · Callpme" };
+export const metadata: Metadata = {
+  title: "Contact",
+  description: "Une question, une démo ou un projet ? Écrivez à l'équipe Callpme, réponse sous un jour ouvré.",
+};
 
-const ITEMS = [
+const FIELDS: Field[] = [
+  { name: "name", label: "Nom", required: true, autoComplete: "name", half: true },
+  { name: "email", label: "E-mail professionnel", type: "email", required: true, autoComplete: "email", half: true },
+  { name: "company", label: "Entreprise", autoComplete: "organization", half: true },
   {
-    icon: Mail,
-    title: "Email",
-    body: "Écrivez-nous, nous répondons sous 1 jour ouvré.",
-    action: { label: "contact@pirabellabs.com", href: "mailto:contact@pirabellabs.com" },
+    name: "subject",
+    label: "Sujet",
+    type: "select",
+    required: true,
+    half: true,
+    options: [
+      { value: "demo", label: "Demande de démo" },
+      { value: "commercial", label: "Question commerciale" },
+      { value: "support", label: "Support" },
+      { value: "presse", label: "Presse" },
+      { value: "autre", label: "Autre" },
+    ],
   },
-  {
-    icon: LifeBuoy,
-    title: "Support",
-    body: "Une question sur votre compte ou vos agents ?",
-    action: { label: "contact@pirabellabs.com", href: "mailto:contact@pirabellabs.com?subject=Support%20Callpme" },
-  },
-  {
-    icon: Building2,
-    title: "Pirabel Labs",
-    body: "Callpme est une solution de Pirabel Labs, l'agence créatrice.",
-    action: { label: "pirabellabs.com", href: "https://pirabellabs.com", external: true },
-  },
+  { name: "message", label: "Message", type: "textarea", required: true, placeholder: "Décrivez votre besoin en quelques lignes." },
+];
+
+const INFOS = [
+  { icon: Clock, title: "Réponse sous un jour ouvré", body: "Du lundi au vendredi, de 9 h à 18 h (heure de Paris)." },
+  { icon: Mail, title: "Par e-mail", body: "contact@pirabellabs.com", href: "mailto:contact@pirabellabs.com" },
+  { icon: LifeBuoy, title: "Déjà client ?", body: "Le support est aussi accessible depuis votre tableau de bord." },
 ];
 
 export default function ContactPage() {
   return (
-    <div className="container-marketing py-14 sm:py-20">
-      <div className="mx-auto max-w-3xl">
-        <p className="font-mono text-sm font-semibold uppercase tracking-wider text-brand">
-          Contact
-        </p>
-        <h1 className="mt-2 text-display-lg font-semibold tracking-tight text-foreground text-balance">
-          Parlons de votre projet.
-        </h1>
-        <p className="mt-5 text-lg text-muted-foreground text-pretty">
-          Une question, une démo, un besoin sur-mesure ? L'équipe Pirabel Labs,
-          créatrice de Callpme, vous répond.
-        </p>
+    <>
+      <PageHero
+        eyebrow="Contact"
+        title="Parlons de votre projet."
+        subtitle="Une question, une démo ou un besoin particulier ? Laissez-nous un message, nous vous répondons rapidement."
+      />
 
-        <div className="mt-10 grid gap-5 sm:grid-cols-3">
-          {ITEMS.map((it) => (
-            <div key={it.title} className="flex flex-col rounded-2xl border border-border bg-card p-6">
-              <span className="inline-flex size-11 items-center justify-center rounded-xl bg-brand-50 text-brand-600 ring-1 ring-inset ring-brand-600/15 [&_svg]:size-5">
-                <it.icon strokeWidth={1.75} />
-              </span>
-              <h2 className="mt-4 font-semibold tracking-tight text-foreground">{it.title}</h2>
-              <p className="mt-1.5 flex-1 text-sm text-muted-foreground text-pretty">{it.body}</p>
-              <a
-                href={it.action.href}
-                target={it.action.external ? "_blank" : undefined}
-                rel={it.action.external ? "noopener noreferrer" : undefined}
-                className="mt-4 inline-flex items-center gap-1.5 break-all text-sm font-semibold text-brand hover:underline"
-              >
-                {it.action.label}
-                {it.action.external && <ExternalLink className="size-3.5 shrink-0" />}
-              </a>
+      <section className="pb-24 sm:pb-32">
+        <div className="container-marketing grid gap-10 lg:grid-cols-[1.4fr_0.6fr]">
+          <BlurFade>
+            <div className="bezel">
+              <div className="bezel-core relative">
+                <LeadForm
+                  fields={FIELDS}
+                  action={sendContact}
+                  submitLabel="Envoyer le message"
+                  successTitle="Message envoyé"
+                  successBody="Merci. Nous revenons vers vous sous un jour ouvré, à l'adresse indiquée."
+                />
+              </div>
             </div>
-          ))}
+          </BlurFade>
+
+          <BlurFade delay={0.1}>
+            <ul className="space-y-8 lg:pt-4">
+              {INFOS.map((i) => (
+                <li key={i.title} className="flex gap-4">
+                  <span className="inline-flex size-10 shrink-0 items-center justify-center rounded-full border border-border bg-foreground/[0.03] text-brand">
+                    <i.icon className="size-5" strokeWidth={1.5} aria-hidden />
+                  </span>
+                  <div>
+                    <p className="text-sm font-medium text-foreground">{i.title}</p>
+                    {i.href ? (
+                      <a href={i.href} className="mt-1 block text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline">
+                        {i.body}
+                      </a>
+                    ) : (
+                      <p className="mt-1 text-sm text-muted-foreground">{i.body}</p>
+                    )}
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </BlurFade>
         </div>
-      </div>
-    </div>
+      </section>
+
+      <section className="border-t border-border py-24 sm:py-28">
+        <div className="container-marketing grid items-center gap-10 lg:grid-cols-2">
+          <BlurFade>
+            <span className="eyebrow">Qui sommes-nous</span>
+            <h2 className="mt-5 text-display-md font-semibold tracking-tight text-foreground text-balance">
+              Callpme est conçu et opéré par Pirabel Labs.
+            </h2>
+          </BlurFade>
+          <BlurFade delay={0.1}>
+            <p className="text-base leading-relaxed text-muted-foreground">
+              Pirabel Labs conçoit et exploite des produits numériques sur mesure. L'équipe développe Callpme pour
+              rendre les agents vocaux IA accessibles aux entreprises d'Europe et d'Afrique francophone, et accompagne
+              celles qui souhaitent l'intégrer à leurs outils.
+            </p>
+            <a
+              href="https://pirabellabs.com"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mt-6 inline-flex items-center gap-1.5 text-sm font-medium text-foreground underline-offset-4 hover:underline"
+            >
+              Découvrir Pirabel Labs
+              <ExternalLink className="size-4" strokeWidth={1.5} aria-hidden />
+              <span className="sr-only">(nouvel onglet)</span>
+            </a>
+          </BlurFade>
+        </div>
+      </section>
+    </>
   );
 }

@@ -47,14 +47,14 @@ function SidebarContent({
 }) {
   const pathname = usePathname();
   return (
-    <div className="flex h-full flex-col bg-[hsl(24_12%_10%)] text-background">
+    <div className="flex h-full flex-col border-r border-border bg-card text-foreground">
       <div className="flex h-16 items-center gap-2.5 px-5">
         <span className="inline-flex size-8 items-center justify-center rounded-lg bg-brand text-white">
           <ShieldCheck className="size-5" />
         </span>
         <div>
           <p className="text-sm font-semibold tracking-tight">Administration</p>
-          <p className="text-[0.7rem] text-background/50">Centre de contrôle</p>
+          <p className="text-[0.7rem] text-foreground/50">Centre de contrôle</p>
         </div>
       </div>
 
@@ -72,8 +72,8 @@ function SidebarContent({
               className={cn(
                 "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
                 active
-                  ? "bg-white/10 text-background"
-                  : "text-background/60 hover:bg-white/5 hover:text-background",
+                  ? "bg-foreground/10 text-foreground"
+                  : "text-foreground/60 hover:bg-foreground/5 hover:text-foreground",
               )}
             >
               <Icon className="size-[1.15rem] shrink-0" strokeWidth={1.75} />
@@ -87,7 +87,7 @@ function SidebarContent({
         <Link
           href="/overview"
           onClick={onNavigate}
-          className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-background/60 transition-colors hover:bg-white/5 hover:text-background"
+          className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-foreground/60 transition-colors hover:bg-foreground/5 hover:text-foreground"
         >
           <ArrowLeft className="size-[1.15rem]" strokeWidth={1.75} />
           Retour à mon espace
@@ -95,25 +95,25 @@ function SidebarContent({
         <form action={lockAdmin} className="mb-2">
           <button
             type="submit"
-            className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-background/60 transition-colors hover:bg-white/5 hover:text-background"
+            className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-foreground/60 transition-colors hover:bg-foreground/5 hover:text-foreground"
           >
             <Lock className="size-[1.15rem]" strokeWidth={1.75} />
             Verrouiller l&apos;admin
           </button>
         </form>
         <div className="flex items-center gap-2.5 rounded-lg px-2.5 py-2">
-          <span className="inline-flex size-8 items-center justify-center rounded-full bg-white/10 text-xs font-semibold">
+          <span className="inline-flex size-8 items-center justify-center rounded-full bg-foreground/10 text-xs font-semibold">
             {initials(userName)}
           </span>
           <span className="min-w-0 flex-1">
             <span className="block truncate text-sm font-medium">{userName}</span>
-            <span className="block truncate text-xs text-background/50">{userEmail}</span>
+            <span className="block truncate text-xs text-foreground/50">{userEmail}</span>
           </span>
           <form action={logout}>
             <button
               type="submit"
               aria-label="Se déconnecter"
-              className="inline-flex size-8 items-center justify-center rounded-lg text-background/60 transition-colors hover:bg-white/10 hover:text-background"
+              className="inline-flex size-8 items-center justify-center rounded-lg text-foreground/60 transition-colors hover:bg-foreground/10 hover:text-foreground"
             >
               <LogOut className="size-4" strokeWidth={1.75} />
             </button>
@@ -144,13 +144,13 @@ export function AdminShell({
         <div className="fixed inset-0 z-50 lg:hidden">
           <button
             aria-label="Fermer"
-            className="absolute inset-0 bg-foreground/40 backdrop-blur-sm"
+            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
             onClick={() => setOpen(false)}
           />
           <aside className="absolute inset-y-0 left-0 w-72 shadow-xl">
             <button
               onClick={() => setOpen(false)}
-              className="absolute right-3 top-4 z-10 inline-flex size-8 items-center justify-center rounded-md text-background/70 hover:bg-white/10"
+              className="absolute right-3 top-4 z-10 inline-flex size-8 items-center justify-center rounded-md text-foreground/70 hover:bg-foreground/10"
               aria-label="Fermer"
             >
               <X className="size-4" />

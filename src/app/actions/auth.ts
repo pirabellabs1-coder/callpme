@@ -2,6 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { z } from "zod";
+import { clientIp, isRateLimited } from "@/lib/security/rate-limit";
 import { prisma } from "@/lib/db/client";
 import { hashPassword, verifyPassword } from "@/lib/auth/password";
 import {
@@ -27,6 +28,14 @@ const loginSchema = z.object({
 });
 
 export async function login(formData: FormData): Promise<AuthResult> {
+  // 10 essais / 15 min par IP : freine le bourrage d'identifiants.
+  const loginEmail = String(formData.get("email") ?? "").toLowerCase().trim();
+  if (
+    isRateLimited(`login:${clientIp()}`, 10, 15 * 60_000) ||
+    (loginEmail && isRateLimited(`login-mail:${loginEmail}`, 10, 15 * 60_000))
+  ) {
+    return { error: "Trop de tentatives. Patientez quelques minutes avant de réessayer." };
+  }
   const parsed = loginSchema.safeParse({
     email: formData.get("email"),
     password: formData.get("password"),
@@ -53,6 +62,7 @@ const registerSchema = z.object({
 });
 
 export async function register(formData: FormData): Promise<AuthResult> {
+  if (isRateLimited(`register:${clientIp()}`, 5, 60 * 60_000)) return { error: "Trop de tentatives. Patientez quelques minutes avant de réessayer." };
   const parsed = registerSchema.safeParse({
     organizationName: formData.get("organizationName"),
     name: formData.get("name"),
@@ -113,6 +123,7 @@ export async function logout(): Promise<void> {
 
 /** Demande de réinitialisation : envoie un lien signé par e-mail. */
 export async function requestPasswordReset(formData: FormData): Promise<AuthResult> {
+  if (isRateLimited(`reset-req:${clientIp()}`, 5, 60 * 60_000)) return { error: "Trop de tentatives. Patientez quelques minutes avant de réessayer." };
   const email = String(formData.get("email") || "").toLowerCase().trim();
   if (!email || !email.includes("@")) return { error: "E-mail invalide." };
   const user = await prisma.user.findUnique({ where: { email } });
@@ -136,6 +147,7 @@ export async function requestPasswordReset(formData: FormData): Promise<AuthResu
 
 /** Réinitialise le mot de passe à partir d'un jeton valide. */
 export async function resetPassword(formData: FormData): Promise<AuthResult> {
+  if (isRateLimited(`reset:${clientIp()}`, 10, 60 * 60_000)) return { error: "Trop de tentatives. Patientez quelques minutes avant de réessayer." };
   const token = String(formData.get("token") || "");
   const password = String(formData.get("password") || "");
   if (password.length < 8) return { error: "8 caractères minimum." };

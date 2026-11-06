@@ -7,7 +7,14 @@ import {
   Timer,
   PhoneForwarded,
   ArrowRight,
+  Bot,
+  Megaphone,
+  Check,
+  Plus,
 } from "lucide-react";
+import { getSession } from "@/lib/auth/session";
+import { getOnboardingSteps } from "@/lib/db/onboarding";
+import { cn } from "@/lib/utils";
 import { getCurrentOrg } from "@/lib/db/context";
 import { getAnalytics } from "@/lib/db/analytics";
 import { listAgents } from "@/lib/db/agents";
@@ -26,11 +33,19 @@ export default async function OverviewPage() {
   const org = await getCurrentOrg();
   if (!org) return <SeedNotice />;
 
-  const [analytics, agents, recentCalls] = await Promise.all([
+  const [analytics, agents, recentCalls, steps, session] = await Promise.all([
     getAnalytics(org.id, 14),
     listAgents(org.id),
     listCalls(org.id, { limit: 6 }),
+    getOnboardingSteps(org.id),
+    getSession(),
   ]);
+  const doneCount = steps.filter((s) => s.done).length;
+  const firstName = session?.user.name?.split(" ")[0];
+  const hour = Number(
+    new Intl.DateTimeFormat("en-GB", { hour: "2-digit", hourCycle: "h23", timeZone: "Europe/Paris" }).format(new Date()),
+  );
+  const greeting = hour < 5 || hour >= 18 ? "Bonsoir" : "Bonjour";
 
   const maxVolume = Math.max(1, ...analytics.series.map((d) => d.total));
   const topAgents = [...agents]
@@ -40,9 +55,85 @@ export default async function OverviewPage() {
   return (
     <div className="space-y-7">
       <PageHeader
-        title="Vue d'ensemble"
+        title={firstName ? `${greeting}, ${firstName}` : "Vue d'ensemble"}
         description={`Activité des 14 derniers jours · ${org.name}`}
-      />
+      >
+        <div className="flex flex-wrap gap-2">
+          <Link
+            href="/calls"
+            className="inline-flex h-9 items-center gap-2 rounded-lg border border-border px-3.5 text-sm font-medium text-foreground transition-colors hover:bg-accent"
+          >
+            <PhoneCall className="size-4" aria-hidden />
+            Appels
+          </Link>
+          <Link
+            href="/campaigns"
+            className="inline-flex h-9 items-center gap-2 rounded-lg border border-border px-3.5 text-sm font-medium text-foreground transition-colors hover:bg-accent"
+          >
+            <Megaphone className="size-4" aria-hidden />
+            Nouvelle campagne
+          </Link>
+          <Link
+            href="/agents/new"
+            className="inline-flex h-9 items-center gap-2 rounded-lg bg-brand px-3.5 text-sm font-medium text-brand-foreground transition-colors hover:bg-brand/90"
+          >
+            <Plus className="size-4" aria-hidden />
+            Nouvel agent
+          </Link>
+        </div>
+      </PageHeader>
+
+      {/* Bien démarrer — masqué une fois toutes les étapes faites */}
+      {doneCount < steps.length && (
+        <Card className="overflow-hidden">
+          <div className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h2 className="text-[0.95rem] font-semibold tracking-tight">Bien démarrer</h2>
+              <p className="text-sm text-muted-foreground">
+                {doneCount} étape{doneCount > 1 ? "s" : ""} sur {steps.length} terminée{doneCount > 1 ? "s" : ""}
+              </p>
+            </div>
+            <div
+              className="h-1.5 w-full overflow-hidden rounded-full bg-foreground/10 sm:w-48"
+              role="progressbar"
+              aria-label="Progression de la mise en route"
+              aria-valuemin={0}
+              aria-valuemax={steps.length}
+              aria-valuenow={doneCount}
+            >
+              <div className="h-full rounded-full bg-brand transition-all" style={{ width: `${(doneCount / steps.length) * 100}%` }} />
+            </div>
+          </div>
+          <ol className="grid border-t border-border sm:grid-cols-2 lg:grid-cols-5">
+            {steps.map((step, i) => (
+              <li key={step.key} className="border-b border-border last:border-b-0 sm:border-r lg:border-b-0">
+                <Link
+                  href={step.href}
+                  className={cn(
+                    "flex h-full gap-3 p-4 transition-colors hover:bg-accent/40",
+                    step.done && "opacity-60",
+                  )}
+                >
+                  <span
+                    className={cn(
+                      "mt-0.5 inline-flex size-6 shrink-0 items-center justify-center rounded-full text-xs font-medium",
+                      step.done ? "bg-success/15 text-success" : "border border-border text-muted-foreground",
+                    )}
+                  >
+                    {step.done ? <Check className="size-3.5" aria-label="Terminé" /> : i + 1}
+                  </span>
+                  <span className="min-w-0">
+                    <span className={cn("block text-sm font-medium text-foreground", step.done && "line-through decoration-foreground/30")}>
+                      {step.label}
+                    </span>
+                    <span className="mt-0.5 block text-xs text-muted-foreground">{step.description}</span>
+                  </span>
+                </Link>
+              </li>
+            ))}
+          </ol>
+        </Card>
+      )}
 
       {/* KPI */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -83,7 +174,7 @@ export default async function OverviewPage() {
             </div>
             <Link
               href="/analytics"
-              className="inline-flex items-center gap-1 text-sm font-medium text-brand hover:text-brand-700"
+              className="inline-flex items-center gap-1 text-sm font-medium text-brand hover:underline"
             >
               Statistiques
               <ArrowRight className="size-3.5" />
@@ -134,12 +225,19 @@ export default async function OverviewPage() {
             </h2>
             <Link
               href="/agents"
-              className="text-sm font-medium text-brand hover:text-brand-700"
+              className="text-sm font-medium text-brand hover:underline"
             >
               Tous
             </Link>
           </div>
           <div className="flex-1 divide-y divide-border">
+            {topAgents.length === 0 && (
+              <div className="flex flex-col items-center px-5 py-10 text-center">
+                <Bot className="size-6 text-muted-foreground" strokeWidth={1.5} aria-hidden />
+                <p className="mt-3 text-sm text-muted-foreground">Aucun agent pour l'instant.</p>
+                <Link href="/agents/new" className="mt-3 text-sm font-medium text-brand hover:underline">Créer un agent</Link>
+              </div>
+            )}
             {topAgents.map((agent) => (
               <Link
                 key={agent.id}
@@ -170,13 +268,18 @@ export default async function OverviewPage() {
           </h2>
           <Link
             href="/calls"
-            className="inline-flex items-center gap-1 text-sm font-medium text-brand hover:text-brand-700"
+            className="inline-flex items-center gap-1 text-sm font-medium text-brand hover:underline"
           >
             Tous les appels
             <ArrowRight className="size-3.5" />
           </Link>
         </div>
         <div className="divide-y divide-border">
+          {recentCalls.length === 0 && (
+            <p className="px-5 py-10 text-center text-sm text-muted-foreground">
+              Aucun appel pour l'instant. Testez un agent pour voir apparaître vos premiers appels ici.
+            </p>
+          )}
           {recentCalls.map((call) => (
             <Link
               key={call.id}

@@ -3,6 +3,7 @@
  * config JSON et statistiques d'appels agrégées (sans requête N+1).
  */
 import { prisma } from "./client";
+import { zonedDayStart, zonedParts } from "./calls";
 import type {
   Agent,
   AgentConfig,
@@ -77,10 +78,9 @@ function toAgent(row: AgentRow, stats?: AgentStats): Agent {
 
 /* ------------------------------ Statistiques ----------------------------- */
 
+/** Minuit aujourd'hui à l'heure de Paris (changements d'heure compris). */
 function startOfToday(): Date {
-  const d = new Date();
-  d.setHours(0, 0, 0, 0);
-  return d;
+  return zonedDayStart(zonedParts(new Date()).ymd);
 }
 
 /** Agrège, pour chaque agent de l'org, total / aujourd'hui / durée moy. / taux de résolution. */
@@ -149,7 +149,7 @@ export async function listAgents(
       ...(opts.status ? { status: opts.status } : {}),
       ...(opts.clientId ? { clientId: opts.clientId } : {}),
       ...(opts.search
-        ? { name: { contains: opts.search } }
+        ? { name: { contains: opts.search, mode: "insensitive" as const } }
         : {}),
     },
     orderBy: { createdAt: "desc" },
@@ -171,10 +171,44 @@ export async function countAgents(orgId: string): Promise<number> {
 
 /* ------------------------------- Écriture -------------------------------- */
 
+/** Référence (client, base de connaissances) n'appartenant pas à l'organisation. */
+export class ForeignReferenceError extends Error {
+  constructor(field: "clientId" | "knowledgeBaseId") {
+    super(`Référence invalide : ${field}`);
+    this.name = "ForeignReferenceError";
+  }
+}
+
+/**
+ * Vérifie que le client et la base de connaissances rattachés appartiennent
+ * bien à l'organisation — sinon un utilisateur pourrait brancher la base d'un
+ * autre tenant sur son agent et en exfiltrer le contenu via le chat.
+ */
+async function assertOwnedRefs(
+  orgId: string,
+  refs: { clientId?: string | null; knowledgeBaseId?: string | null },
+): Promise<void> {
+  if (refs.clientId) {
+    const ok = await prisma.client.findFirst({
+      where: { id: refs.clientId, organizationId: orgId },
+      select: { id: true },
+    });
+    if (!ok) throw new ForeignReferenceError("clientId");
+  }
+  if (refs.knowledgeBaseId) {
+    const ok = await prisma.knowledgeBase.findFirst({
+      where: { id: refs.knowledgeBaseId, organizationId: orgId },
+      select: { id: true },
+    });
+    if (!ok) throw new ForeignReferenceError("knowledgeBaseId");
+  }
+}
+
 export async function createAgent(
   orgId: string,
   input: CreateAgentInput,
 ): Promise<Agent> {
+  await assertOwnedRefs(orgId, input);
   const row = await prisma.agent.create({
     data: {
       organizationId: orgId,
@@ -196,6 +230,7 @@ export async function updateAgent(
 ): Promise<Agent | null> {
   const existing = await prisma.agent.findUnique({ where: { id } });
   if (!existing) return null;
+  await assertOwnedRefs(existing.organizationId, patch);
 
   // Fusion superficielle de la config (les sous-objets fournis remplacent).
   const mergedConfig: AgentConfig | undefined = patch.config

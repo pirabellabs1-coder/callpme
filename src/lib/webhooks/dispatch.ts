@@ -3,6 +3,7 @@
  * Les consommateurs vérifient l'en-tête `X-Callpme-Signature`.
  */
 import { createHmac } from "crypto";
+import { publicRequest } from "@/lib/net/safe-fetch";
 import { prisma } from "@/lib/db/client";
 import { WEBHOOK_EVENTS, type WebhookEvent } from "./events";
 
@@ -33,7 +34,8 @@ export async function deliver(
   const signature = signPayload(webhook.secret, body);
 
   try {
-    const res = await fetch(webhook.url, {
+    // Requête protégée SSRF (IP vérifiée à la connexion, pas de redirection).
+    const res = await publicRequest(webhook.url, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -42,7 +44,7 @@ export async function deliver(
         "User-Agent": "Callpme-Webhooks/1.0",
       },
       body,
-      signal: AbortSignal.timeout(5000),
+      timeoutMs: 5000,
     });
     await prisma.webhook
       .update({

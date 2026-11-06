@@ -1,0 +1,36 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      # Valeurs factices : la compilation ne se connecte à aucune vraie base.
+      DATABASE_URL: postgresql://ci:ci@localhost:5432/ci
+      NEXTAUTH_SECRET: ci-only-secret-not-used-in-production-000000
+      NEXT_TELEMETRY_DISABLED: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - name: Installation
+        run: npm ci
+      - name: Client Prisma
+        run: npx prisma generate
+      - name: Typecheck
+        run: npx tsc --noEmit -p .
+      - name: Tests
+        run: npm test
+      - name: Build
+        run: npm run build

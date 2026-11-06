@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { randomBytes } from "crypto";
 import { z } from "zod";
-import { getSession } from "@/lib/auth/session";
+import { getSession, isOrgAdmin } from "@/lib/auth/session";
 import {
   listCustomToolsFull,
   createCustomTool,
@@ -13,8 +13,7 @@ import {
   created,
   badRequest,
   unauthorized,
-  serverError,
-} from "@/lib/api/respond";
+  serverError, forbidden } from "@/lib/api/respond";
 
 export const dynamic = "force-dynamic";
 
@@ -50,6 +49,7 @@ export async function POST(req: NextRequest) {
   try {
     const session = await getSession();
     if (!session) return unauthorized();
+    if (!isOrgAdmin(session)) return forbidden("Réservé aux administrateurs de l'organisation.");
     const body = await req.json().catch(() => null);
     const parsed = createSchema.safeParse(body);
     if (!parsed.success) {

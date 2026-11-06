@@ -63,8 +63,13 @@ function Toggle({
   return (
     <button
       type="button"
+      role="switch"
+      aria-checked={checked}
       onClick={() => onChange(!checked)}
-      className="flex w-full items-center gap-3 rounded-lg border border-border bg-card px-3 py-2.5 text-left transition-colors hover:bg-accent/40"
+      className={cn(
+        "flex w-full items-center gap-3 rounded-lg border bg-card px-3 py-2.5 text-left transition-colors hover:bg-accent/40",
+        checked ? "border-brand/40" : "border-border",
+      )}
     >
       <span
         className={cn(
@@ -74,21 +79,23 @@ function Toggle({
             : "bg-secondary text-muted-foreground ring-border",
         )}
       >
-        <Icon className="size-4" strokeWidth={1.75} />
+        <Icon className="size-4" strokeWidth={1.75} aria-hidden="true" />
       </span>
       <span className="min-w-0 flex-1">
         <span className="block text-sm font-medium text-foreground">{title}</span>
         <span className="block text-xs text-muted-foreground">{hint}</span>
       </span>
       <span
+        aria-hidden="true"
         className={cn(
-          "relative h-5 w-9 shrink-0 rounded-full transition-colors",
-          checked ? "bg-brand" : "bg-border",
+          "relative h-5 w-9 shrink-0 rounded-full ring-1 ring-inset transition-colors",
+          checked ? "bg-brand ring-transparent" : "bg-input ring-foreground/10",
         )}
       >
         <span
           className={cn(
-            "absolute top-0.5 size-4 rounded-full bg-white shadow-sm transition-transform",
+            "absolute top-0.5 size-4 rounded-full shadow-sm transition-transform",
+            checked ? "bg-brand-foreground" : "bg-foreground/70",
             checked ? "translate-x-[1.125rem]" : "translate-x-0.5",
           )}
         />
@@ -211,7 +218,13 @@ export function FunctionsPanel({
             collecter des données et les envoyer vers vos systèmes (CRM, API…).
           </p>
         </div>
-        <Button variant="default" size="sm" onClick={() => setOpen((o) => !o)}>
+        <Button
+          variant="default"
+          size="sm"
+          className="shrink-0"
+          onClick={() => setOpen((o) => !o)}
+          aria-expanded={open}
+        >
           <Plus className="size-4" />
           Nouvelle fonction
         </Button>
@@ -225,20 +238,22 @@ export function FunctionsPanel({
         >
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="space-y-1.5">
-              <label className="text-xs font-medium text-muted-foreground">
+              <label htmlFor="fn-name" className="text-xs font-medium text-muted-foreground">
                 Identifiant (technique)
               </label>
               <Input
+                id="fn-name"
                 value={form.name}
                 onChange={(e) => setForm({ ...form, name: e.target.value })}
                 placeholder="collectContact"
               />
             </div>
             <div className="space-y-1.5">
-              <label className="text-xs font-medium text-muted-foreground">
+              <label htmlFor="fn-label" className="text-xs font-medium text-muted-foreground">
                 Libellé
               </label>
               <Input
+                id="fn-label"
                 value={form.label}
                 onChange={(e) => setForm({ ...form, label: e.target.value })}
                 placeholder="Collecte de contact"
@@ -246,10 +261,11 @@ export function FunctionsPanel({
             </div>
           </div>
           <div className="space-y-1.5">
-            <label className="text-xs font-medium text-muted-foreground">
+            <label htmlFor="fn-desc" className="text-xs font-medium text-muted-foreground">
               Description (pour l'IA)
             </label>
             <Textarea
+              id="fn-desc"
               value={form.description}
               onChange={(e) => setForm({ ...form, description: e.target.value })}
               rows={2}
@@ -257,10 +273,11 @@ export function FunctionsPanel({
             />
           </div>
           <div className="space-y-1.5">
-            <label className="text-xs font-medium text-muted-foreground">
+            <label htmlFor="fn-url" className="text-xs font-medium text-muted-foreground">
               URL de destination (où envoyer les données)
             </label>
             <Input
+              id="fn-url"
               type="url"
               value={form.serverUrl}
               onChange={(e) => setForm({ ...form, serverUrl: e.target.value })}
@@ -314,6 +331,7 @@ export function FunctionsPanel({
                       key={v}
                       type="button"
                       onClick={() => setParamView(v)}
+                      aria-pressed={paramView === v}
                       className={cn(
                         "rounded-md px-2.5 py-1 text-xs font-medium transition-colors",
                         paramView === v
@@ -328,7 +346,7 @@ export function FunctionsPanel({
               </div>
             </div>
             {paramView === "json" ? (
-              <pre className="max-h-72 overflow-auto rounded-lg border border-border bg-[hsl(24_12%_10%)] p-3 font-mono text-[0.72rem] leading-relaxed text-zinc-200">
+              <pre className="max-h-72 overflow-auto rounded-lg border border-border bg-background p-3 font-mono text-[0.72rem] leading-relaxed text-foreground/90">
                 {JSON.stringify(
                   {
                     type: "object",
@@ -358,6 +376,7 @@ export function FunctionsPanel({
                     value={f.name}
                     onChange={(e) => setField(i, { name: e.target.value })}
                     placeholder="nom"
+                    aria-label={`Nom du paramètre ${i + 1}`}
                     className="w-32"
                   />
                   <Select
@@ -366,6 +385,7 @@ export function FunctionsPanel({
                       setField(i, { type: e.target.value as FieldDef["type"] })
                     }
                     className="w-32"
+                    aria-label={`Type du paramètre ${i + 1}`}
                   >
                     {Object.entries(TYPE_LABELS).map(([v, l]) => (
                       <option key={v} value={v}>
@@ -377,6 +397,7 @@ export function FunctionsPanel({
                     value={f.description ?? ""}
                     onChange={(e) => setField(i, { description: e.target.value })}
                     placeholder="Description"
+                    aria-label={`Description du paramètre ${i + 1}`}
                     className="min-w-0 flex-1"
                   />
                   <label className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
@@ -391,8 +412,8 @@ export function FunctionsPanel({
                   <button
                     type="button"
                     onClick={() => setFields((fs) => fs.filter((_, j) => j !== i))}
-                    className="text-muted-foreground hover:text-destructive"
-                    aria-label="Supprimer le champ"
+                    className="inline-flex size-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
+                    aria-label={`Supprimer le paramètre ${i + 1}`}
                   >
                     <Trash2 className="size-4" />
                   </button>
@@ -414,7 +435,11 @@ export function FunctionsPanel({
             )}
           </div>
 
-          {error && <p className="text-sm text-destructive">{error}</p>}
+          {error && (
+            <p role="alert" className="text-sm text-destructive">
+              {error}
+            </p>
+          )}
           <Button
             type="submit"
             variant="brand"
@@ -451,8 +476,8 @@ export function FunctionsPanel({
                 <button
                   type="button"
                   onClick={() => remove(fn.id)}
-                  className="inline-flex size-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-destructive/5 hover:text-destructive"
-                  aria-label="Supprimer"
+                  className="inline-flex size-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
+                  aria-label={`Supprimer la fonction ${fn.label}`}
                 >
                   <Trash2 className="size-4" />
                 </button>
@@ -508,7 +533,7 @@ export function FunctionsPanel({
               )}
 
               <div className="mt-3 flex items-center justify-between gap-3">
-                <span className="text-xs text-muted-foreground">
+                <span className="text-xs text-muted-foreground" aria-live="polite">
                   {results[fn.id] ? (
                     <span className="font-medium text-foreground">
                       {results[fn.id]}
@@ -523,6 +548,7 @@ export function FunctionsPanel({
                       size="sm"
                       variant="outline"
                       onClick={() => copy(fn.secret!, fn.id)}
+                      aria-label={`Copier le secret de signature de ${fn.label}`}
                     >
                       {copied === fn.id ? (
                         <Check className="size-4 text-emerald-600" />

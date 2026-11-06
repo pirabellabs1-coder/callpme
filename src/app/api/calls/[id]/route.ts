@@ -11,7 +11,9 @@ export async function GET(
   { params }: { params: { id: string } },
 ) {
   try {
-    const call = await getCallById(params.id);
+    const session = await getSession();
+    if (!session) return unauthorized();
+    const call = await getCallById(params.id, session.org.id);
     return call ? ok({ call }) : notFound("Appel introuvable");
   } catch {
     return serverError();

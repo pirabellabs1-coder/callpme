@@ -2,8 +2,8 @@ import type { Config } from "tailwindcss";
 
 /**
  * Thème Callpme — identité sur-mesure.
- * Palette : blanc cassé chaud dominant, orange de marque #E8572A, encre noire chaude.
- * Bordures fines, ombres douces teintées chaud, rayons mesurés. Aucun dégradé « IA ».
+ * Callpme 2.0 : sombre premium par défaut (noir chaud, hairlines), orange de marque
+ * #E8572A en accent rare. Ombres profondes et diffuses. Aucun dégradé multicolore.
  */
 const config: Config = {
   darkMode: ["class"],
@@ -11,6 +11,8 @@ const config: Config = {
     "./src/pages/**/*.{js,ts,jsx,tsx,mdx}",
     "./src/components/**/*.{js,ts,jsx,tsx,mdx}",
     "./src/app/**/*.{js,ts,jsx,tsx,mdx}",
+    // Classes de couleur définies dans les données (rôles, statuts…).
+    "./src/lib/**/*.{js,ts,jsx,tsx}",
   ],
   theme: {
     container: {
@@ -26,19 +28,69 @@ const config: Config = {
         background: "hsl(var(--background))",
         foreground: "hsl(var(--foreground))",
         // Orange de marque Callpme (#E8572A)
+        // Orange de marque, piloté par --brand (surchargé par client d'agence).
+        // Échelle pensée pour le fond sombre : 50–300 = voiles translucides,
+        // 400 et 700–900 = texte clair lisible, 500–600 = couleur pleine.
         brand: {
-          DEFAULT: "hsl(var(--brand))",
-          foreground: "hsl(var(--brand-foreground))",
-          50: "hsl(18 90% 97%)",
-          100: "hsl(16 88% 94%)",
-          200: "hsl(15 86% 87%)",
-          300: "hsl(15 84% 77%)",
-          400: "hsl(14 82% 66%)",
-          500: "hsl(14 81% 54%)",
-          600: "hsl(14 78% 48%)",
-          700: "hsl(14 74% 40%)",
-          800: "hsl(14 66% 33%)",
-          900: "hsl(14 58% 28%)",
+          DEFAULT: "hsl(var(--brand) / <alpha-value>)",
+          foreground: "hsl(var(--brand-foreground) / <alpha-value>)",
+          50: "hsl(var(--brand) / calc(<alpha-value> * 0.10))",
+          100: "hsl(var(--brand) / calc(<alpha-value> * 0.16))",
+          200: "hsl(var(--brand) / calc(<alpha-value> * 0.26))",
+          300: "hsl(var(--brand) / calc(<alpha-value> * 0.45))",
+          400: "hsl(var(--brand-soft) / <alpha-value>)",
+          500: "hsl(var(--brand) / <alpha-value>)",
+          600: "hsl(var(--brand) / <alpha-value>)",
+          700: "hsl(var(--brand-soft) / <alpha-value>)",
+          800: "hsl(var(--brand-soft) / <alpha-value>)",
+          900: "hsl(var(--brand-soft) / <alpha-value>)",
+        },
+        // Couleurs d'état adaptées au fond sombre (les classes héritées
+        // bg-emerald-50 / text-emerald-700… restent lisibles sans réécriture).
+        emerald: {
+          50: "rgb(16 185 129 / calc(<alpha-value> * 0.12))",
+          100: "rgb(16 185 129 / calc(<alpha-value> * 0.18))",
+          200: "rgb(16 185 129 / calc(<alpha-value> * 0.28))",
+          600: "rgb(52 211 153 / <alpha-value>)",
+          700: "rgb(110 231 183 / <alpha-value>)",
+          800: "rgb(167 243 208 / <alpha-value>)",
+        },
+        amber: {
+          50: "rgb(245 158 11 / calc(<alpha-value> * 0.12))",
+          100: "rgb(245 158 11 / calc(<alpha-value> * 0.18))",
+          200: "rgb(245 158 11 / calc(<alpha-value> * 0.28))",
+          600: "rgb(251 191 36 / <alpha-value>)",
+          700: "rgb(252 211 77 / <alpha-value>)",
+          800: "rgb(253 230 138 / <alpha-value>)",
+        },
+        sky: {
+          50: "rgb(14 165 233 / calc(<alpha-value> * 0.12))",
+          100: "rgb(14 165 233 / calc(<alpha-value> * 0.18))",
+          200: "rgb(14 165 233 / calc(<alpha-value> * 0.28))",
+          600: "rgb(56 189 248 / <alpha-value>)",
+          700: "rgb(125 211 252 / <alpha-value>)",
+          800: "rgb(186 230 253 / <alpha-value>)",
+        },
+        rose: {
+          50: "rgb(244 63 94 / calc(<alpha-value> * 0.12))",
+          100: "rgb(244 63 94 / calc(<alpha-value> * 0.18))",
+          200: "rgb(244 63 94 / calc(<alpha-value> * 0.28))",
+          600: "rgb(251 113 133 / <alpha-value>)",
+          700: "rgb(253 164 175 / <alpha-value>)",
+          800: "rgb(254 205 211 / <alpha-value>)",
+        },
+        teal: {
+          50: "rgb(20 184 166 / calc(<alpha-value> * 0.12))",
+          100: "rgb(20 184 166 / calc(<alpha-value> * 0.18))",
+          200: "rgb(20 184 166 / calc(<alpha-value> * 0.28))",
+          600: "rgb(45 212 191 / <alpha-value>)",
+          700: "rgb(94 234 212 / <alpha-value>)",
+          800: "rgb(153 246 228 / <alpha-value>)",
+        },
+        stone: {
+          100: "rgb(255 255 255 / calc(<alpha-value> * 0.08))",
+          600: "rgb(168 162 158 / <alpha-value>)",
+          700: "rgb(214 211 209 / <alpha-value>)",
         },
         primary: {
           DEFAULT: "hsl(var(--primary))",
@@ -97,15 +149,16 @@ const config: Config = {
         "2xl": "calc(var(--radius) + 8px)",
       },
       boxShadow: {
-        xs: "0 1px 2px 0 rgb(28 22 16 / 0.05)",
-        sm: "0 1px 3px 0 rgb(28 22 16 / 0.06), 0 1px 2px -1px rgb(28 22 16 / 0.05)",
-        DEFAULT: "0 2px 4px -1px rgb(28 22 16 / 0.06), 0 1px 3px -1px rgb(28 22 16 / 0.04)",
-        md: "0 4px 12px -2px rgb(28 22 16 / 0.08), 0 2px 6px -2px rgb(28 22 16 / 0.05)",
-        lg: "0 12px 28px -6px rgb(28 22 16 / 0.10), 0 6px 12px -6px rgb(28 22 16 / 0.06)",
-        xl: "0 24px 48px -12px rgb(28 22 16 / 0.14), 0 8px 20px -8px rgb(28 22 16 / 0.08)",
-        // Lueur de marque très discrète, pour les éléments actifs
-        brand: "0 1px 2px 0 rgb(232 87 42 / 0.20), 0 8px 24px -8px rgb(232 87 42 / 0.28)",
-        "inner-top": "inset 0 1px 0 0 rgb(255 255 255 / 0.6)",
+        // Ombres pensées pour le fond sombre : profondes, diffuses, jamais dures.
+        xs: "0 1px 2px 0 rgb(0 0 0 / 0.4)",
+        sm: "0 1px 2px 0 rgb(0 0 0 / 0.45), inset 0 1px 0 0 rgb(255 255 255 / 0.04)",
+        DEFAULT: "0 2px 6px -1px rgb(0 0 0 / 0.5), inset 0 1px 0 0 rgb(255 255 255 / 0.04)",
+        md: "0 8px 24px -6px rgb(0 0 0 / 0.55), inset 0 1px 0 0 rgb(255 255 255 / 0.05)",
+        lg: "0 20px 48px -12px rgb(0 0 0 / 0.6), inset 0 1px 0 0 rgb(255 255 255 / 0.05)",
+        xl: "0 32px 80px -16px rgb(0 0 0 / 0.7), inset 0 1px 0 0 rgb(255 255 255 / 0.06)",
+        // Lueur de marque, pour les éléments actifs / CTA principaux
+        brand: "0 0 0 1px rgb(232 87 42 / 0.35), 0 8px 32px -8px rgb(232 87 42 / 0.45)",
+        "inner-top": "inset 0 1px 0 0 rgb(255 255 255 / 0.08)",
       },
       keyframes: {
         "fade-in": {
@@ -113,7 +166,7 @@ const config: Config = {
           to: { opacity: "1" },
         },
         "fade-up": {
-          from: { opacity: "0", transform: "translateY(8px)" },
+          from: { opacity: "0", transform: "translateY(16px)" },
           to: { opacity: "1", transform: "translateY(0)" },
         },
         "scale-in": {
@@ -160,6 +213,14 @@ const config: Config = {
               "rotate(calc(var(--angle) * 1deg + 360deg)) translateY(calc(var(--radius) * 1px)) rotate(calc((var(--angle) * -1deg) - 360deg))",
           },
         },
+        progress: {
+          from: { transform: "scaleX(0)" },
+          to: { transform: "scaleX(1)" },
+        },
+        wave: {
+          "0%, 100%": { transform: "scaleY(0.35)" },
+          "50%": { transform: "scaleY(1)" },
+        },
         shine: {
           "0%": { "background-position": "0% 0%" },
           "50%": { "background-position": "100% 100%" },
@@ -178,9 +239,13 @@ const config: Config = {
         aurora: "aurora 8s ease-in-out infinite alternate",
         orbit: "orbit calc(var(--duration) * 1s) linear infinite",
         shine: "shine var(--duration) infinite linear",
+        progress: "progress var(--progress-duration, 4s) linear forwards",
+        wave: "wave 1.1s cubic-bezier(0.32, 0.72, 0, 1) infinite",
       },
       transitionTimingFunction: {
         "out-expo": "cubic-bezier(0.16, 1, 0.3, 1)",
+        // Courbe « masse et ressort » des transitions premium
+        spring: "cubic-bezier(0.32, 0.72, 0, 1)",
       },
     },
   },

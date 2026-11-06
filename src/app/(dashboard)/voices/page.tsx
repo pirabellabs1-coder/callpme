@@ -14,7 +14,7 @@ export default async function VoicesPage() {
     <div className="space-y-6">
       <PageHeader
         title="Studio Voix"
-        description="Entraînez des voix sur-mesure et utilisez-les dans vos agents."
+        description="Créez vos voix sur-mesure, écoutez le catalogue et utilisez-les dans vos agents."
       />
       <VoiceStudio initial={voices} />
     </div>

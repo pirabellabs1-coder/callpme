@@ -1,4 +1,5 @@
 import { NextRequest } from "next/server";
+import { publicRequest } from "@/lib/net/safe-fetch";
 import { z } from "zod";
 import { getSession } from "@/lib/auth/session";
 import { getAgentById } from "@/lib/db/agents";
@@ -120,7 +121,8 @@ export async function POST(
             arguments: args,
             timestamp: new Date().toISOString(),
           });
-          const res = await fetch(custom.serverUrl, {
+          // Requête protégée SSRF (IP vérifiée à la connexion, pas de redirection).
+    const res = await publicRequest(custom.serverUrl, {
             method: custom.method || "POST",
             headers: {
               "Content-Type": "application/json",
@@ -128,11 +130,11 @@ export async function POST(
               "X-Callpme-Signature": signPayload(custom.secret ?? "", payload),
             },
             body: payload,
-            signal: AbortSignal.timeout(5000),
+            timeoutMs: 5000,
           });
           return {
             message: `Fonction « ${custom.label} » appelée — données envoyées (HTTP ${res.status}).`,
-            data: { status: res.status, delivered: res.ok },
+            data: { status: res.status, delivered: res.status >= 200 && res.status < 300 },
           };
         } catch {
           return {

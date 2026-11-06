@@ -3,6 +3,8 @@ import { z } from "zod";
 import { getSession } from "@/lib/auth/session";
 import { getAgentById } from "@/lib/db/agents";
 import { placeOutboundCall, vapiConfigured } from "@/lib/telephony/vapi";
+import { checkDestination } from "@/lib/telephony/destinations";
+import { canUseMinutes } from "@/lib/billing/limits";
 import {
   ok,
   badRequest,
@@ -34,6 +36,12 @@ export async function POST(
     const body = await req.json().catch(() => null);
     const parsed = schema.safeParse(body);
     if (!parsed.success) return badRequest("Numéro invalide");
+
+    // Appels payés par la plateforme : destination autorisée et quota requis.
+    const dest = checkDestination(parsed.data.toNumber);
+    if (!dest.ok) return badRequest(dest.reason ?? "Destination non autorisée");
+    const quota = await canUseMinutes(session.org.id, session.org.plan);
+    if (!quota.ok) return forbidden(quota.message);
 
     const result = await placeOutboundCall({
       agent,

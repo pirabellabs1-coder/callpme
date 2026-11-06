@@ -71,13 +71,17 @@ export function VoicePreview({
     u.pitch = Math.min(Math.max(1 + pitch / 12, 0), 2);
     const voices = window.speechSynthesis.getVoices();
     const prefix = (language || "fr").slice(0, 2).toLowerCase();
-    const inLang = voices.filter((v) => v.lang?.toLowerCase().startsWith(prefix));
+    const inLang = voices.filter((v) =>
+      v.lang?.toLowerCase().startsWith(prefix),
+    );
     const pool = inLang.length ? inLang : voices;
     let chosen = pool[0];
     if (gender) {
-      const fem = /amelie|amélie|audrey|marie|julie|virginie|chlo|lea|léa|hortense|female|femme|woman/i;
+      const fem =
+        /amelie|amélie|audrey|marie|julie|virginie|chlo|lea|léa|hortense|female|femme|woman/i;
       const masc = /thomas|nicolas|paul|henri|daniel|male|homme|\bman\b/i;
-      const rx = gender === "feminine" ? fem : gender === "masculine" ? masc : null;
+      const rx =
+        gender === "feminine" ? fem : gender === "masculine" ? masc : null;
       if (rx) chosen = pool.find((v) => rx.test(v.name)) ?? chosen;
     }
     if (chosen) u.voice = chosen;

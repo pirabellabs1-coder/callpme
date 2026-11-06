@@ -5,25 +5,24 @@ const COLUMNS = [
   {
     title: "Produit",
     links: [
-      { label: "Fonctionnalités", href: "/#developpeurs" },
-      { label: "Rôles d'agents", href: "/#roles" },
-      { label: "Tarifs", href: "/#tarifs" },
-      { label: "Tableau de bord", href: "/overview" },
+      { label: "Fonctionnalités", href: "/produit" },
+      { label: "Métiers", href: "/metiers" },
+      { label: "Tarifs", href: "/tarifs" },
+      { label: "Connexion", href: "/login" },
     ],
   },
   {
-    title: "Ressources",
+    title: "Développeurs",
     links: [
-      { label: "Documentation", href: "/documentation" },
-      { label: "Guide de démarrage", href: "/register" },
-      { label: "Référence API", href: "/documentation" },
+      { label: "Vue d'ensemble", href: "/developpeurs" },
+      { label: "Documentation", href: "/developpeurs#reference" },
       { label: "Statut", href: "/statut" },
     ],
   },
   {
     title: "Entreprise",
     links: [
-      { label: "À propos", href: "/a-propos" },
+      { label: "Partenaires", href: "/partenaires" },
       { label: "Contact", href: "/contact" },
       { label: "Confidentialité", href: "/confidentialite" },
       { label: "CGU", href: "/cgu" },
@@ -33,18 +32,18 @@ const COLUMNS = [
 
 export function MarketingFooter() {
   return (
-    <footer className="border-t border-border bg-card">
+    <footer className="border-t border-border bg-background">
       <div className="container-marketing py-14">
         <div className="grid grid-cols-2 gap-8 md:grid-cols-5">
           <div className="col-span-2">
             <Logo markSize={28} />
             <p className="mt-3 max-w-xs text-sm text-muted-foreground">
-              La plateforme française pour créer et déployer des agents vocaux IA
-              spécialisés par rôle.
+              Des agents vocaux IA qui répondent à vos appels, prennent les
+              rendez-vous et résument chaque conversation.
             </p>
             <p className="mt-4 inline-flex items-center gap-2 text-xs text-muted-foreground">
-              <span className="size-2 rounded-full bg-emerald-500" />
-              Hébergement en France · Conforme RGPD
+              <span className="size-2 rounded-full bg-success" />
+              Données hébergées dans l'UE · Conforme au RGPD
             </p>
             <p className="mt-3 text-xs text-muted-foreground">
               Une solution{" "}

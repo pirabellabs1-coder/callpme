@@ -1,4 +1,5 @@
 import { NextRequest } from "next/server";
+import { publicRequest } from "@/lib/net/safe-fetch";
 import { getSession } from "@/lib/auth/session";
 import { prisma } from "@/lib/db/client";
 import { signPayload } from "@/lib/webhooks/dispatch";
@@ -59,7 +60,8 @@ export async function POST(
 
     let status: number | null = null;
     try {
-      const res = await fetch(tool.serverUrl, {
+      // Requête protégée SSRF (IP vérifiée à la connexion, pas de redirection).
+    const res = await publicRequest(tool.serverUrl, {
         method: tool.method || "POST",
         headers: {
           "Content-Type": "application/json",
@@ -67,7 +69,7 @@ export async function POST(
           "X-Callpme-Signature": signature,
         },
         body: payload,
-        signal: AbortSignal.timeout(5000),
+        timeoutMs: 5000,
       });
       status = res.status;
     } catch {

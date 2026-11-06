@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useTransition } from "react";
-import { Check, Loader2, X, AlertCircle } from "lucide-react";
+import { useId, useState, useTransition } from "react";
+import { Check, Loader2, AlertCircle, CheckCircle2, Building2 } from "lucide-react";
 import { PLAN_ORDER, PLANS, type PlanId } from "@/lib/billing/plans";
 import {
   startCheckout,
@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Dialog } from "@/components/settings/dialog";
 
 type Agency = {
   id: string;
@@ -70,27 +71,31 @@ export function BillingPlans({
   return (
     <>
       {error && (
-        <p className="mb-4 flex items-center gap-2 rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
-          <AlertCircle className="size-4 shrink-0" />
+        <p
+          role="alert"
+          className="mb-4 flex items-center gap-2 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive"
+        >
+          <AlertCircle className="size-4 shrink-0" aria-hidden="true" />
           {error}
         </p>
       )}
 
-      <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
+      <ul className="grid grid-cols-1 gap-5 pt-3 lg:grid-cols-3">
         {PLAN_ORDER.map((id) => {
           const plan = PLANS[id];
           const isCurrent = currentPlan === id;
           const isAgency = id === "agency";
           return (
-            <div
+            <li
               key={id}
+              aria-current={isCurrent ? "true" : undefined}
               className={cn(
                 "relative flex flex-col rounded-2xl border bg-card p-6 shadow-sm",
                 isCurrent ? "border-brand/50 ring-2 ring-brand/15" : "border-border",
               )}
             >
               {isCurrent && (
-                <span className="absolute -top-3 left-6 inline-flex items-center rounded-full bg-brand px-3 py-1 text-xs font-semibold text-white shadow-brand">
+                <span className="absolute -top-3 left-6 inline-flex items-center rounded-full bg-brand px-3 py-1 text-xs font-semibold text-brand-foreground shadow-brand">
                   Offre actuelle
                 </span>
               )}
@@ -110,7 +115,7 @@ export function BillingPlans({
               <ul className="mt-5 flex-1 space-y-2.5">
                 {plan.features.map((f) => (
                   <li key={f} className="flex items-start gap-2.5 text-sm">
-                    <Check className="mt-0.5 size-4 shrink-0 text-brand" />
+                    <Check className="mt-0.5 size-4 shrink-0 text-brand-400" aria-hidden="true" />
                     <span className="text-foreground/90">{f}</span>
                   </li>
                 ))}
@@ -128,7 +133,7 @@ export function BillingPlans({
                     disabled={pending}
                     onClick={payAgency}
                   >
-                    {target === "agency-pay" && <Loader2 className="size-4 animate-spin" />}
+                    {target === "agency-pay" && <Loader2 className="size-4 animate-spin" aria-hidden="true" />}
                     Payer {agency.quotedAmountEur} €
                   </Button>
                 ) : agency && agency.status === "paid" ? (
@@ -155,14 +160,14 @@ export function BillingPlans({
                   disabled={pending}
                   onClick={() => checkout(id)}
                 >
-                  {target === id && <Loader2 className="size-4 animate-spin" />}
+                  {target === id && <Loader2 className="size-4 animate-spin" aria-hidden="true" />}
                   Choisir {plan.name}
                 </Button>
               )}
-            </div>
+            </li>
           );
         })}
-      </div>
+      </ul>
 
       {agency && agency.status === "quoted" && agency.adminNote && (
         <p className="mt-4 rounded-xl border border-border bg-secondary/30 p-4 text-sm text-muted-foreground">
@@ -194,83 +199,94 @@ function AgencyModal({ onClose }: { onClose: () => void }) {
     });
   }
 
-  return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/40 p-4 backdrop-blur-sm"
-      onClick={onClose}
-    >
-      <div
-        className="w-full max-w-lg rounded-2xl border border-border bg-card p-6 shadow-2xl"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex items-start justify-between">
-          <div>
-            <h3 className="font-semibold tracking-tight text-foreground">
-              Demande — Offre Agence
-            </h3>
-            <p className="text-xs text-muted-foreground">
-              Décrivez vos objectifs et votre budget. Notre équipe vous propose un montant.
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="inline-flex size-8 items-center justify-center rounded-lg text-muted-foreground hover:bg-accent hover:text-foreground"
-            aria-label="Fermer"
-          >
-            <X className="size-4" />
-          </button>
-        </div>
+  const formId = useId();
 
-        {sent ? (
-          <div className="mt-5 rounded-lg border border-emerald-600/20 bg-emerald-50/60 px-4 py-3 text-sm text-emerald-800">
-            Demande envoyée ! Notre équipe revient vers vous avec un montant. Vous
-            pourrez régler depuis cette page.
-            <div className="mt-3">
-              <Button variant="brand" size="sm" onClick={onClose}>
-                Fermer
-              </Button>
-            </div>
-          </div>
+  return (
+    <Dialog
+      title="Demande — Offre Agence"
+      description="Décrivez vos objectifs et votre budget. Notre équipe vous propose un montant, puis vous réglez depuis cette page."
+      icon={<Building2 />}
+      size="lg"
+      onClose={onClose}
+      dismissible={!pending}
+      footer={
+        sent ? (
+          <Button variant="brand" size="sm" onClick={onClose} data-autofocus>
+            Fermer
+          </Button>
         ) : (
-          <form onSubmit={submit} className="mt-5 space-y-3">
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <div className="space-y-1.5">
-                <Label htmlFor="name">Nom du contact</Label>
-                <Input id="name" name="name" placeholder="Votre nom" />
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="email">E-mail</Label>
-                <Input id="email" name="email" type="email" placeholder="vous@agence.fr" />
-              </div>
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="budget">Budget agence (€ / mois)</Label>
-              <Input id="budget" name="budget" type="number" min={0} placeholder="Ex : 800" />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="objectives">Vos objectifs</Label>
-              <Textarea
-                id="objectives"
-                name="objectives"
-                rows={4}
-                placeholder="Nombre de clients, volume d'appels visé, fonctionnalités attendues…"
-                required
-              />
-            </div>
-            {error && (
-              <p className="flex items-center gap-2 text-sm text-destructive">
-                <AlertCircle className="size-4 shrink-0" />
-                {error}
-              </p>
-            )}
-            <Button type="submit" variant="brand" className="w-full" disabled={pending}>
-              {pending && <Loader2 className="size-4 animate-spin" />}
+          <>
+            <Button type="button" variant="ghost" size="sm" onClick={onClose} disabled={pending}>
+              Annuler
+            </Button>
+            <Button type="submit" form={formId} variant="brand" size="sm" disabled={pending}>
+              {pending && <Loader2 className="size-4 animate-spin" aria-hidden="true" />}
               Envoyer ma demande
             </Button>
-          </form>
-        )}
-      </div>
-    </div>
+          </>
+        )
+      }
+    >
+      {sent ? (
+        <div
+          role="status"
+          className="flex items-start gap-3 rounded-lg border border-emerald-600/25 bg-emerald-50 px-4 py-3 text-sm text-emerald-800"
+        >
+          <CheckCircle2 className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+          <p>
+            Demande envoyée. Notre équipe revient vers vous avec un montant ; vous
+            pourrez régler depuis la page Facturation.
+          </p>
+        </div>
+      ) : (
+        <form id={formId} onSubmit={submit} className="space-y-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <Label htmlFor={`${formId}-name`}>Nom du contact</Label>
+              <Input id={`${formId}-name`} name="name" autoComplete="name" placeholder="Votre nom" />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor={`${formId}-email`}>E-mail</Label>
+              <Input
+                id={`${formId}-email`}
+                name="email"
+                type="email"
+                autoComplete="email"
+                placeholder="vous@agence.fr"
+              />
+            </div>
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor={`${formId}-budget`}>Budget agence (€ / mois)</Label>
+            <Input
+              id={`${formId}-budget`}
+              name="budget"
+              type="number"
+              inputMode="numeric"
+              min={0}
+              placeholder="Ex : 800"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor={`${formId}-objectives`}>
+              Vos objectifs <span aria-hidden="true" className="text-destructive">*</span>
+            </Label>
+            <Textarea
+              id={`${formId}-objectives`}
+              name="objectives"
+              rows={4}
+              placeholder="Nombre de clients, volume d'appels visé, fonctionnalités attendues…"
+              required
+            />
+          </div>
+          {error && (
+            <p role="alert" className="flex items-center gap-2 text-sm text-destructive">
+              <AlertCircle className="size-4 shrink-0" aria-hidden="true" />
+              {error}
+            </p>
+          )}
+        </form>
+      )}
+    </Dialog>
   );
 }

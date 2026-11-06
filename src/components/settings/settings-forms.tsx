@@ -22,16 +22,22 @@ function Feedback({
 }) {
   if (error) {
     return (
-      <p className="flex items-center gap-2 rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
-        <AlertCircle className="size-4 shrink-0" />
+      <p
+        role="alert"
+        className="flex items-center gap-2 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive"
+      >
+        <AlertCircle className="size-4 shrink-0" aria-hidden="true" />
         {error}
       </p>
     );
   }
   if (saved) {
     return (
-      <p className="flex items-center gap-2 rounded-lg border border-emerald-600/20 bg-emerald-50/60 px-3 py-2 text-sm text-emerald-700">
-        <Check className="size-4 shrink-0" />
+      <p
+        role="status"
+        className="flex items-center gap-2 rounded-lg border border-emerald-600/25 bg-emerald-50 px-3 py-2 text-sm text-emerald-700"
+      >
+        <Check className="size-4 shrink-0" aria-hidden="true" />
         Enregistré.
       </p>
     );
@@ -68,6 +74,8 @@ export function OrganizationForm({ name }: { name: string }) {
         <Label htmlFor="org-name">Nom de l'organisation</Label>
         <Input
           id="org-name"
+          autoComplete="organization"
+          maxLength={120}
           value={value}
           onChange={(e) => {
             setValue(e.target.value);
@@ -83,7 +91,7 @@ export function OrganizationForm({ name }: { name: string }) {
         size="sm"
         disabled={pending || value.trim() === name.trim() || value.trim().length < 2}
       >
-        {pending && <Loader2 className="size-4 animate-spin" />}
+        {pending && <Loader2 className="size-4 animate-spin" aria-hidden="true" />}
         Enregistrer
       </Button>
     </form>
@@ -130,6 +138,7 @@ export function ProfileForm({
           <Label htmlFor="profile-name">Votre nom</Label>
           <Input
             id="profile-name"
+            autoComplete="name"
             value={n}
             onChange={(ev) => {
               setN(ev.target.value);
@@ -143,6 +152,7 @@ export function ProfileForm({
           <Input
             id="profile-email"
             type="email"
+            autoComplete="email"
             value={e}
             onChange={(ev) => {
               setE(ev.target.value);
@@ -154,7 +164,7 @@ export function ProfileForm({
       </div>
       <Feedback error={error} saved={saved} />
       <Button type="submit" variant="brand" size="sm" disabled={pending || !dirty}>
-        {pending && <Loader2 className="size-4 animate-spin" />}
+        {pending && <Loader2 className="size-4 animate-spin" aria-hidden="true" />}
         Mettre à jour
       </Button>
     </form>
@@ -217,7 +227,11 @@ export function PasswordForm() {
             value={next}
             onChange={(e) => setNext(e.target.value)}
             placeholder="Au moins 8 caractères"
+            aria-describedby="pwd-next-hint"
           />
+          <p id="pwd-next-hint" className="text-xs text-muted-foreground">
+            8 caractères minimum.
+          </p>
         </div>
         <div className="space-y-2">
           <Label htmlFor="pwd-confirm">Confirmer</Label>
@@ -238,7 +252,7 @@ export function PasswordForm() {
         size="sm"
         disabled={pending || !current || !next || !confirm}
       >
-        {pending && <Loader2 className="size-4 animate-spin" />}
+        {pending && <Loader2 className="size-4 animate-spin" aria-hidden="true" />}
         Mettre à jour le mot de passe
       </Button>
     </form>

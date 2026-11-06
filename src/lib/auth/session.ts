@@ -95,3 +95,8 @@ export async function destroySession() {
   }
   cookies().delete(SESSION_COOKIE);
 }
+
+/** Propriétaire ou administrateur de l'organisation (actions sensibles). */
+export function isOrgAdmin(session: SessionContext): boolean {
+  return session.user.role === "owner" || session.user.role === "admin";
+}

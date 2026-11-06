@@ -7,16 +7,22 @@
  * cookie élevé signé (HMAC) à courte durée de vie ; sans ce cookie, /admin
  * renvoie 404 (l'espace est invisible).
  */
-import { createHmac, timingSafeEqual } from "crypto";
+import { createHash, createHmac, timingSafeEqual } from "crypto";
 import { cookies } from "next/headers";
+import { getAuthSecret } from "./secret";
 
-const SECRET = process.env.NEXTAUTH_SECRET || "callpme-reset-secret-fallback";
 export const ADMIN_COOKIE = "cpme_admin";
 const TTL_MS = 8 * 60 * 60 * 1000; // 8 h
 
-/** Segment d'URL secret menant à la connexion admin (à définir en prod). */
-export function adminGateSlug(): string {
-  return (process.env.ADMIN_GATE_SLUG || "acces-secret-callpme").trim();
+/**
+ * Segment d'URL secret menant à la connexion admin. Obligatoire en production :
+ * sans ADMIN_GATE_SLUG, la porte est fermée (null) au lieu d'utiliser une
+ * valeur par défaut devinable.
+ */
+export function adminGateSlug(): string | null {
+  const slug = process.env.ADMIN_GATE_SLUG?.trim();
+  if (slug) return slug;
+  return process.env.NODE_ENV === "production" ? null : "acces-secret-callpme";
 }
 
 /** Phrase secrète exigée en plus des identifiants admin (facultative). */
@@ -25,16 +31,18 @@ export function adminPassphrase(): string | null {
   return p && p.length > 0 ? p : null;
 }
 
-/** Comparaison à temps constant de deux chaînes. */
+/**
+ * Comparaison à temps constant de deux chaînes. On compare des condensats
+ * SHA-256 (taille fixe) pour ne pas révéler la longueur du secret.
+ */
 export function safeEqual(a: string, b: string): boolean {
-  const ba = Buffer.from(a);
-  const bb = Buffer.from(b);
-  if (ba.length !== bb.length) return false;
-  return timingSafeEqual(ba, bb);
+  const ha = createHash("sha256").update(a).digest();
+  const hb = createHash("sha256").update(b).digest();
+  return timingSafeEqual(ha, hb);
 }
 
 function sign(payload: string): string {
-  return createHmac("sha256", SECRET).update("admin:" + payload).digest("hex").slice(0, 40);
+  return createHmac("sha256", getAuthSecret()).update("admin:" + payload).digest("hex").slice(0, 40);
 }
 
 export function makeAdminToken(userId: string, ttlMs = TTL_MS): string {

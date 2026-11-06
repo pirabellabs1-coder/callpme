@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { z } from "zod";
 import { getSession } from "@/lib/auth/session";
 import { addDocument } from "@/lib/db/knowledge";
+import { fetchPublicText, UnsafeUrlError } from "@/lib/net/safe-fetch";
 import { created, badRequest, unauthorized, serverError } from "@/lib/api/respond";
 
 export const dynamic = "force-dynamic";
@@ -43,17 +44,15 @@ export async function POST(
     if (parsed.data.source === "url") {
       if (!parsed.data.url) return badRequest("URL manquante");
       try {
-        const res = await fetch(parsed.data.url, {
-          signal: AbortSignal.timeout(10000),
-          headers: { "User-Agent": "Callpme-KB/1.0" },
-        });
-        const html = await res.text();
+        // Protégé contre le SSRF : adresses privées/locales refusées, redirections revalidées.
+        const { text: html, finalUrl } = await fetchPublicText(parsed.data.url);
         content = htmlToText(html).slice(0, 50000);
         if (!parsed.data.title) {
           const m = html.match(/<title>([^<]+)<\/title>/i);
-          title = m?.[1]?.trim() || new URL(parsed.data.url).hostname;
+          title = m?.[1]?.trim() || finalUrl.hostname;
         }
-      } catch {
+      } catch (e) {
+        if (e instanceof UnsafeUrlError) return badRequest(e.message);
         return badRequest("Impossible de récupérer l'URL.");
       }
       if (!content) return badRequest("Aucun texte extrait de l'URL.");

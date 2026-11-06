@@ -2,6 +2,8 @@
 import { prisma } from "./client";
 import { getAgentById } from "./agents";
 import { placeOutboundCall, vapiConfigured } from "@/lib/telephony/vapi";
+import { checkDestination } from "@/lib/telephony/destinations";
+import { canUseMinutes } from "@/lib/billing/limits";
 
 export interface CampaignRecord {
   id: string;
@@ -91,6 +93,8 @@ export async function createCampaign(
   });
 }
 
+export const MAX_CONTACTS_PER_CAMPAIGN = 5000;
+
 export async function addContacts(
   orgId: string,
   campaignId: string,
@@ -98,9 +102,12 @@ export async function addContacts(
 ): Promise<number> {
   const camp = await prisma.campaign.findUnique({ where: { id: campaignId } });
   if (!camp || camp.organizationId !== orgId) return 0;
+  // Plafond total de 5 000 contacts par campagne (et pas seulement par import).
+  const existing = await prisma.contact.count({ where: { campaignId } });
+  const room = Math.max(0, MAX_CONTACTS_PER_CAMPAIGN - existing);
   const clean = contacts
     .filter((c) => c.phone?.trim())
-    .slice(0, 5000)
+    .slice(0, room)
     .map((c) => ({
       campaignId,
       name: c.name?.trim() || "Contact",
@@ -157,6 +164,11 @@ function pickOutcome(seed: number) {
  * Sans téléphonie configurée, on retombe sur un dialer simulé (utile pour la
  * démo et les tests) — chaque contact reçoit une issue plausible.
  */
+/** Levée quand on tente de lancer une campagne en pause. */
+export class CampaignPausedError extends Error {}
+/** Levée quand le quota de minutes de l'offre est épuisé. */
+export class CampaignQuotaError extends Error {}
+
 export async function runCampaign(orgId: string, id: string) {
   const camp = await prisma.campaign.findUnique({
     where: { id },
@@ -166,6 +178,8 @@ export async function runCampaign(orgId: string, id: string) {
     },
   });
   if (!camp || camp.organizationId !== orgId) return null;
+  // Une campagne en pause ne doit jamais composer, même via un appel API direct.
+  if (camp.status === "paused") throw new CampaignPausedError();
 
   /* ---------------------------- Mode RÉEL (Vapi) ---------------------------- */
   if (vapiConfigured()) {
@@ -174,14 +188,34 @@ export async function runCampaign(orgId: string, id: string) {
     if (!agent) return null;
     const org = await prisma.organization.findUnique({
       where: { id: camp.organizationId },
-      select: { name: true },
+      select: { name: true, plan: true },
     });
     const organizationName = org?.name ?? "Callpme";
+    // Appels payés par la plateforme : quota de l'offre vérifié avant de composer.
+    const quota = await canUseMinutes(camp.organizationId, org?.plan ?? "starter");
+    if (!quota.ok) throw new CampaignQuotaError(quota.message);
     await prisma.campaign.update({ where: { id }, data: { status: "running" } });
 
     let placed = 0;
     let failed = 0;
     for (const c of camp.contacts) {
+      // Réservation atomique : un second lancement simultané ne rappelle pas ce contact.
+      const claimed = await prisma.contact.updateMany({
+        where: { id: c.id, status: "pending" },
+        data: { status: "calling" },
+      });
+      if (claimed.count === 0) continue;
+
+      const dest = checkDestination(c.phone);
+      if (!dest.ok) {
+        await prisma.contact.update({
+          where: { id: c.id },
+          data: { status: "failed", outcome: dest.reason ?? "Destination non autorisée", calledAt: new Date() },
+        });
+        failed += 1;
+        continue;
+      }
+
       const result = await placeOutboundCall({
         agent,
         organizationName,

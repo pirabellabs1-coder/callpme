@@ -19,7 +19,8 @@ export default async function EditAgentPage({
   if (!org) return <SeedNotice />;
 
   const agent = await getAgentById(params.id);
-  if (!agent) notFound();
+  // Un agent d'une autre organisation est traité comme inexistant.
+  if (!agent || agent.organizationId !== org.id) notFound();
 
   const [agents, numbers, customTools, kbs, voices] = await Promise.all([
     listAgents(org.id),

@@ -11,12 +11,19 @@ import {
   Loader2,
   Check,
   Copy,
+  Eye,
+  EyeOff,
+  ShieldCheck,
+  AlertCircle,
 } from "lucide-react";
 import { WEBHOOK_EVENTS } from "@/lib/webhooks/events";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import { EmptyState } from "@/components/ui/empty-state";
+import { CodeBlock } from "./code-block";
 
 export interface WebhookView {
   id: string;
@@ -29,6 +36,28 @@ export interface WebhookView {
   createdAt: string;
 }
 
+const EVENT_LABELS: Record<string, string> = Object.fromEntries(
+  WEBHOOK_EVENTS.map((e) => [e.id, e.label]),
+);
+
+// Mirrors src/lib/webhooks/dispatch.ts (signPayload + headers).
+const VERIFY_SNIPPET = `import crypto from "node:crypto";
+
+// rawBody : le corps HTTP brut (chaîne), AVANT tout JSON.parse
+function isValid(rawBody, header, secret) {
+  const expected =
+    "sha256=" + crypto.createHmac("sha256", secret).update(rawBody).digest("hex");
+  const a = Buffer.from(header ?? "");
+  const b = Buffer.from(expected);
+  return a.length === b.length && crypto.timingSafeEqual(a, b);
+}
+
+// isValid(rawBody, req.headers["x-callpme-signature"], process.env.CALLPME_WEBHOOK_SECRET)`;
+
+function maskSecret(secret: string) {
+  return secret.length > 8 ? `${secret.slice(0, 4)}${"•".repeat(16)}${secret.slice(-4)}` : "•".repeat(12);
+}
+
 export function WebhooksPanel({
   initialWebhooks,
 }: {
@@ -36,12 +65,14 @@ export function WebhooksPanel({
 }) {
   const [hooks, setHooks] = useState<WebhookView[]>(initialWebhooks);
   const [url, setUrl] = useState("");
-  const [events, setEvents] = useState<string[]>(["agent.created"]);
+  const [events, setEvents] = useState<string[]>(["call.completed"]);
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [listError, setListError] = useState<string | null>(null);
   const [testing, setTesting] = useState<string | null>(null);
   const [results, setResults] = useState<Record<string, string>>({});
   const [copied, setCopied] = useState<string | null>(null);
+  const [revealed, setRevealed] = useState<Record<string, boolean>>({});
 
   function toggleEvent(id: string) {
     setEvents((e) => (e.includes(id) ? e.filter((x) => x !== id) : [...e, id]));
@@ -57,11 +88,11 @@ export function WebhooksPanel({
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ url: url.trim(), events }),
     });
-    const data = await res.json();
+    const data = await res.json().catch(() => ({}));
     if (res.ok) {
       setHooks((h) => [data.webhook, ...h]);
       setUrl("");
-      setEvents(["agent.created"]);
+      setEvents(["call.completed"]);
     } else {
       setError(data.error ?? "Une erreur est survenue.");
     }
@@ -69,220 +100,322 @@ export function WebhooksPanel({
   }
 
   async function toggleEnabled(id: string, enabled: boolean) {
+    setListError(null);
     setHooks((h) => h.map((w) => (w.id === id ? { ...w, enabled } : w)));
-    await fetch(`/api/dev/webhooks/${id}`, {
+    const res = await fetch(`/api/dev/webhooks/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ enabled }),
-    });
+    }).catch(() => null);
+    if (!res?.ok) {
+      // Roll back the optimistic update.
+      setHooks((h) => h.map((w) => (w.id === id ? { ...w, enabled: !enabled } : w)));
+      setListError("Impossible de modifier l'état du webhook. Réessayez.");
+    }
   }
 
-  async function remove(id: string) {
-    if (!window.confirm("Supprimer ce webhook ?")) return;
-    const res = await fetch(`/api/dev/webhooks/${id}`, { method: "DELETE" });
-    if (res.ok) setHooks((h) => h.filter((w) => w.id !== id));
+  async function remove(w: WebhookView) {
+    if (!window.confirm(`Supprimer le webhook vers ${w.url} ?`)) return;
+    setListError(null);
+    const res = await fetch(`/api/dev/webhooks/${w.id}`, { method: "DELETE" });
+    if (res.ok) setHooks((h) => h.filter((x) => x.id !== w.id));
+    else setListError("Suppression impossible. Réessayez.");
   }
 
   async function test(id: string) {
     setTesting(id);
     setResults((r) => ({ ...r, [id]: "" }));
-    const res = await fetch(`/api/dev/webhooks/${id}/test`, { method: "POST" });
-    const data = await res.json();
+    const res = await fetch(`/api/dev/webhooks/${id}/test`, { method: "POST" }).catch(
+      () => null,
+    );
+    const data = res ? await res.json().catch(() => ({})) : {};
     setResults((r) => ({
       ...r,
       [id]: data.delivered
-        ? `Livré (HTTP ${data.status})`
+        ? `Événement de test livré (HTTP ${data.status})`
         : data.status
-          ? `Échec (HTTP ${data.status})`
-          : "Échec (injoignable)",
+          ? `Échec de livraison (HTTP ${data.status})`
+          : "Échec : endpoint injoignable",
     }));
-    setHooks((h) =>
-      h.map((w) =>
-        w.id === id
-          ? { ...w, lastStatus: data.status, lastDeliveryAt: new Date().toISOString() }
-          : w,
-      ),
-    );
+    if (res?.ok && typeof data.status === "number") {
+      setHooks((h) =>
+        h.map((w) =>
+          w.id === id
+            ? { ...w, lastStatus: data.status, lastDeliveryAt: new Date().toISOString() }
+            : w,
+        ),
+      );
+    }
     setTesting(null);
   }
 
-  function copySecret(secret: string) {
+  function copySecret(id: string, secret: string) {
     navigator.clipboard?.writeText(secret).then(() => {
-      setCopied(secret);
-      setTimeout(() => setCopied(null), 1500);
+      setCopied(id);
+      setTimeout(() => setCopied(null), 2000);
     });
   }
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-6">
       <div>
         <h2 className="text-[0.95rem] font-semibold tracking-tight">Webhooks</h2>
         <p className="text-sm text-muted-foreground">
-          Recevez les événements de la plateforme sur vos endpoints (n8n, Make,
-          votre backend…). Chaque livraison est signée HMAC-SHA256.
+          Recevez les événements de la plateforme sur vos endpoints (n8n, Make, votre
+          backend…). Chaque livraison est une requête <code className="font-mono text-xs">POST</code>{" "}
+          JSON signée HMAC-SHA256, avec un délai d&apos;attente de 5 secondes.
         </p>
       </div>
 
-      {/* Création */}
-      <form onSubmit={create} className="space-y-3 rounded-xl border border-border bg-card p-4">
+      {/* Creation */}
+      <form onSubmit={create} className="space-y-4 rounded-xl border border-border bg-card p-4">
         <div className="space-y-1.5">
-          <label className="text-xs font-medium text-muted-foreground">
-            URL de l'endpoint
-          </label>
+          <Label htmlFor="webhook-url">URL de l&apos;endpoint</Label>
           <Input
+            id="webhook-url"
             type="url"
+            inputMode="url"
             value={url}
             onChange={(e) => setUrl(e.target.value)}
             placeholder="https://votre-domaine.fr/webhooks/callpme"
             required
+            autoComplete="off"
+            spellCheck={false}
           />
         </div>
-        <div className="space-y-1.5">
-          <label className="text-xs font-medium text-muted-foreground">
-            Événements
-          </label>
-          <div className="flex flex-wrap gap-2">
+        <fieldset className="space-y-2">
+          <legend className="text-sm font-medium text-foreground/90">
+            Événements à recevoir
+          </legend>
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
             {WEBHOOK_EVENTS.map((ev) => {
               const on = events.includes(ev.id);
               return (
-                <button
+                <label
                   key={ev.id}
-                  type="button"
-                  onClick={() => toggleEvent(ev.id)}
                   className={cn(
-                    "inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-medium transition-colors",
+                    "flex cursor-pointer items-center gap-2.5 rounded-lg border px-3 py-2 transition-colors has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring/55",
                     on
-                      ? "border-brand bg-brand-50/50 text-brand-700"
-                      : "border-border bg-card text-muted-foreground hover:text-foreground",
+                      ? "border-brand/50 bg-brand-50"
+                      : "border-border bg-card hover:bg-accent/50",
                   )}
                 >
-                  {on && <Check className="size-3" strokeWidth={3} />}
-                  <code className="font-mono">{ev.id}</code>
-                </button>
+                  <input
+                    type="checkbox"
+                    checked={on}
+                    onChange={() => toggleEvent(ev.id)}
+                    className="size-4 shrink-0 accent-[hsl(var(--brand))]"
+                  />
+                  <span className="min-w-0">
+                    <span className="block text-sm text-foreground">{ev.label}</span>
+                    <code className="block truncate font-mono text-[0.7rem] text-muted-foreground">
+                      {ev.id}
+                    </code>
+                  </span>
+                </label>
               );
             })}
           </div>
-        </div>
-        {error && <p className="text-sm text-destructive">{error}</p>}
+          {events.length === 0 && (
+            <p className="text-xs text-muted-foreground">Sélectionnez au moins un événement.</p>
+          )}
+        </fieldset>
+        {error && (
+          <p role="alert" className="flex items-center gap-2 text-sm text-destructive">
+            <AlertCircle className="size-4 shrink-0" aria-hidden="true" />
+            {error}
+          </p>
+        )}
         <Button
           type="submit"
           variant="default"
           disabled={creating || !url.trim() || events.length === 0}
         >
-          {creating ? <Loader2 className="size-4 animate-spin" /> : <Plus className="size-4" />}
+          {creating ? (
+            <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+          ) : (
+            <Plus className="size-4" aria-hidden="true" />
+          )}
           Ajouter le webhook
         </Button>
       </form>
 
-      {/* Liste */}
-      {hooks.length === 0 ? (
-        <p className="rounded-lg border border-dashed border-border bg-card/50 px-4 py-8 text-center text-sm text-muted-foreground">
-          Aucun webhook configuré.
+      {listError && (
+        <p
+          role="alert"
+          className="flex items-center gap-2 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive"
+        >
+          <AlertCircle className="size-4 shrink-0" aria-hidden="true" />
+          {listError}
         </p>
+      )}
+
+      {/* List */}
+      {hooks.length === 0 ? (
+        <EmptyState
+          icon={WebhookIcon}
+          title="Aucun webhook configuré"
+          description="Ajoutez une URL ci-dessus pour recevoir les événements choisis."
+          className="py-10"
+        />
       ) : (
-        <div className="space-y-3">
-          {hooks.map((w) => (
-            <div key={w.id} className="rounded-xl border border-border bg-card p-4">
-              <div className="flex items-start gap-3">
-                <span className="inline-flex size-9 shrink-0 items-center justify-center rounded-lg bg-secondary text-foreground/55 ring-1 ring-inset ring-border">
-                  <WebhookIcon className="size-4" strokeWidth={1.75} />
-                </span>
-                <div className="min-w-0 flex-1">
-                  <p className="truncate font-mono text-sm text-foreground">
-                    {w.url}
-                  </p>
-                  <div className="mt-1.5 flex flex-wrap gap-1.5">
-                    {w.events.map((e) => (
-                      <span
-                        key={e}
-                        className="rounded bg-secondary px-1.5 py-0.5 font-mono text-[0.65rem] text-muted-foreground"
-                      >
-                        {e}
-                      </span>
-                    ))}
+        <ul className="space-y-3">
+          {hooks.map((w) => {
+            const show = revealed[w.id];
+            return (
+              <li key={w.id} className="rounded-xl border border-border bg-card p-4">
+                <div className="flex items-start gap-3">
+                  <span
+                    aria-hidden="true"
+                    className="inline-flex size-9 shrink-0 items-center justify-center rounded-lg bg-secondary text-foreground/60 ring-1 ring-inset ring-border"
+                  >
+                    <WebhookIcon className="size-4" strokeWidth={1.75} />
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="break-all font-mono text-sm text-foreground">{w.url}</p>
+                    <ul className="mt-1.5 flex flex-wrap gap-1.5" aria-label="Événements abonnés">
+                      {w.events.map((e) => (
+                        <li
+                          key={e}
+                          title={EVENT_LABELS[e]}
+                          className="rounded bg-secondary px-1.5 py-0.5 font-mono text-[0.68rem] text-muted-foreground"
+                        >
+                          {e}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="hidden text-xs text-muted-foreground sm:inline" aria-hidden="true">
+                      {w.enabled ? "Actif" : "En pause"}
+                    </span>
+                    <Switch
+                      checked={w.enabled}
+                      onCheckedChange={(v) => toggleEnabled(w.id, v)}
+                      aria-label={`Activer le webhook ${w.url}`}
+                    />
                   </div>
                 </div>
-                <Switch
-                  checked={w.enabled}
-                  onCheckedChange={(v) => toggleEnabled(w.id, v)}
-                  aria-label="Activer le webhook"
-                />
-              </div>
 
-              <div className="mt-3 flex items-center gap-2 rounded-lg border border-border bg-secondary/40 px-2.5 py-1.5">
-                <span className="text-[0.7rem] uppercase tracking-wide text-muted-foreground">
-                  Secret
-                </span>
-                <code className="flex-1 truncate font-mono text-xs text-foreground/70">
-                  {w.secret}
-                </code>
-                <button
-                  type="button"
-                  onClick={() => copySecret(w.secret)}
-                  className="text-muted-foreground hover:text-foreground"
-                  aria-label="Copier le secret"
-                >
-                  {copied === w.secret ? (
-                    <Check className="size-3.5 text-emerald-600" />
-                  ) : (
-                    <Copy className="size-3.5" />
-                  )}
-                </button>
-              </div>
-
-              <div className="mt-3 flex items-center justify-between gap-3">
-                <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                  <StatusPill status={w.lastStatus} />
-                  {w.lastDeliveryAt && (
-                    <span>
-                      ·{" "}
-                      {formatDistanceToNow(new Date(w.lastDeliveryAt), {
-                        addSuffix: true,
-                        locale: fr,
-                      })}
-                    </span>
-                  )}
-                  {results[w.id] && (
-                    <span className="font-medium text-foreground">
-                      · {results[w.id]}
-                    </span>
-                  )}
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => test(w.id)}
-                    disabled={testing === w.id}
-                  >
-                    {testing === w.id ? (
-                      <Loader2 className="size-4 animate-spin" />
-                    ) : (
-                      <Send className="size-4" />
-                    )}
-                    Tester
-                  </Button>
+                <div className="mt-3 flex items-center gap-2 rounded-lg border border-border bg-background px-2.5 py-1.5">
+                  <span className="text-[0.7rem] uppercase tracking-wide text-muted-foreground">
+                    Secret de signature
+                  </span>
+                  <code className="min-w-0 flex-1 truncate font-mono text-xs text-foreground/80">
+                    {show ? w.secret : maskSecret(w.secret)}
+                  </code>
                   <button
                     type="button"
-                    onClick={() => remove(w.id)}
-                    className="inline-flex size-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-destructive/5 hover:text-destructive"
-                    aria-label="Supprimer"
+                    onClick={() => setRevealed((r) => ({ ...r, [w.id]: !r[w.id] }))}
+                    className="inline-flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                    aria-label={show ? "Masquer le secret" : "Afficher le secret"}
+                    aria-pressed={show ?? false}
                   >
-                    <Trash2 className="size-4" />
+                    {show ? (
+                      <EyeOff className="size-3.5" aria-hidden="true" />
+                    ) : (
+                      <Eye className="size-3.5" aria-hidden="true" />
+                    )}
                   </button>
+                  <button
+                    type="button"
+                    onClick={() => copySecret(w.id, w.secret)}
+                    className="inline-flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                    aria-label="Copier le secret de signature"
+                  >
+                    {copied === w.id ? (
+                      <Check className="size-3.5 text-emerald-600" aria-hidden="true" />
+                    ) : (
+                      <Copy className="size-3.5" aria-hidden="true" />
+                    )}
+                  </button>
+                  <span className="sr-only" aria-live="polite">
+                    {copied === w.id ? "Secret copié dans le presse-papiers" : ""}
+                  </span>
                 </div>
-              </div>
-            </div>
-          ))}
-        </div>
+
+                <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+                  <div
+                    className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground"
+                    aria-live="polite"
+                  >
+                    <StatusPill status={w.lastStatus} />
+                    {w.lastDeliveryAt && (
+                      <span>
+                        ·{" "}
+                        {formatDistanceToNow(new Date(w.lastDeliveryAt), {
+                          addSuffix: true,
+                          locale: fr,
+                        })}
+                      </span>
+                    )}
+                    {results[w.id] && (
+                      <span className="font-medium text-foreground">· {results[w.id]}</span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => test(w.id)}
+                      disabled={testing === w.id}
+                    >
+                      {testing === w.id ? (
+                        <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+                      ) : (
+                        <Send className="size-4" aria-hidden="true" />
+                      )}
+                      Envoyer un test
+                    </Button>
+                    <button
+                      type="button"
+                      onClick={() => remove(w)}
+                      className="inline-flex size-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
+                      aria-label={`Supprimer le webhook ${w.url}`}
+                    >
+                      <Trash2 className="size-4" aria-hidden="true" />
+                    </button>
+                  </div>
+                </div>
+              </li>
+            );
+          })}
+        </ul>
       )}
+
+      {/* Signature verification */}
+      <section
+        aria-labelledby="webhook-signing-title"
+        className="space-y-3 rounded-xl border border-border bg-card p-4"
+      >
+        <div className="flex items-start gap-2.5">
+          <ShieldCheck className="mt-0.5 size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+          <div>
+            <h3 id="webhook-signing-title" className="text-sm font-semibold text-foreground">
+              Vérifier la signature
+            </h3>
+            <p className="mt-0.5 text-sm text-muted-foreground text-pretty">
+              Chaque requête porte l&apos;en-tête{" "}
+              <code className="font-mono text-xs text-foreground">X-Callpme-Signature</code>{" "}
+              (<code className="font-mono text-xs">sha256=</code> suivi du HMAC-SHA256
+              hexadécimal du corps brut, calculé avec le secret du webhook) et{" "}
+              <code className="font-mono text-xs text-foreground">X-Callpme-Event</code>.
+              Le corps contient <code className="font-mono text-xs">event</code>,{" "}
+              <code className="font-mono text-xs">data</code> et{" "}
+              <code className="font-mono text-xs">timestamp</code>. Rejetez toute requête
+              dont la signature ne correspond pas.
+            </p>
+          </div>
+        </div>
+        <CodeBlock code={VERIFY_SNIPPET} language="javascript" />
+      </section>
     </div>
   );
 }
 
 function StatusPill({ status }: { status: number | null }) {
   if (status === null) {
-    return <span className="text-muted-foreground">Jamais déclenché</span>;
+    return <span className="text-muted-foreground">Aucune livraison pour l&apos;instant</span>;
   }
   const okStatus = status >= 200 && status < 300;
   return (
@@ -293,12 +426,10 @@ function StatusPill({ status }: { status: number | null }) {
       )}
     >
       <span
-        className={cn(
-          "size-1.5 rounded-full",
-          okStatus ? "bg-emerald-500" : "bg-destructive",
-        )}
+        aria-hidden="true"
+        className={cn("size-1.5 rounded-full", okStatus ? "bg-emerald-600" : "bg-destructive")}
       />
-      {status === 0 ? "Injoignable" : `HTTP ${status}`}
+      Dernière livraison : {status === 0 ? "injoignable" : `HTTP ${status}`}
     </span>
   );
 }

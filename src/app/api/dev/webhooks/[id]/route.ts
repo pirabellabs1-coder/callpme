@@ -1,14 +1,13 @@
 import { NextRequest } from "next/server";
 import { z } from "zod";
-import { getSession } from "@/lib/auth/session";
+import { getSession, isOrgAdmin } from "@/lib/auth/session";
 import { prisma } from "@/lib/db/client";
 import {
   ok,
   badRequest,
   unauthorized,
   notFound,
-  serverError,
-} from "@/lib/api/respond";
+  serverError, forbidden } from "@/lib/api/respond";
 
 export const dynamic = "force-dynamic";
 
@@ -26,6 +25,7 @@ export async function PATCH(req: NextRequest, { params }: Ctx) {
   try {
     const session = await getSession();
     if (!session) return unauthorized();
+    if (!isOrgAdmin(session)) return forbidden("Réservé aux administrateurs de l'organisation.");
     if (!(await owned(session.org.id, params.id)))
       return notFound("Webhook introuvable");
 
@@ -48,6 +48,7 @@ export async function DELETE(_req: NextRequest, { params }: Ctx) {
   try {
     const session = await getSession();
     if (!session) return unauthorized();
+    if (!isOrgAdmin(session)) return forbidden("Réservé aux administrateurs de l'organisation.");
     if (!(await owned(session.org.id, params.id)))
       return notFound("Webhook introuvable");
     await prisma.webhook.delete({ where: { id: params.id } });

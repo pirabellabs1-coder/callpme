@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
-import { getSession } from "@/lib/auth/session";
+import { getSession, isOrgAdmin } from "@/lib/auth/session";
 import { prisma } from "@/lib/db/client";
-import { ok, unauthorized, notFound, serverError } from "@/lib/api/respond";
+import { ok, unauthorized, notFound, serverError, forbidden } from "@/lib/api/respond";
 
 export const dynamic = "force-dynamic";
 
@@ -13,6 +13,7 @@ export async function DELETE(
   try {
     const session = await getSession();
     if (!session) return unauthorized();
+    if (!isOrgAdmin(session)) return forbidden("Réservé aux administrateurs de l'organisation.");
     const key = await prisma.apiKey.findUnique({ where: { id: params.id } });
     if (!key || key.organizationId !== session.org.id) {
       return notFound("Clé introuvable");

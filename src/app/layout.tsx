@@ -18,16 +18,16 @@ const geistMono = localFont({
 
 export const metadata: Metadata = {
   title: {
-    default: "Callpme — Agents vocaux IA pour les entreprises françaises",
+    default: "Callpme — Agents vocaux IA pour les entreprises",
     template: "%s · Callpme",
   },
   description:
-    "Créez, déployez et orchestrez des agents vocaux IA spécialisés — support, prise de rendez-vous, qualification de leads, vente. La plateforme voix française pour les agences et les entreprises.",
+    "Callpme répond à vos appels avec un agent vocal IA : prise de rendez-vous, qualification, support et transfert. Pour les PME, les agences et les développeurs, en Europe et en Afrique francophone.",
   keywords: [
     "agent vocal IA",
     "standard téléphonique IA",
     "callbot",
-    "voicebot français",
+    "voicebot francophone",
     "automatisation des appels",
   ],
   authors: [{ name: "Callpme" }],
@@ -35,14 +35,14 @@ export const metadata: Metadata = {
   openGraph: {
     title: "Callpme — Agents vocaux IA",
     description:
-      "La plateforme française pour créer et déployer des agents vocaux IA spécialisés par rôle.",
+      "Un agent vocal IA qui répond à vos appels, prend les rendez-vous et résume chaque conversation. En Europe et en Afrique francophone.",
     locale: "fr_FR",
     type: "website",
   },
 };
 
 export const viewport: Viewport = {
-  themeColor: "#E8572A",
+  themeColor: "#0B0B0C",
   width: "device-width",
   initialScale: 1,
 };

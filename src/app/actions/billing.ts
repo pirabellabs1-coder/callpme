@@ -2,10 +2,9 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db/client";
-import { requireSession } from "@/lib/auth/session";
-import { isPlanId, getPlan, PLANS } from "@/lib/billing/plans";
+import { isOrgAdmin, requireSession } from "@/lib/auth/session";
+import { PLANS } from "@/lib/billing/plans";
 import { sendEmail } from "@/lib/email/resend";
-import { subscriptionEmail } from "@/lib/email/templates";
 import {
   createGeniusPayment,
   eurToXof,
@@ -24,32 +23,10 @@ export interface CheckoutResult {
   error?: string;
 }
 
-/** Change l'offre de l'organisation courante. Persisté et appliqué aussitôt. */
-export async function switchPlan(planId: string): Promise<BillingResult> {
-  const session = await requireSession();
-  if (!isPlanId(planId)) return { error: "Offre inconnue." };
-
-  await prisma.organization.update({
-    where: { id: session.org.id },
-    data: { plan: planId },
-  });
-
-  // Confirmation par e-mail (best-effort)
-  const mail = subscriptionEmail(session.user.name ?? "", getPlan(planId).name);
-  void sendEmail({
-    to: session.user.email,
-    subject: mail.subject,
-    html: mail.html,
-    text: mail.text,
-  }).catch(() => {});
-
-  revalidatePath("/billing");
-  return { ok: true };
-}
-
 /** Démarre un paiement GeniusPay pour Starter/Pro. Renvoie l'URL de checkout. */
 export async function startCheckout(planId: string): Promise<CheckoutResult> {
   const session = await requireSession();
+  if (!isOrgAdmin(session)) return { error: "Seul un administrateur peut changer d'offre." };
   if (planId !== "starter" && planId !== "pro") {
     return { error: "Cette offre n'est pas payable directement." };
   }
@@ -83,6 +60,11 @@ export async function startCheckout(planId: string): Promise<CheckoutResult> {
 }
 
 /** Le client envoie une demande pour l'offre Agence (objectifs + budget). */
+/** Échappe un texte saisi avant insertion dans un e-mail HTML. */
+function esc(s: string): string {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+
 export async function submitAgencyRequest(formData: FormData): Promise<BillingResult> {
   const session = await requireSession();
   const objectives = String(formData.get("objectives") || "").trim();
@@ -107,10 +89,10 @@ export async function submitAgencyRequest(formData: FormData): Promise<BillingRe
     subject: "Nouvelle demande — Offre Agence Callpme",
     html:
       `<p>Nouvelle demande d'offre <b>Agence</b>.</p>` +
-      `<p><b>Organisation :</b> ${session.org.name}<br/>` +
-      `<b>Contact :</b> ${name} (${email})<br/>` +
+      `<p><b>Organisation :</b> ${esc(session.org.name)}<br/>` +
+      `<b>Contact :</b> ${esc(name)} (${esc(email)})<br/>` +
       `<b>Budget annoncé :</b> ${budget} €</p>` +
-      `<p><b>Objectifs :</b><br/>${objectives.replace(/</g, "&lt;").replace(/\n/g, "<br/>")}</p>` +
+      `<p><b>Objectifs :</b><br/>${esc(objectives).replace(/\n/g, "<br/>")}</p>` +
       `<p>Validez et fixez le montant dans l'admin : ${PUBLIC_URL}/admin/demandes</p>`,
     text: `Demande Agence de ${session.org.name} — budget ${budget} €\n\n${objectives}`,
   }).catch(() => {});

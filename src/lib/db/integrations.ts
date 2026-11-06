@@ -1,5 +1,6 @@
 /** Dépôt « Intégrations » — connexions réelles par identifiants. */
 import { prisma } from "./client";
+import { encryptSecret } from "../crypto/secrets";
 
 export interface ConnectedIntegration {
   provider: string;
@@ -48,7 +49,10 @@ export async function connectIntegration(
 ) {
   const config = JSON.stringify({
     accountName: data.accountName?.trim() || null,
-    credentials: data.credentials ?? {},
+    // Identifiants chiffrés au repos (AES-256-GCM).
+    credentials: Object.fromEntries(
+      Object.entries(data.credentials ?? {}).map(([k, v]) => [k, encryptSecret(v)]),
+    ),
     connectedAt: new Date().toISOString(),
   });
   return prisma.integration.upsert({

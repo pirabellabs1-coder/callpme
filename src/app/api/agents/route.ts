@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import { requireOrgId } from "@/lib/db/context";
 import { getSession } from "@/lib/auth/session";
 import { getActiveClientId } from "@/lib/db/active-client";
-import { listAgents, createAgent } from "@/lib/db/agents";
+import { listAgents, createAgent, ForeignReferenceError } from "@/lib/db/agents";
 import { createAgentSchema } from "@/lib/validation/agent";
 import { canCreateAgent } from "@/lib/billing/limits";
 import { dispatchEvent } from "@/lib/webhooks/dispatch";
@@ -89,7 +89,8 @@ export async function POST(req: NextRequest) {
       status: agent.status,
     });
     return created({ agent });
-  } catch {
+  } catch (e) {
+    if (e instanceof ForeignReferenceError) return badRequest(e.message);
     return serverError("Impossible de créer l'agent");
   }
 }

@@ -13,6 +13,8 @@ import {
 import { isPlanId } from "@/lib/billing/plans";
 import { sendEmail } from "@/lib/email/resend";
 import { welcomeEmail } from "@/lib/email/templates";
+import { CHALLENGE_COOKIE, checkSecondFactor, readChallenge, setChallengeCookie } from "@/lib/auth/two-factor";
+import { cookies } from "next/headers";
 import { makeResetToken, verifyResetToken } from "@/lib/auth/reset-token";
 
 const PUBLIC_URL = process.env.PUBLIC_URL || "https://www.callpme.com";
@@ -22,6 +24,10 @@ export interface AuthResult {
   next?: string;
   ok?: boolean;
   error?: string;
+  /** Mot de passe correct : code de double authentification attendu. */
+  twoFactor?: boolean;
+  /** Défi expiré : revenir au mot de passe. */
+  expired?: boolean;
 }
 
 const loginSchema = z.object({
@@ -50,7 +56,31 @@ export async function login(formData: FormData): Promise<AuthResult> {
   if (!user || !(await verifyPassword(parsed.data.password, user.passwordHash))) {
     return { error: "Identifiants incorrects." };
   }
+  // Double authentification : pas de session avant le code de l'application.
+  if (user.twoFactorEnabled) {
+    setChallengeCookie(user.id);
+    return { twoFactor: true };
+  }
   const token = await createSession(user.id);
+  setSessionCookie(token);
+  return { ok: true };
+}
+
+/** Deuxième étape de connexion : code de l'application d'authentification ou code de secours. */
+export async function verifyLoginCode(formData: FormData): Promise<AuthResult> {
+  const userId = readChallenge(cookies().get(CHALLENGE_COOKIE)?.value);
+  if (!userId) return { error: "Session de connexion expirée. Saisissez à nouveau votre mot de passe.", expired: true };
+  // 6 chiffres : on limite fortement les essais (par compte et par adresse IP).
+  if (isRateLimited(`2fa:${userId}`, 5, 15 * 60_000) || isRateLimited(`2fa-ip:${clientIp()}`, 20, 15 * 60_000)) {
+    return { error: "Trop de tentatives. Patientez quelques minutes avant de réessayer." };
+  }
+  const code = String(formData.get("code") ?? "").trim().slice(0, 20);
+  if (!code) return { error: "Saisissez le code." };
+  const method = await checkSecondFactor(userId, code);
+  if (method === "locked") return { error: "Trop de codes erronés : la vérification est bloquée temporairement. Réessayez plus tard." };
+  if (!method) return { error: "Code incorrect ou déjà utilisé." };
+  cookies().delete(CHALLENGE_COOKIE);
+  const token = await createSession(userId);
   setSessionCookie(token);
   return { ok: true };
 }

@@ -31,7 +31,7 @@ export function emailLayout(o: LayoutOpts): string {
       : "";
   return `<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light"></head>
 <body style="margin:0;padding:0;background:#faf7f5;">
-  ${o.preheader ? `<div style="display:none;max-height:0;overflow:hidden;opacity:0;">${o.preheader}</div>` : ""}
+  ${o.preheader ? `<div style="display:none;max-height:0;overflow:hidden;opacity:0;">${escapeHtml(o.preheader)}</div>` : ""}
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#faf7f5;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;">
     <tr><td align="center" style="padding:32px 16px;">
       <table role="presentation" width="560" cellpadding="0" cellspacing="0" style="width:560px;max-width:100%;">
@@ -156,4 +156,48 @@ export function announcementEmail(
     ctaUrl: `${baseUrl()}/overview`,
   });
   return { subject, html, text: toText(html) };
+}
+
+/* ------------------------- Équipe et sécurité ---------------------------- */
+
+/** Échappe le texte saisi par les utilisateurs avant de l'insérer dans un e-mail HTML. */
+export function escapeHtml(s: string): string {
+  return s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c] ?? c);
+}
+
+export function invitationEmail(opts: { inviterName: string; orgName: string; role: string; link: string }): EmailContent {
+  const inviterName = opts.inviterName.slice(0, 80);
+  const inviter = escapeHtml(inviterName || "Un membre de l'équipe");
+  const org = escapeHtml(opts.orgName);
+  const role = opts.role === "admin" ? "administrateur" : "membre";
+  const html = emailLayout({
+    preheader: `${inviterName || "Votre équipe"} vous invite sur Callpme.`,
+    heading: `Rejoignez ${org} sur Callpme`,
+    bodyHtml: `<p style="margin:0 0 12px;">Bonjour,</p>
+      <p style="margin:0 0 12px;">${inviter} vous invite à rejoindre l'espace <strong>${org}</strong> en tant que ${role}.</p>
+      <p style="margin:0;">Le lien est valable 7 jours et ne sert qu'une fois.</p>`,
+    ctaLabel: "Accepter l'invitation",
+    ctaUrl: opts.link,
+    footnote: "Vous ne connaissez pas cette personne ? Ignorez simplement cet e-mail.",
+  });
+  const orgPlain = opts.orgName.replace(/[\r\n]+/g, " ").slice(0, 80);
+  return { subject: `Invitation à rejoindre ${orgPlain} sur Callpme`, html, text: toText(html) };
+}
+
+export function twoFactorEmail(name: string, enabled: boolean): EmailContent {
+  const who = escapeHtml(name || "");
+  const html = emailLayout({
+    preheader: enabled ? "La double authentification est activée." : "La double authentification est désactivée.",
+    heading: enabled ? "Double authentification activée" : "Double authentification désactivée",
+    bodyHtml: `<p style="margin:0 0 12px;">Bonjour ${who},</p>
+      <p style="margin:0 0 12px;">${
+        enabled
+          ? "Votre compte Callpme demande désormais un code de votre application d'authentification à chaque connexion. Gardez vos codes de secours en lieu sûr."
+          : "Votre compte Callpme ne demande plus de code à la connexion."
+      }</p>
+      <p style="margin:0;">Si vous n'êtes pas à l'origine de ce changement, changez votre mot de passe immédiatement et contactez-nous.</p>`,
+    ctaLabel: "Vérifier mes réglages",
+    ctaUrl: `${baseUrl()}/settings#securite`,
+  });
+  return { subject: enabled ? "Sécurité — double authentification activée" : "Sécurité — double authentification désactivée", html, text: toText(html) };
 }

@@ -19,7 +19,8 @@ import {
   ProfileForm,
   PasswordForm,
 } from "@/components/settings/settings-forms";
-import { initials } from "@/lib/utils";
+import { TeamManager } from "@/components/settings/team-manager";
+import { TwoFactorCard } from "@/components/settings/two-factor-card";
 
 export const metadata = { title: "Réglages" };
 export const dynamic = "force-dynamic";
@@ -41,12 +42,6 @@ const SECTIONS = [
   { id: "securite", label: "Sécurité", icon: Lock },
   { id: "services", label: "Services", icon: Server },
 ] as const;
-
-function roleBadge(role: string) {
-  if (role === "owner") return <Badge variant="brand">Propriétaire</Badge>;
-  if (role === "admin") return <Badge variant="default">Admin</Badge>;
-  return <Badge variant="muted">Membre</Badge>;
-}
 
 function SectionHeading({
   id,
@@ -78,11 +73,28 @@ export default async function SettingsPage() {
   const org = session.org;
   const plan = getPlan(org.plan);
 
-  const users = await prisma.user.findMany({
-    where: { organizationId: org.id },
-    orderBy: { createdAt: "asc" },
-    select: { id: true, name: true, email: true, role: true },
-  });
+  const [users, invitations, me] = await Promise.all([
+    prisma.user.findMany({
+      where: { organizationId: org.id },
+      orderBy: { createdAt: "asc" },
+      select: { id: true, name: true, email: true, role: true, twoFactorEnabled: true },
+    }),
+    prisma.invitation.findMany({
+      where: { organizationId: org.id, acceptedAt: null, expiresAt: { gt: new Date() } },
+      orderBy: { createdAt: "desc" },
+      select: { id: true, email: true, role: true, expiresAt: true },
+    }),
+    prisma.user.findUnique({
+      where: { id: session.user.id },
+      select: { twoFactorEnabled: true, twoFactorBackupCodes: true },
+    }),
+  ]);
+  let backupRemaining = 0;
+  try {
+    backupRemaining = me?.twoFactorBackupCodes ? (JSON.parse(me.twoFactorBackupCodes) as string[]).length : 0;
+  } catch {
+    backupRemaining = 0;
+  }
 
   return (
     <div className="space-y-6">
@@ -182,33 +194,11 @@ export default async function SettingsPage() {
                 {users.length} membre{users.length > 1 ? "s" : ""}
               </span>
             </div>
-            <ul className="divide-y divide-border border-t border-border">
-              {users.map((u) => {
-                const isMe = u.id === session.user.id;
-                return (
-                  <li key={u.id} className="flex items-center gap-3 px-5 py-3 sm:px-6">
-                    <span
-                      aria-hidden="true"
-                      className="inline-flex size-9 shrink-0 items-center justify-center rounded-full bg-secondary text-xs font-semibold text-foreground/75 ring-1 ring-inset ring-border"
-                    >
-                      {initials(u.name ?? u.email)}
-                    </span>
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-medium text-foreground">
-                        {u.name ?? "Sans nom"}
-                        {isMe && (
-                          <span className="ml-2 text-xs font-normal text-muted-foreground">
-                            (vous)
-                          </span>
-                        )}
-                      </p>
-                      <p className="truncate text-xs text-muted-foreground">{u.email}</p>
-                    </div>
-                    {roleBadge(u.role)}
-                  </li>
-                );
-              })}
-            </ul>
+            <TeamManager
+              me={{ id: session.user.id, role: session.user.role }}
+              members={users.map((u) => ({ id: u.id, name: u.name, email: u.email, role: u.role, twoFactor: u.twoFactorEnabled }))}
+              invitations={invitations.map((i) => ({ id: i.id, email: i.email, role: i.role, expiresAt: i.expiresAt.toISOString() }))}
+            />
           </Card>
 
           {/* Sécurité */}
@@ -222,10 +212,14 @@ export default async function SettingsPage() {
               id="securite"
               icon={Lock}
               title="Sécurité"
-              description="Changez votre mot de passe. Un e-mail de confirmation vous est envoyé."
+              description="Mot de passe et double authentification de votre compte."
             />
-            <div className="mt-5 max-w-2xl">
+            <div className="mt-5 max-w-2xl space-y-8">
               <PasswordForm />
+              <div className="space-y-3 border-t border-border pt-6">
+                <h3 className="text-sm font-semibold">Double authentification</h3>
+                <TwoFactorCard enabled={Boolean(me?.twoFactorEnabled)} backupRemaining={backupRemaining} />
+              </div>
             </div>
           </Card>
 

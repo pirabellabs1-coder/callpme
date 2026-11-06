@@ -23,6 +23,7 @@ model Organization {
   plan           String               @default("starter") // starter | pro | agency
   agents         Agent[]
   users          User[]
+  invitations    Invitation[]
   apiKeys        ApiKey[]
   webhooks       Webhook[]
   customTools    CustomTool[]
@@ -52,8 +53,35 @@ model User {
   isAdmin        Boolean      @default(false) // super-admin plateforme
   sessions       Session[]
   createdAt      DateTime     @default(now())
+  // Double authentification (TOTP) : secret chiffré (AES-GCM), codes de secours hachés (JSON).
+  twoFactorEnabled     Boolean @default(false)
+  twoFactorSecret      String?
+  twoFactorBackupCodes String?
+  /** Dernier pas de temps TOTP accepté : un code ne sert qu'une fois. */
+  twoFactorLastStep    Int?
+  /** Échecs de code consécutifs et verrouillage (partagés entre toutes les instances). */
+  twoFactorFailedCount Int       @default(0)
+  twoFactorLockedUntil DateTime?
 
   @@index([organizationId])
+}
+
+/// Invitation à rejoindre une organisation (lien à usage unique, 7 jours).
+model Invitation {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  email          String
+  role           String       @default("member") // admin | member
+  /** Empreinte SHA-256 du jeton envoyé par e-mail (le jeton n'est jamais stocké). */
+  tokenHash      String       @unique
+  invitedById    String?
+  expiresAt      DateTime
+  acceptedAt     DateTime?
+  createdAt      DateTime     @default(now())
+
+  @@index([organizationId])
+  @@index([email])
 }
 
 model Session {

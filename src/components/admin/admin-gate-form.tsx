@@ -17,6 +17,8 @@ export function AdminGateForm({
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [passphrase, setPassphrase] = useState("");
+  const [code, setCode] = useState("");
+  const [needCode, setNeedCode] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
@@ -28,10 +30,13 @@ export function AdminGateForm({
     fd.set("email", email);
     fd.set("password", password);
     fd.set("passphrase", passphrase);
+    fd.set("code", code);
     startTransition(async () => {
       const res = await adminGateLogin(fd);
       if (res.ok) {
         window.location.href = "/admin";
+      } else if (res.needCode) {
+        setNeedCode(true);
       } else {
         setError(res.error ?? "Accès refusé.");
       }
@@ -84,6 +89,21 @@ export function AdminGateForm({
               autoComplete="off"
               value={passphrase}
               onChange={(e) => setPassphrase(e.target.value)}
+              required
+            />
+          </div>
+        )}
+
+        {needCode && (
+          <div className="space-y-1.5">
+            <Label htmlFor="admin-code">Code de double authentification</Label>
+            <Input
+              id="admin-code"
+              autoComplete="one-time-code"
+              autoFocus
+              maxLength={20}
+              value={code}
+              onChange={(e) => setCode(e.target.value)}
               required
             />
           </div>

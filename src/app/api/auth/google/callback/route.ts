@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { CHALLENGE_COOKIE, challengeCookieOptions, makeChallenge } from "@/lib/auth/two-factor";
 import { randomBytes } from "crypto";
 import { prisma } from "@/lib/db/client";
 import { hashPassword } from "@/lib/auth/password";
@@ -66,7 +67,15 @@ export async function GET(req: NextRequest) {
       user = org.users[0];
     }
 
-    // 4) Session
+    // 4) Double authentification active : le code est demandé avant toute session.
+    if (user.twoFactorEnabled) {
+      const res = NextResponse.redirect(`${base}/login?step=2fa`);
+      res.cookies.set(CHALLENGE_COOKIE, makeChallenge(user.id), challengeCookieOptions);
+      res.cookies.delete("g_state");
+      return res;
+    }
+
+    // 5) Session
     const token = await createSession(user.id);
     const res = NextResponse.redirect(`${base}/overview`);
     res.cookies.set(SESSION_COOKIE, token, {

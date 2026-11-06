@@ -5,6 +5,7 @@ import { prisma } from "@/lib/db/client";
 import { verifyPassword } from "@/lib/auth/password";
 import { clientIp, isRateLimited } from "@/lib/security/rate-limit";
 import { createSession, setSessionCookie } from "@/lib/auth/session";
+import { checkSecondFactor } from "@/lib/auth/two-factor";
 import {
   adminGateSlug,
   adminPassphrase,
@@ -17,6 +18,8 @@ import {
 export interface GateResult {
   ok?: boolean;
   error?: string;
+  /** Identifiants corrects : code de double authentification attendu. */
+  needCode?: boolean;
 }
 
 /** Petit délai pour ralentir les tentatives par force brute. */
@@ -64,6 +67,17 @@ export async function adminGateLogin(formData: FormData): Promise<GateResult> {
   if (!user || !passOk || !user.isAdmin || !phraseOk) {
     await sleep(600);
     return fail;
+  }
+
+  // Double authentification : obligatoire avant toute session, y compris pour l'admin.
+  if (user.twoFactorEnabled) {
+    const code = String(formData.get("code") || "").trim();
+    if (!code) return { needCode: true };
+    const check = await checkSecondFactor(user.id, code);
+    if (check !== "totp" && check !== "backup") {
+      await sleep(600);
+      return check === "locked" ? { error: "Trop de tentatives. Réessayez plus tard." } : fail;
+    }
   }
 
   const token = await createSession(user.id);

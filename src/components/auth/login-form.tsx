@@ -3,8 +3,8 @@
 import { useState, useEffect, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Loader2, AlertCircle } from "lucide-react";
-import { login } from "@/app/actions/auth";
+import { Loader2, AlertCircle, ShieldCheck } from "lucide-react";
+import { login, verifyLoginCode } from "@/app/actions/auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -27,14 +27,16 @@ export function LoginForm() {
   const [error, setError] = useState<string | null>(null);
   const [googleError, setGoogleError] = useState(false);
   const [pending, startTransition] = useTransition();
+  /** Deuxième étape : code de l'application d'authentification. */
+  const [step, setStep] = useState<"password" | "code">("password");
+  const [code, setCode] = useState("");
 
   useEffect(() => {
-    if (
-      typeof window !== "undefined" &&
-      new URLSearchParams(window.location.search).get("error") === "google"
-    ) {
-      setGoogleError(true);
-    }
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("error") === "google") setGoogleError(true);
+    // Retour de Google avec la double authentification active.
+    if (params.get("step") === "2fa") setStep("code");
   }, []);
 
   function submit(e: React.FormEvent) {
@@ -49,9 +51,92 @@ export function LoginForm() {
         setError(res.error);
         return;
       }
+      if (res?.twoFactor) {
+        setStep("code");
+        setPassword("");
+        return;
+      }
       router.push("/overview");
       router.refresh();
     });
+  }
+
+  function submitCode(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+    const fd = new FormData();
+    fd.set("code", code);
+    startTransition(async () => {
+      const res = await verifyLoginCode(fd);
+      if (res?.error) {
+        setError(res.error);
+        if (res.expired) {
+          setStep("password");
+          setCode("");
+        }
+        return;
+      }
+      router.push("/overview");
+      router.refresh();
+    });
+  }
+
+  if (step === "code") {
+    return (
+      <div>
+        <div className="flex size-11 items-center justify-center rounded-xl bg-brand-50 text-brand">
+          <ShieldCheck className="size-5" strokeWidth={1.75} aria-hidden />
+        </div>
+        <h1 className="mt-4 text-display-sm font-semibold tracking-tight">Vérification en deux étapes</h1>
+        <p className="mt-1.5 text-sm text-muted-foreground">
+          Saisissez le code à 6 chiffres affiché dans votre application d&apos;authentification.
+        </p>
+        <form onSubmit={submitCode} className="mt-7 space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="code">Code de vérification</Label>
+            <Input
+              id="code"
+              name="code"
+              autoComplete="one-time-code"
+              inputMode="text"
+              autoFocus
+              maxLength={20}
+              value={code}
+              onChange={(e) => setCode(e.target.value)}
+              placeholder="123 456"
+              aria-describedby="code-help"
+              aria-invalid={Boolean(error)}
+              className="text-center font-mono text-lg tracking-[0.3em]"
+              required
+            />
+            <p id="code-help" className="text-xs text-muted-foreground">
+              Téléphone perdu ? Saisissez un de vos codes de secours (format XXXX-XXXX).
+            </p>
+          </div>
+          {error && (
+            <p role="alert" className="flex items-center gap-2 rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
+              <AlertCircle className="size-4 shrink-0" />
+              {error}
+            </p>
+          )}
+          <Button type="submit" variant="brand" className="w-full" disabled={pending || !code.trim()}>
+            {pending && <Loader2 className="size-4 animate-spin" />}
+            Valider
+          </Button>
+          <button
+            type="button"
+            className="w-full text-center text-sm text-muted-foreground hover:text-foreground"
+            onClick={() => {
+              setStep("password");
+              setCode("");
+              setError(null);
+            }}
+          >
+            Revenir à la connexion
+          </button>
+        </form>
+      </div>
+    );
   }
 
   return (

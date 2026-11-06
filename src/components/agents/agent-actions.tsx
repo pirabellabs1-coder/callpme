@@ -23,41 +23,64 @@ export function AgentStatusControl({
   const router = useRouter();
   const [current, setCurrent] = useState<AgentStatus>(status);
   const [pending, setPending] = useState<AgentStatus | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   async function change(next: AgentStatus) {
     if (next === current || pending) return;
     setPending(next);
-    const res = await fetch(`/api/agents/${agentId}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ status: next }),
-    });
-    if (res.ok) {
-      setCurrent(next);
-      router.refresh();
+    setError(null);
+    try {
+      const res = await fetch(`/api/agents/${agentId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: next }),
+      });
+      if (res.ok) {
+        setCurrent(next);
+        router.refresh();
+      } else {
+        const data = await res.json().catch(() => ({}));
+        setError(data.error ?? "Impossible de changer le statut.");
+      }
+    } catch {
+      setError("Impossible de joindre le serveur.");
     }
     setPending(null);
   }
 
   return (
-    <div className="inline-flex items-center rounded-lg border border-border bg-muted/60 p-1">
-      {OPTIONS.map((o) => (
-        <button
-          key={o.value}
-          type="button"
-          onClick={() => change(o.value)}
-          disabled={pending !== null}
-          className={cn(
-            "inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors disabled:opacity-60",
-            current === o.value
-              ? "bg-card text-foreground shadow-xs"
-              : "text-muted-foreground hover:text-foreground",
-          )}
-        >
-          {pending === o.value && <Loader2 className="size-3.5 animate-spin" />}
-          {o.label}
-        </button>
-      ))}
+    <div className="flex flex-col gap-1">
+      <div
+        role="group"
+        aria-label="Statut de l'agent"
+        className="inline-flex items-center rounded-lg border border-border bg-muted/60 p-1"
+      >
+        {OPTIONS.map((o) => (
+          <button
+            key={o.value}
+            type="button"
+            onClick={() => change(o.value)}
+            disabled={pending !== null}
+            aria-pressed={current === o.value}
+            className={cn(
+              "inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/55 disabled:opacity-60",
+              current === o.value
+                ? "bg-accent text-foreground ring-1 ring-inset ring-foreground/10"
+                : "text-muted-foreground hover:text-foreground",
+            )}
+          >
+            {pending === o.value && (
+              <Loader2 className="size-3.5 animate-spin" aria-hidden />
+            )}
+            {o.label}
+          </button>
+        ))}
+      </div>
+      {error && (
+        <p role="alert" className="text-xs text-destructive">
+          {error}
+        </p>
+      )}
     </div>
   );
 }
@@ -80,12 +103,15 @@ export function DeleteAgentButton({
     )
       return;
     setDeleting(true);
-    const res = await fetch(`/api/agents/${agentId}`, { method: "DELETE" });
-    if (res.ok) {
+    const res = await fetch(`/api/agents/${agentId}`, {
+      method: "DELETE",
+    }).catch(() => null);
+    if (res?.ok) {
       router.push("/agents");
       router.refresh();
     } else {
       setDeleting(false);
+      window.alert("La suppression a échoué. Réessayez.");
     }
   }
 

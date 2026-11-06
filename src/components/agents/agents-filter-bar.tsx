@@ -39,9 +39,12 @@ export function AgentsFilterBar() {
             apply({ search: q.trim() || undefined });
           }}
           className="relative flex-1"
+          role="search"
         >
-          <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+          <Search aria-hidden className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
           <input
+            type="search"
+            aria-label="Rechercher un agent par nom"
             value={q}
             onChange={(e) => setQ(e.target.value)}
             placeholder="Rechercher un agent par nom…"
@@ -64,9 +67,9 @@ export function AgentsFilterBar() {
             <button
               type="button"
               onClick={() => router.push(pathname)}
-              className="inline-flex h-10 items-center gap-1.5 rounded-lg px-3 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+              className="inline-flex h-10 items-center gap-1.5 rounded-lg px-3 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/55"
             >
-              <X className="size-4" />
+              <X className="size-4" aria-hidden />
               Réinitialiser
             </button>
           )}
@@ -74,7 +77,11 @@ export function AgentsFilterBar() {
       </div>
 
       {/* Pastilles de rôle */}
-      <div className="flex flex-wrap items-center gap-2">
+      <div
+        className="flex flex-wrap items-center gap-2"
+        role="group"
+        aria-label="Filtrer par rôle"
+      >
         <RoleChip active={!role} onClick={() => apply({ role: undefined })}>
           Tous les rôles
         </RoleChip>
@@ -108,8 +115,9 @@ function RoleChip({
     <button
       type="button"
       onClick={onClick}
+      aria-pressed={active}
       className={cn(
-        "inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm font-medium transition-colors",
+        "inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/55",
         active
           ? "border-foreground bg-foreground text-background"
           : "border-border bg-card text-muted-foreground hover:border-foreground/30 hover:text-foreground",

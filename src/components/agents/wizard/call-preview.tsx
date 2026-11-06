@@ -1,4 +1,11 @@
-import { Volume2, Cpu, Languages, Wrench, Thermometer, Ear } from "lucide-react";
+import {
+  Volume2,
+  Cpu,
+  Languages,
+  Wrench,
+  Thermometer,
+  Ear,
+} from "lucide-react";
 import type { AgentRole, FirstSpeaker } from "@/lib/shared/types";
 import { ROLE_META } from "@/lib/agents/roles";
 import { languageLabel } from "@/lib/agents/catalog";
@@ -33,7 +40,10 @@ function Chip({
 }) {
   return (
     <div className="flex items-center gap-2 rounded-lg border border-border bg-secondary/50 px-2.5 py-2">
-      <Icon className="size-3.5 shrink-0 text-muted-foreground" strokeWidth={1.75} />
+      <Icon
+        className="size-3.5 shrink-0 text-muted-foreground"
+        strokeWidth={1.75}
+      />
       <div className="min-w-0">
         <p className="truncate text-[0.65rem] uppercase tracking-wide text-muted-foreground">
           {label}
@@ -125,7 +135,11 @@ export function CallPreview({
         <Chip icon={Volume2} label="Voix" value={voiceLabel} />
         <Chip icon={Languages} label="Langue" value={languageLabel(language)} />
         <Chip icon={Cpu} label="Modèle" value={modelLabel} />
-        <Chip icon={Thermometer} label="Température" value={temperature.toFixed(1)} />
+        <Chip
+          icon={Thermometer}
+          label="Température"
+          value={temperature.toFixed(1)}
+        />
         <Chip
           icon={Wrench}
           label="Outils actifs"

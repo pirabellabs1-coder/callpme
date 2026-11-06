@@ -90,8 +90,9 @@ export function ToolsPicker({
         </div>
         {customTools.length === 0 ? (
           <p className="rounded-lg border border-dashed border-border bg-card/50 px-3 py-3 text-xs text-muted-foreground">
-            Aucune fonction personnalisée. Créez-en dans Développeurs › Fonctions
-            pour collecter des données et les envoyer vers vos systèmes.
+            Aucune fonction personnalisée. Créez-en dans Développeurs ›
+            Fonctions pour collecter des données et les envoyer vers vos
+            systèmes.
           </p>
         ) : (
           <div className="space-y-2">
@@ -127,7 +128,9 @@ export function ToolsPicker({
                 label={tool.label}
                 name={tool.name}
                 description={tool.description}
-                badge={roleDefaults.includes(tool.name) ? "Recommandé" : undefined}
+                badge={
+                  roleDefaults.includes(tool.name) ? "Recommandé" : undefined
+                }
               />
             ))}
           </div>

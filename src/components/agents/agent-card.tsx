@@ -21,8 +21,8 @@ export function AgentCard({ agent }: { agent: Agent }) {
     <Link
       href={`/agents/${agent.id}`}
       className={cn(
-        "group flex flex-col rounded-xl border border-border bg-card p-5 shadow-sm transition-all duration-200",
-        "hover:-translate-y-0.5 hover:border-brand/30 hover:shadow-md",
+        "group flex flex-col rounded-xl border border-border bg-card p-5 transition-[transform,border-color] duration-200 motion-reduce:transition-none",
+        "hover:-translate-y-0.5 hover:border-brand/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/55",
       )}
     >
       <div className="flex items-start justify-between">

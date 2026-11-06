@@ -3,7 +3,7 @@ import { getCountry } from "../geo/countries";
 import { orgCountry } from "../geo/org-country";
 import { prisma } from "./client";
 import { telephonyConfigured } from "@/lib/telephony/provider";
-import { canUseMinutes } from "@/lib/billing/limits";
+import { canCallOut } from "@/lib/billing/limits";
 import { toE164 } from "@/lib/telephony/e164";
 import { campaignSettings, type CampaignSettings } from "@/lib/campaigns/settings";
 
@@ -196,7 +196,7 @@ export async function runCampaign(orgId: string, id: string) {
   // de campagnes (src/lib/campaigns/engine.ts) ; on lance le premier tour ici.
   if (telephonyConfigured()) {
     const org = await prisma.organization.findUnique({ where: { id: camp.organizationId }, select: { plan: true } });
-    const quota = await canUseMinutes(camp.organizationId, org?.plan ?? "starter");
+    const quota = await canCallOut(camp.organizationId);
     if (!quota.ok) throw new CampaignQuotaError(quota.message);
     await prisma.campaign.update({ where: { id }, data: { status: "running" } });
     const { tickCampaign } = await import("../campaigns/engine");

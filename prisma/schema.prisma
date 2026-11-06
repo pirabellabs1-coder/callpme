@@ -25,6 +25,8 @@ model Organization {
   paidUntil      DateTime?
   /** Fin de l'essai gratuit (défaut : création + 14 jours). */
   trialEndsAt    DateTime?
+  /// Crédit prépayé des appels sortants, en centimes d'euro (jamais négatif).
+  callCreditCents Int @default(0)
   /** Réglages des alertes au propriétaire (JSON, voir src/lib/alerts). */
   alerts         String?
   /** Pays (ISO) : format des numéros saisis sans indicatif, fuseau par défaut. */

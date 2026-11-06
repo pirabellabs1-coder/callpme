@@ -12,7 +12,7 @@
 import { orgCountry } from "../geo/org-country";
 import { prisma } from "../db/client";
 import { getAgentById } from "../db/agents";
-import { canUseMinutes } from "../billing/limits";
+import { canCallOut } from "../billing/limits";
 import { checkDestination } from "../telephony/destinations";
 import { placeOutboundCall, telephonyConfigured } from "../telephony/provider";
 import { toE164 } from "../telephony/e164";
@@ -174,7 +174,7 @@ async function tickLocked(
   const agent = await getAgentById(agentId);
   if (!agent || agent.organizationId !== organizationId) return { campaignId, placed: 0, skipped: "agent" };
   const org = await prisma.organization.findUnique({ where: { id: organizationId }, select: { plan: true } });
-  const quota = await canUseMinutes(organizationId, org?.plan ?? "starter");
+  const quota = await canCallOut(organizationId);
   if (!quota.ok) {
     await prisma.campaign.update({ where: { id: campaignId }, data: { status: "paused" } });
     return { campaignId, placed: 0, skipped: "quota" };

@@ -10,6 +10,9 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { BillingPlans } from "@/components/billing/billing-plans";
 import { formatEur } from "@/lib/billing/money";
+import { CREDIT_PACKS, OUTBOUND_DESTINATIONS, outboundRateEur } from "@/lib/billing/outbound-rates";
+import { creditBalanceCents } from "@/lib/billing/credit";
+import { OutboundCredit } from "@/components/billing/outbound-credit";
 import { cn } from "@/lib/utils";
 
 export const metadata = { title: "Facturation" };
@@ -90,7 +93,7 @@ export default async function BillingPage() {
   const sub = await orgSubscription(session.org.id);
   const plan = getPlan(session.org.plan);
 
-  const [agents, numbers, minutesUsed, agencyRow, payments, extraMinutes] = await Promise.all([
+  const [agents, numbers, minutesUsed, agencyRow, payments, extraMinutes, credit] = await Promise.all([
     countAgents(session.org.id),
     // Same count as the limit enforced by POST /api/numbers.
     prisma.phoneNumber.count({ where: { organizationId: session.org.id } }),
@@ -105,6 +108,7 @@ export default async function BillingPage() {
       take: 12,
     }),
     extraMinutesBalance(session.org.id),
+    creditBalanceCents(session.org.id),
   ]);
   const dateFmt = new Intl.DateTimeFormat("fr-FR", { day: "numeric", month: "long", year: "numeric" });
   const statusText =
@@ -212,6 +216,22 @@ export default async function BillingPage() {
         />
       </section>
 
+      {/* Crédit des appels sortants */}
+      <section aria-labelledby="credit-title" className="space-y-3">
+        <div>
+          <h2 id="credit-title" className="text-[0.95rem] font-semibold tracking-tight text-foreground">
+            Crédit d&apos;appels sortants
+          </h2>
+          <p className="text-sm text-muted-foreground">Payé d&apos;avance, à la minute, avec un prix par pays.</p>
+        </div>
+        <OutboundCredit
+          balanceCents={credit}
+          rates={OUTBOUND_DESTINATIONS.map((d) => ({ label: d.label, eur: outboundRateEur(d.sample) }))}
+          packs={CREDIT_PACKS}
+          disabledReason={sub.status === "expired" ? "Choisissez d'abord une offre : le crédit d'appels sortants s'utilise avec une offre active." : undefined}
+        />
+      </section>
+
       {/* Historique des paiements */}
       <section aria-labelledby="payments-title">
         <h2 id="payments-title" className="mb-3 text-[0.95rem] font-semibold tracking-tight text-foreground">
@@ -240,7 +260,9 @@ export default async function BillingPage() {
                     <td className="px-4 py-2.5">
                       {p.kind === "agency"
                         ? "Offre Agence"
-                        : p.kind === "topup"
+                        : p.kind === "credit"
+                          ? "Crédit d'appels sortants"
+                          : p.kind === "topup"
                           ? `Recharge de ${new Intl.NumberFormat("fr-FR").format(p.minutes ?? 0)} minutes`
                           : `Offre ${getPlan(p.plan).name} · 30 jours`}
                       {p.promoCode && <span className="ml-2 font-mono text-xs text-muted-foreground">{p.promoCode}</span>}

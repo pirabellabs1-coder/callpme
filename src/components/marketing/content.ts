@@ -3,6 +3,7 @@
  * Les offres (PLANS) sont dérivées du catalogue de facturation src/lib/billing/plans.ts.
  */
 
+import { outboundRateEur } from "@/lib/billing/outbound-rates";
 import { PLANS as BILLING_PLANS, PLAN_ORDER, UNLIMITED } from "@/lib/billing/plans";
 
 export const MARKETS = [
@@ -147,4 +148,5 @@ export const FAQ = [
 ];
 
 /** Offre API (développeurs), à l'usage. */
-export const API_PRICE = "0,09 €";
+/** Offre API : appels payés sur crédit prépayé, à partir du prix d'une minute vers un fixe français. */
+export const API_PRICE = new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format(outboundRateEur("+33100000000"));

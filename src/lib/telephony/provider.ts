@@ -11,6 +11,7 @@
  *  - Twilio : TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_FROM_NUMBER
  *  - Telnyx : TELNYX_API_KEY, TELNYX_TEXML_APP_ID, TELNYX_FROM_NUMBER, TELNYX_PUBLIC_KEY
  */
+import { checkOutboundCredit } from "../billing/credit";
 import { createHmac, createPublicKey, timingSafeEqual, verify as edVerify } from "crypto";
 import type { Agent } from "../shared/types";
 import { createVoiceToken } from "../voice-engine/token";
@@ -104,6 +105,9 @@ export async function placeOutboundCall(opts: {
   const to = toE164(opts.toNumber);
   if (!to) return { ok: false, error: "Numéro invalide (format attendu : +33…)." };
   const from = fromNumber()!;
+  // Appel sortant payé d'avance : crédit suffisant pour au moins une minute vers cette destination.
+  const credit = await checkOutboundCredit(opts.agent.organizationId, to);
+  if (!credit.ok) return { ok: false, error: credit.error };
 
   // Passerelle SIP : session préparée puis appel lancé par Asterisk (ARI).
   if (provider === "sip") {

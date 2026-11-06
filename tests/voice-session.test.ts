@@ -100,6 +100,14 @@ vi.mock("@/lib/db/client", () => ({
 }));
 const quota = vi.hoisted(() => ({ minutes: 500 }));
 vi.mock("@/lib/billing/limits", () => ({ remainingMinutes: async () => quota.minutes }));
+const outbound = vi.hoisted(() => ({ ok: true, maxSeconds: 600, charged: [] as number[] }));
+vi.mock("@/lib/billing/credit", () => ({
+  checkOutboundCredit: async () => (outbound.ok ? { ok: true, maxSeconds: outbound.maxSeconds } : { ok: false, error: "Crédit insuffisant" }),
+  chargeOutboundCall: async (_o: string, _t: string, sec: number) => {
+    outbound.charged.push(sec);
+    return 0;
+  },
+}));
 
 import { CallSession, type VoiceTransport } from "@/lib/voice-engine/session";
 
@@ -375,4 +383,24 @@ describe("réponse en flux (l'agent parle dès la première phrase)", () => {
     expect(last.find((m) => m.role === "assistant" && m.content.includes("agenda"))?.content).toContain("[interrompu par l'appelant]");
     await s.end("completed");
   });
+
+describe("appels sortants payés d'avance", () => {
+  it("refuse l'appel sortant sans crédit, avant tout accueil", async () => {
+    outbound.ok = false;
+    try {
+      const events: { type: string; message?: string }[] = [];
+      const t: VoiceTransport = {
+        sendAudio: () => {},
+        clearAudio: () => {},
+        hangup: () => {},
+        sendEvent: (e: { type: string; message?: string }) => events.push(e),
+      } as unknown as VoiceTransport;
+      const s = new CallSession({ ...ctx, direction: "outbound" }, t);
+      await s.start();
+      expect(events.some((e) => e.type === "error" && /Crédit/.test(e.message ?? ""))).toBe(true);
+    } finally {
+      outbound.ok = true;
+    }
+  });
+});
 });

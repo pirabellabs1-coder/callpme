@@ -29,7 +29,9 @@ export default async function InvoicePage({ params }: { params: { id: string } }
   const label =
     payment.kind === "topup"
       ? `Recharge de ${fmt.format(payment.minutes ?? 0)} minutes d'appel`
-      : payment.kind === "agency"
+      : payment.kind === "credit"
+        ? "Crédit d'appels sortants (prépayé)"
+        : payment.kind === "agency"
         ? "Offre Agence (sur devis)"
         : `Abonnement ${getPlan(payment.plan).name} · 30 jours`;
 

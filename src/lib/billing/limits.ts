@@ -41,7 +41,8 @@ export async function orgSubscription(orgId: string, now = new Date()): Promise<
 /** Minutes d'appel consommées depuis une date. */
 export async function minutesUsedSince(orgId: string, since: Date): Promise<number> {
   const agg = await prisma.call.aggregate({
-    where: { agent: { organizationId: orgId }, createdAt: { gte: since } },
+    // Les appels sortants sont payés sur le crédit prépayé, pas sur les minutes de l'offre.
+    where: { agent: { organizationId: orgId }, createdAt: { gte: since }, direction: { not: "outbound" } },
     _sum: { durationSec: true },
   });
   return Math.round((agg._sum.durationSec ?? 0) / 60);
@@ -82,6 +83,20 @@ export async function canUseMinutes(orgId: string, _plan?: string): Promise<Limi
       ok: false,
       message: `${quotaMessage(sub)} Vous pouvez aussi recharger des minutes en Mobile Money dans Facturation.`,
     };
+  }
+  return { ok: true };
+}
+
+/**
+ * Appels sortants : offre active ET crédit prépayé. Le crédit exact par
+ * destination est revérifié au moment de composer (placeOutboundCall).
+ */
+export async function canCallOut(orgId: string): Promise<LimitCheck> {
+  const sub = await orgSubscription(orgId);
+  if (sub.status === "expired") return { ok: false, message: quotaMessage(sub) };
+  const org = await prisma.organization.findUnique({ where: { id: orgId }, select: { callCreditCents: true } });
+  if ((org?.callCreditCents ?? 0) <= 0) {
+    return { ok: false, message: "Les appels sortants se paient sur un crédit prépayé. Rechargez-le dans Facturation (Mobile Money ou carte)." };
   }
   return { ok: true };
 }

@@ -1,5 +1,6 @@
 "use server";
 
+import { CREDIT_PACKS } from "@/lib/billing/outbound-rates";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db/client";
 import { isOrgAdmin, requireSession } from "@/lib/auth/session";
@@ -246,6 +247,39 @@ export async function startTopup(packId: string): Promise<CheckoutResult> {
     description: `Recharge Callpme — ${pack.label}`,
     customer: { name: session.user.name ?? session.user.email, email: session.user.email },
     metadata: { paymentId: payment.id, orgId: session.org.id, kind: "topup", minutes: String(pack.minutes) },
+    successUrl: `${PUBLIC_URL}/billing/retour?pid=${payment.id}`,
+    errorUrl: `${PUBLIC_URL}/billing/retour?pid=${payment.id}&e=1`,
+  });
+  if (!result) {
+    await prisma.payment.update({ where: { id: payment.id }, data: { status: "failed" } });
+    return { error: "Le paiement n'a pas pu être initié. Réessayez." };
+  }
+  await prisma.payment.update({ where: { id: payment.id }, data: { reference: result.reference } });
+  return { url: result.checkoutUrl };
+}
+
+/** Recharge du crédit d'appels sortants (montant fixe en euros). */
+export async function startCreditTopup(amountEur: number): Promise<CheckoutResult> {
+  const session = await requireSession();
+  if (!isOrgAdmin(session)) return { error: "Seul un administrateur peut recharger le crédit." };
+  if (!(CREDIT_PACKS as readonly number[]).includes(amountEur)) return { error: "Montant inconnu." };
+  const sub = await orgSubscription(session.org.id);
+  if (sub.status === "expired") return { error: "Choisissez d'abord une offre : le crédit d'appels sortants s'utilise avec une offre active." };
+  if (!geniusConfigured()) return { error: "Paiement momentanément indisponible." };
+  const payment = await prisma.payment.create({
+    data: {
+      organizationId: session.org.id,
+      kind: "credit",
+      amountEur,
+      amountXof: eurToXof(amountEur),
+      status: "pending",
+    },
+  });
+  const result = await createGeniusPayment({
+    amountEur,
+    description: `Crédit d'appels sortants Callpme — ${amountEur} €`,
+    customer: { name: session.user.name ?? session.user.email, email: session.user.email },
+    metadata: { paymentId: payment.id, orgId: session.org.id, kind: "credit" },
     successUrl: `${PUBLIC_URL}/billing/retour?pid=${payment.id}`,
     errorUrl: `${PUBLIC_URL}/billing/retour?pid=${payment.id}&e=1`,
   });

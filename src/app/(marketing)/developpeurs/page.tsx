@@ -78,7 +78,7 @@ export default function DeveloppeursPage() {
       <PageHero
         eyebrow="Développeurs"
         title="Une API vocale simple et prévisible."
-        subtitle={`Créez des agents, lisez les appels et recevez les événements par webhook. ${API_PRICE} la minute, voix, transcription et téléphonie comprises.`}
+        subtitle={`Créez des agents, lisez les appels et recevez les événements par webhook. À partir de ${API_PRICE} la minute, voix, transcription et téléphonie comprises, payé sur crédit prépayé.`}
       >
         <PrimaryCta href="/register">Obtenir une clé d'API</PrimaryCta>
         <PrimaryCta href="#reference" variant="ghost">Documentation</PrimaryCta>

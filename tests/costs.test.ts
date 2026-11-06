@@ -63,3 +63,43 @@ describe("rentabilité", () => {
     expect(p.profit).toBeCloseTo(p.revenue - p.variableCosts - p.fixedCosts, 6);
   });
 });
+
+describe("appels sortants et marges", () => {
+  it("chaque destination garde au moins 50 % de marge, frais de paiement compris", async () => {
+    const { OUTBOUND_DESTINATIONS, outboundRateEur } = await import("@/lib/billing/outbound-rates");
+    for (const d of OUTBOUND_DESTINATIONS) {
+      const price = outboundRateEur(d.sample);
+      const cost = minuteCostEur({ channel: "outbound", to: d.sample }).total;
+      expect((price * 0.95 - cost) / price).toBeGreaterThanOrEqual(0.45);
+      expect((price - cost) / price).toBeGreaterThanOrEqual(0.5);
+    }
+  });
+
+  it("n'ouvre que les destinations au coût connu, facture la minute entamée", async () => {
+    const { outboundDestinationOpen, outboundChargeCents, outboundRateCents, maxSecondsForCredit } = await import("@/lib/billing/outbound-rates");
+    expect(outboundDestinationOpen("+22997000000")).toBe(true);
+    expect(outboundDestinationOpen("+44 20 7946 0000")).toBe(false);
+    const rate = outboundRateCents("+22997000000");
+    expect(outboundChargeCents(61, "+22997000000")).toBe(2 * rate);
+    expect(outboundChargeCents(0, "+22997000000")).toBe(0);
+    expect(maxSecondsForCredit(rate * 3 + 1, "+22997000000")).toBe(180);
+  });
+
+  it("chaque abonnement garde au moins 40 % de marge, même toutes les minutes utilisées", () => {
+    const per = minuteCostEur().total;
+    for (const plan of ["starter", "pro"] as const) {
+      const m = planMargin(plan, 1, per);
+      expect(m.margin / m.price).toBeGreaterThanOrEqual(0.4);
+    }
+  });
+
+  it("chaque recharge de minutes garde au moins 40 % de marge", async () => {
+    const { MINUTE_PACKS } = await import("@/lib/billing/topups");
+    const { geniusPayFeeEur } = await import("@/lib/costs/prices");
+    const per = minuteCostEur().total;
+    for (const p of MINUTE_PACKS) {
+      const margin = p.priceEur - p.minutes * per - geniusPayFeeEur(p.priceEur);
+      expect(margin / p.priceEur).toBeGreaterThanOrEqual(0.4);
+    }
+  });
+});

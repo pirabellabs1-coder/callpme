@@ -7,7 +7,7 @@ import { z } from "zod";
 import { getAgentById } from "@/lib/db/agents";
 import { placeOutboundCall, telephonyConfigured } from "@/lib/telephony/provider";
 import { checkDestination } from "@/lib/telephony/destinations";
-import { canUseMinutes } from "@/lib/billing/limits";
+import { canCallOut } from "@/lib/billing/limits";
 import { isOptedOut } from "@/lib/campaigns/engine";
 import { takeDailyQuota } from "@/lib/security/daily-quota";
 import { toE164 } from "@/lib/telephony/e164";
@@ -94,7 +94,7 @@ export async function POST(req: NextRequest) {
     const dest = checkDestination(to);
     if (!dest.ok) return badRequest(dest.reason ?? "Destination non autorisée");
     if (await isOptedOut(org.id, to)) return forbidden("Ce numéro a demandé à ne plus être appelé (liste d'opposition).");
-    const quota = await canUseMinutes(org.id);
+    const quota = await canCallOut(org.id);
     if (!quota.ok) return forbidden(quota.message);
     if (!(await takeDailyQuota(org.id, "apicall"))) return forbidden("Plafond quotidien d'appels par API atteint. Réessayez demain.");
 

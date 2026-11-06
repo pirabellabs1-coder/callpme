@@ -57,6 +57,14 @@ export async function confirmAndActivatePayment(
   });
   if (claimed.count !== 1) return "completed";
   await assignInvoiceNumber(payment.id);
+  if (payment.kind === "credit") {
+    // Crédit d'appels sortants : le montant payé, en centimes.
+    await prisma.organization.update({
+      where: { id: payment.organizationId },
+      data: { callCreditCents: { increment: Math.max(0, Math.round(payment.amountEur * 100)) } },
+    });
+    return "completed";
+  }
   if (payment.kind === "topup") {
     await prisma.organization.update({
       where: { id: payment.organizationId },

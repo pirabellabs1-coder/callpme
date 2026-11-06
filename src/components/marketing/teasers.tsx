@@ -51,7 +51,7 @@ export function DevTeaser() {
             Intégrez Callpme à vos propres outils.
           </h2>
           <p className="mt-4 max-w-md text-sm leading-relaxed text-muted-foreground">
-            API REST, clés d'API et webhooks signés. {API_PRICE} la minute, voix, transcription et téléphonie comprises.
+            API REST, clés d'API et webhooks signés. À partir de {API_PRICE} la minute, voix, transcription et téléphonie comprises.
           </p>
           <div className="mt-8">
             <PrimaryCta href="/developpeurs" variant="ghost">Découvrir l'API</PrimaryCta>

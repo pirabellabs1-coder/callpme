@@ -302,7 +302,7 @@ export function PricingCards() {
         ))}
       </div>
       <p className="mt-8 text-center text-sm text-muted-foreground">
-        Vous êtes développeur ? {API_PRICE} la minute tout compris, facturé à l'usage.{" "}
+        Vous êtes développeur ? À partir de {API_PRICE} la minute tout compris, sur crédit prépayé.{" "}
         <Link href="/developpeurs" className="text-foreground underline underline-offset-4">Voir l'API</Link>
       </p>
     </>

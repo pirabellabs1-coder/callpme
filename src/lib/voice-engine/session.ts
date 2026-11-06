@@ -30,6 +30,7 @@ import { QualityTracker } from "./quality";
 import { defaultPlatformVoice } from "../voices/platform";
 import { loadStudioExtras } from "../voices/studio";
 import { CostMeter } from "../costs/meter";
+import { chargeOutboundCall, checkOutboundCredit } from "../billing/credit";
 import { runWithUsage } from "../llm/usage";
 
 /** Ce que le transport doit savoir faire. */
@@ -45,6 +46,9 @@ export interface VoiceTransport {
   /** Transfère l'appel vers un numéro (téléphone uniquement). */
   transfer?(toNumber: string): Promise<boolean>;
 }
+
+/** Durée maximale d'un transfert (voir telephony/provider), prépayée hors de France. */
+const TRANSFER_PREPAID_SEC = 600;
 
 const VOICE_STYLE =
   "## Style oral\nTu parles au téléphone : phrases courtes, une idée à la fois, pas de listes, " +
@@ -128,14 +132,25 @@ export class CallSession {
       where: { id: agent.organizationId },
       select: { name: true, plan: true },
     });
-    // Le quota est revérifié au décroché et plafonne la durée de l'appel.
-    const remaining = await remainingMinutes(agent.organizationId, org?.plan ?? "starter");
-    if (this.ended) return;
-    if (remaining <= 0) {
-      this.transport.sendEvent?.({ type: "error", message: "Quota de minutes atteint." });
-      return this.end("failed");
+    if (this.ctx.direction === "outbound") {
+      // Appel sortant : payé sur le crédit prépayé, durée plafonnée par ce crédit.
+      const credit = await checkOutboundCredit(agent.organizationId, this.ctx.to);
+      if (this.ended) return;
+      if (!credit.ok) {
+        this.transport.sendEvent?.({ type: "error", message: credit.error ?? "Crédit d'appels sortants insuffisant." });
+        return this.end("failed");
+      }
+      this.quotaSec = credit.maxSeconds ?? 0;
+    } else {
+      // Le quota est revérifié au décroché et plafonne la durée de l'appel.
+      const remaining = await remainingMinutes(agent.organizationId, org?.plan ?? "starter");
+      if (this.ended) return;
+      if (remaining <= 0) {
+        this.transport.sendEvent?.({ type: "error", message: "Quota de minutes atteint." });
+        return this.end("failed");
+      }
+      this.quotaSec = remaining * 60;
     }
-    this.quotaSec = remaining * 60;
     this.organizationName = org?.name ?? "";
     // Sans voix choisie (ou voix retirée), première voix active du catalogue.
     // Voix réglée au Studio : réglages et prononciations relus à jour à chaque appel.
@@ -428,7 +443,7 @@ export class CallSession {
         if (call.name === "transferToHuman") {
           // Sans numéro ou hors téléphone, ne pas annoncer un transfert qui n'aura pas lieu.
           if (!this.canTransfer()) reply = TRANSFER_UNAVAILABLE;
-          else await this.transferToHuman();
+          else if (!(await this.transferToHuman())) reply = TRANSFER_UNAVAILABLE;
         }
       }
     } catch {
@@ -458,24 +473,34 @@ export class CallSession {
     }
   }
 
-  private async transferToHuman() {
+  /** Transfère vers un humain ; renvoie false si le transfert n'a pas pu partir. */
+  private async transferToHuman(): Promise<boolean> {
     const number = this.agent.config.transferNumber;
-    if (!number || !this.transport.transfer || !this.providerCallId) return;
+    if (!number || !this.transport.transfer || !this.providerCallId) return false;
     // Défense en profondeur : jamais de transfert vers une destination non autorisée.
-    if (!checkDestination(number).ok) return;
+    if (!checkDestination(number).ok) return false;
+    // Transfert hors de France : payé sur le crédit, 10 minutes (durée maximale) d'avance.
+    const international = !number.replace(/[^\d+]/g, "").startsWith("+33");
+    if (international) {
+      const credit = await checkOutboundCredit(this.agent.organizationId, number);
+      if (!credit.ok || (credit.maxSeconds ?? 0) < TRANSFER_PREPAID_SEC) return false;
+    }
     // Annonce courte, puis transfert une fois la phrase jouée.
     await this.speak("Je vous mets en relation avec un conseiller, ne quittez pas.");
     const wait = Math.max(0, this.playbackUntil - Date.now()) + 300;
     await new Promise((r) => setTimeout(r, wait));
-    if (this.ended) return;
+    // Raccroché pendant l'annonce : rien d'autre à dire.
+    if (this.ended) return true;
     this.transferring = true;
     const ok = await this.transport.transfer(number);
     if (ok) {
+      if (international) await chargeOutboundCall(this.agent.organizationId, number, TRANSFER_PREPAID_SEC).catch(() => {});
       this.status = "transferred";
       await this.end("transferred", { keepLine: true });
-    } else {
-      this.transferring = false;
+      return true;
     }
+    this.transferring = false;
+    return false;
   }
 
   /** Le transfert vers un humain est-il réellement possible sur cet appel ? */

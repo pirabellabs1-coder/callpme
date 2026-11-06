@@ -232,6 +232,7 @@ export class CallSession {
           callId: this.ctx.callId,
           callerNumber: this.ctx.direction === "outbound" ? this.ctx.to : this.ctx.from,
           extraInstructions: VOICE_STYLE,
+          test: this.ctx.direction === "web",
         },
         this.history,
       );

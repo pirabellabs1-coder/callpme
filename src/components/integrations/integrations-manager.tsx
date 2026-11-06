@@ -17,7 +17,7 @@ import {
   type IntegrationInfo,
 } from "@/lib/integrations/catalog";
 import { Card } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -70,10 +70,9 @@ export function IntegrationsManager({ connected }: { connected: Connected[] }) {
         <div className="text-sm text-muted-foreground text-pretty">
           <p className="font-medium text-foreground">Ce que fait cette page</p>
           <p className="mt-0.5">
-            Vous enregistrez ici les identifiants de vos outils pour votre organisation.
-            Callpme ne teste pas encore la connexion auprès du service et aucune
-            synchronisation automatique n&apos;est active pour l&apos;instant : vérifiez
-            vos identifiants chez le fournisseur.
+            Les intégrations marquées « Synchronisation active » sont utilisées par vos agents
+            pendant les appels (agenda, fiches contacts). Pour les autres, Callpme conserve vos
+            identifiants chiffrés en attendant leur synchronisation.
           </p>
         </div>
       </div>
@@ -126,13 +125,19 @@ export function IntegrationsManager({ connected }: { connected: Connected[] }) {
                 <p className="mt-1 flex-1 text-sm text-muted-foreground text-pretty">
                   {integ.description}
                 </p>
+                {integ.live && (
+                  <p className="mt-2 text-xs text-muted-foreground text-pretty">
+                    <Badge variant="brand" className="mb-1">Synchronisation active</Badge>
+                    <span className="block">{integ.live}</span>
+                  </p>
+                )}
 
                 <div className="mt-3 min-h-[1.5rem]">
                   {on ? (
                     <p className="flex min-w-0 items-center gap-2 text-xs">
                       <Badge variant="success">
                         <KeyRound aria-hidden="true" />
-                        Identifiants enregistrés
+                        {integ.oauth ? "Connecté" : "Identifiants enregistrés"}
                       </Badge>
                       {account && (
                         <span className="truncate text-muted-foreground" title={account}>
@@ -147,6 +152,12 @@ export function IntegrationsManager({ connected }: { connected: Connected[] }) {
 
                 {on ? (
                   <div className="mt-4 flex gap-2">
+                    {integ.oauth ? (
+                      <a href={integ.oauth.connectUrl} className={buttonVariants({ variant: "outline", size: "sm", className: "flex-1" })}>
+                          <RefreshCw className="size-4" aria-hidden="true" />
+                          Reconnecter
+                        </a>
+                    ) : (
                     <Button
                       variant="outline"
                       size="sm"
@@ -158,6 +169,7 @@ export function IntegrationsManager({ connected }: { connected: Connected[] }) {
                       <RefreshCw className="size-4" aria-hidden="true" />
                       Mettre à jour
                     </Button>
+                    )}
                     <Button
                       variant="ghost"
                       size="sm"
@@ -174,6 +186,11 @@ export function IntegrationsManager({ connected }: { connected: Connected[] }) {
                       Retirer
                     </Button>
                   </div>
+                ) : integ.oauth ? (
+                  <a href={integ.oauth.connectUrl} className={buttonVariants({ variant: "default", size: "sm", className: "mt-4" })}>
+                      <Plug className="size-4" aria-hidden="true" />
+                      {integ.oauth.label}
+                    </a>
                 ) : (
                   <Button
                     variant="default"

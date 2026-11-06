@@ -6,6 +6,7 @@
 import type {
   Agent,
   AgentConfig,
+  BookingConfig,
   AgentRole,
   AgentStatus,
   FirstSpeaker,
@@ -45,6 +46,8 @@ export interface WizardState {
   maxDurationMin: number;
   /** Numéro de transfert vers un humain (E.164), vide = aucun. */
   transferNumber: string;
+  /** Prise de rendez-vous (horaires, durée, SMS) ; null = réglages par défaut. */
+  booking: BookingConfig | null;
   guardrails: string[];
   persona: string;
   tools: string[];
@@ -91,6 +94,7 @@ export function initialState(
       tools: agent.config.tools,
       phoneNumber: agent.phoneNumber ?? null,
       transferNumber: agent.config.transferNumber ?? "",
+      booking: agent.config.booking ?? null,
       knowledgeBaseId: agent.knowledgeBaseId ?? "",
     };
   }
@@ -116,6 +120,7 @@ export function initialState(
     tools: template ? ROLE_META[template.role].defaultTools : [],
     phoneNumber: null,
     transferNumber: "",
+    booking: null,
     knowledgeBaseId: "",
   };
 }
@@ -233,6 +238,7 @@ export function buildPayload(
         : undefined,
     maxDurationSec: s.maxDurationMin > 0 ? s.maxDurationMin * 60 : undefined,
     ...(s.transferNumber.trim() ? { transferNumber: s.transferNumber.trim() } : {}),
+    ...(s.booking ? { booking: s.booking } : {}),
   };
   return {
     name: s.name.trim() || "Agent sans nom",

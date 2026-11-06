@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { ToolsPicker } from "./tools-picker";
 import { GuardrailsEditor } from "./guardrails-editor";
+import { BookingSettings } from "./booking-settings";
 import type { SetWizardState, StepErrors, WizardState } from "./state";
 
 export function StepTools({
@@ -80,6 +81,10 @@ export function StepTools({
           onCreated={onToolCreated}
         />
       </div>
+
+      {s.tools.some((t) => t === "checkAvailability" || t === "bookAppointment") && (
+        <BookingSettings value={s.booking} onChange={(booking) => set({ booking })} />
+      )}
 
       <GuardrailsEditor
         guardrails={s.guardrails}

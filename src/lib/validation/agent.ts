@@ -23,6 +23,29 @@ export const modelSchema = z.object({
   temperature: z.number().min(0).max(1),
 });
 
+const hm = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Heure HH:MM");
+export const bookingSchema = z.object({
+  timezone: z
+    .string()
+    .max(60)
+    .refine((tz) => {
+      try {
+        new Intl.DateTimeFormat("en-US", { timeZone: tz });
+        return true;
+      } catch {
+        return false;
+      }
+    }, "Fuseau horaire inconnu"),
+  durationMin: z.number().int().min(5).max(480),
+  hours: z.record(
+    z.enum(["0", "1", "2", "3", "4", "5", "6"]),
+    z.array(z.tuple([hm, hm]).refine(([a, b]) => a < b, "Plage horaire invalide")).max(4),
+  ),
+  minNoticeMin: z.number().int().min(0).max(10080),
+  maxDaysAhead: z.number().int().min(1).max(365),
+  smsConfirmation: z.boolean(),
+});
+
 export const configSchema = z.object({
   voice: voiceSchema,
   model: modelSchema,
@@ -53,6 +76,7 @@ export const configSchema = z.object({
     // Le transfert est payé par la plateforme : mêmes règles que les appels sortants.
     .refine((v) => !v || checkDestination(v).ok, "Destination non autorisée (pays non couvert ou numéro surtaxé).")
     .optional(),
+  booking: bookingSchema.optional(),
 });
 
 export const createAgentSchema = z.object({

@@ -20,6 +20,10 @@ export interface IntegrationInfo {
   fields: IntegrationField[];
   /** Page officielle où récupérer la clé/jeton (s'ouvre dans un onglet). */
   docsUrl: string;
+  /** Connexion par OAuth (bouton « Connecter ») plutôt que par saisie d'identifiants. */
+  oauth?: { connectUrl: string; label: string };
+  /** Ce que Callpme fait réellement avec l'intégration (absent = identifiants stockés seulement). */
+  live?: string;
 }
 
 export const INTEGRATION_CATALOG: IntegrationInfo[] = [
@@ -30,17 +34,17 @@ export const INTEGRATION_CATALOG: IntegrationInfo[] = [
     description: "Synchronisez les rendez-vous pris par vos agents.",
     icon: "CalendarClock",
     accountLabel: "Compte Google",
-    fields: [
-      { key: "access_token", label: "Jeton d'accès OAuth", type: "password", required: true },
-      { key: "calendar_id", label: "ID d'agenda", placeholder: "primary", type: "text" },
-    ],
-    docsUrl: "https://console.cloud.google.com/apis/credentials",
+    fields: [],
+    docsUrl: "https://myaccount.google.com/permissions",
+    oauth: { connectUrl: "/api/integrations/google/connect", label: "Connecter avec Google" },
+    live: "Créneaux occupés pris en compte, rendez-vous ajoutés et retirés automatiquement.",
   },
   {
     id: "hubspot",
     name: "HubSpot",
     category: "CRM",
     description: "Créez et mettez à jour des contacts automatiquement.",
+    live: "Chaque prospect est créé ou complété dans HubSpot, avec une note d'appel.",
     icon: "Users",
     accountLabel: "Portail HubSpot",
     fields: [
@@ -78,6 +82,7 @@ export const INTEGRATION_CATALOG: IntegrationInfo[] = [
     name: "Pipedrive",
     category: "CRM",
     description: "Synchronisez vos opportunités commerciales.",
+    live: "Chaque prospect est créé dans Pipedrive, avec une note d'appel.",
     icon: "TrendingUp",
     accountLabel: "Compte Pipedrive",
     fields: [

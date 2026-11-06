@@ -34,6 +34,8 @@ model Organization {
   integrations   Integration[]
   payments       Payment[]
   agencyRequests AgencyRequest[]
+  appointments   Appointment[]
+  leads          Lead[]
   createdAt      DateTime             @default(now())
 }
 
@@ -109,8 +111,10 @@ model Agent {
   phoneNumber     String?        @unique
   calls           Call[]
   campaigns       Campaign[]
-  createdAt        DateTime      @default(now())
-  updatedAt        DateTime      @updatedAt
+  appointments    Appointment[]
+  leads           Lead[]
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
 
   @@index([organizationId])
   @@index([clientId])
@@ -118,22 +122,22 @@ model Agent {
 }
 
 model Call {
-  id           String   @id @default(cuid())
-  agentId      String
-  agent        Agent    @relation(fields: [agentId], references: [id], onDelete: Cascade)
-  direction    String // inbound | outbound
-  fromNumber   String
-  toNumber     String
-  status       String // completed | transferred | failed | missed | in_progress
-  durationSec  Int      @default(0)
-  transcript   String // JSON: TranscriptTurn[]
-  audioUrl     String? // enregistrement réel de l'appel (data URL), si capté
-  providerCallId String? @unique // identifiant de l'appel chez l'opérateur téléphonique
-  summary      String?
-  outcome      String?
-  satisfaction Int? // 1..5
-  createdAt    DateTime    @default(now())
-  evaluation   Evaluation?
+  id             String      @id @default(cuid())
+  agentId        String
+  agent          Agent       @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  direction      String // inbound | outbound
+  fromNumber     String
+  toNumber       String
+  status         String // completed | transferred | failed | missed | in_progress
+  durationSec    Int         @default(0)
+  transcript     String // JSON: TranscriptTurn[]
+  audioUrl       String? // enregistrement réel de l'appel (data URL), si capté
+  providerCallId String?     @unique // identifiant de l'appel chez l'opérateur téléphonique
+  summary        String?
+  outcome        String?
+  satisfaction   Int? // 1..5
+  createdAt      DateTime    @default(now())
+  evaluation     Evaluation?
 
   @@index([agentId])
   @@index([status])
@@ -227,17 +231,17 @@ model Campaign {
 }
 
 model Contact {
-  id          String    @id @default(cuid())
-  campaignId  String
-  campaign    Campaign  @relation(fields: [campaignId], references: [id], onDelete: Cascade)
-  name        String
-  phone       String
-  status      String    @default("pending") // pending | calling | completed | failed | no_answer | opted_out
-  outcome     String?
-  data        String? // JSON champs additionnels
-  calledAt    DateTime?
-  providerCallId String? @unique // appel chez l'opérateur (Twilio CallSid, Telnyx) lié au contact
-  createdAt   DateTime  @default(now())
+  id             String    @id @default(cuid())
+  campaignId     String
+  campaign       Campaign  @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  name           String
+  phone          String
+  status         String    @default("pending") // pending | calling | completed | failed | no_answer | opted_out
+  outcome        String?
+  data           String? // JSON champs additionnels
+  calledAt       DateTime?
+  providerCallId String?   @unique // appel chez l'opérateur (Twilio CallSid, Telnyx) lié au contact
+  createdAt      DateTime  @default(now())
 
   @@index([campaignId])
   @@index([status])
@@ -363,18 +367,77 @@ model Payment {
 
 // ----- Demandes d'offre Agence (devis sur-mesure) -----
 model AgencyRequest {
-  id             String       @id @default(cuid())
-  organizationId String
-  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  contactName    String
-  contactEmail   String
-  objectives     String // objectifs du client
-  budgetEur      Int // budget annoncé par le client (€)
-  status         String       @default("pending") // pending | quoted | paid | rejected
+  id              String       @id @default(cuid())
+  organizationId  String
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  contactName     String
+  contactEmail    String
+  objectives      String // objectifs du client
+  budgetEur       Int // budget annoncé par le client (€)
+  status          String       @default("pending") // pending | quoted | paid | rejected
   quotedAmountEur Int? // montant fixé par l'admin (€)
-  adminNote      String? // message de l'admin
-  createdAt      DateTime     @default(now())
+  adminNote       String? // message de l'admin
+  createdAt       DateTime     @default(now())
 
   @@index([organizationId])
   @@index([status])
+}
+
+// ----- Rendez-vous pris par les agents (agenda intégré) -----
+model Appointment {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  agentId        String?
+  agent          Agent?       @relation(fields: [agentId], references: [id], onDelete: SetNull)
+  /// Référence courte donnée au client (ex. RDV-4K7P2).
+  reference      String       @unique
+  customerName   String
+  customerPhone  String?
+  customerEmail  String?
+  notes          String?
+  startsAt       DateTime
+  durationMin    Int          @default(30)
+  status         String       @default("booked") // booked | cancelled
+  /// Verrou anti double réservation : "agentId:ISO" tant que le RDV est actif, null une fois annulé.
+  slotKey        String?      @unique
+  /// Pris pendant un test (navigateur / chat) : pas de SMS, pas de synchronisation.
+  isTest         Boolean      @default(false)
+  source         String       @default("call") // call | dashboard | api
+  callRef        String?
+  googleEventId  String?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@index([organizationId, startsAt])
+  @@index([agentId, startsAt])
+  @@index([customerPhone])
+}
+
+// ----- Prospects / contacts collectés pendant les appels (mini-CRM) -----
+model Lead {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  agentId        String?
+  agent          Agent?       @relation(fields: [agentId], references: [id], onDelete: SetNull)
+  name           String
+  phone          String?
+  email          String?
+  notes          String?
+  /// Score de qualification 0–100.
+  score          Int?
+  interest       String? // faible | moyen | fort
+  status         String       @default("new") // new | contacted | qualified | won | lost
+  kind           String       @default("lead") // lead | message | callback | ticket
+  callbackAt     DateTime?
+  isTest         Boolean      @default(false)
+  callRef        String?
+  /// Identifiants dans les CRM externes (JSON : { hubspot, pipedrive }).
+  externalIds    String?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@index([organizationId, createdAt])
+  @@index([organizationId, phone])
 }

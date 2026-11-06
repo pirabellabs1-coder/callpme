@@ -48,7 +48,7 @@ export async function POST(
 
     // Même cerveau que le moteur vocal : prompt, RAG et outils partagés.
     const result = await agentReply(
-      { agent, organizationId: session.org.id, callId: "test", callerNumber: "navigateur" },
+      { agent, organizationId: session.org.id, callId: "test", callerNumber: "navigateur", test: true },
       parsed.data.messages,
     );
     const messages = result.prepared.messages;

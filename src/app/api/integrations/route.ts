@@ -25,6 +25,7 @@ export async function POST(req: NextRequest) {
       return badRequest("Intégration inconnue");
     }
     const info = getIntegration(parsed.data.provider)!;
+    if (info.oauth) return badRequest(`${info.name} se connecte via le bouton « ${info.oauth.label} ».`);
     const creds = parsed.data.credentials ?? {};
 
     // Vérifie que les identifiants requis sont bien fournis (vraie connexion).

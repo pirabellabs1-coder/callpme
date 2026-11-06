@@ -7,7 +7,9 @@
  */
 import { retrieveContext } from "../db/knowledge";
 import { listCustomToolsFull } from "../db/custom-tools";
-import { getTool, resolveTools } from "../tools/registry";
+import { resolveTools } from "../tools/registry";
+import { runBuiltinTool } from "../tools/handlers";
+import { bookingConfig } from "../agenda/slots";
 import { signPayload } from "../webhooks/dispatch";
 import { publicRequest } from "../net/safe-fetch";
 import {
@@ -33,6 +35,26 @@ export interface BrainContext {
   callerNumber: string;
   /** Consigne ajoutée au prompt système (ex. style oral pour la voix). */
   extraInstructions?: string;
+  /** Conversation de test : les outils n'ont pas d'effet externe. */
+  test?: boolean;
+}
+
+/** Date et heure courantes dans le fuseau de l'agent (indispensable pour l'agenda). */
+function nowContext(agent: Agent): string {
+  const tz = bookingConfig(agent.config.booking).timezone;
+  const now = new Date();
+  const label = new Intl.DateTimeFormat("fr-FR", {
+    timeZone: tz,
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(now);
+  const ymd = new Intl.DateTimeFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit" }).format(now);
+  return `## Contexte
+Nous sommes le ${label} (fuseau ${tz}, date du jour ${ymd}). Convertis « demain », « lundi prochain »… en date AAAA-MM-JJ avant d'utiliser les outils d'agenda.`;
 }
 
 export interface PreparedTurn {
@@ -46,6 +68,7 @@ export async function prepareTurn(ctx: BrainContext, history: Turn[]): Promise<P
   const { agent } = ctx;
   let systemContent = agent.config.systemPrompt;
   if (ctx.extraInstructions) systemContent += `\n\n${ctx.extraInstructions}`;
+  systemContent += `\n\n${nowContext(agent)}`;
 
   // RAG : contexte pertinent pour la dernière question de l'appelant.
   if (agent.knowledgeBaseId) {
@@ -75,15 +98,18 @@ export async function prepareTurn(ctx: BrainContext, history: Turn[]): Promise<P
   ];
 
   const executeTool: ToolExecutor = async (name, args) => {
-    const builtin = getTool(name);
+    const builtin = await runBuiltinTool(name, args, {
+      agentId: agent.id,
+      organizationId: ctx.organizationId,
+      callId: ctx.callId,
+      callerNumber: ctx.callerNumber,
+      test: ctx.test,
+    });
     if (builtin) {
-      const r = await builtin.handler(args, {
-        agentId: agent.id,
-        organizationId: ctx.organizationId,
-        callId: ctx.callId,
-        callerNumber: ctx.callerNumber,
-      });
-      return { message: r.message ?? "Outil exécuté.", data: r.data };
+      return {
+        message: builtin.message ?? (builtin.ok ? "Outil exécuté." : "Échec de l'outil."),
+        data: { ok: builtin.ok, ...builtin.data },
+      };
     }
     const custom = customByName.get(name);
     if (custom?.serverUrl) {

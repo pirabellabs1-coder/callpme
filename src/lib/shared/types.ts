@@ -126,6 +126,8 @@ export interface ToolContext {
   organizationId: string;
   callId: string;
   callerNumber: string;
+  /** Conversation de test (chat ou micro du tableau de bord) : pas d'effet externe. */
+  test?: boolean;
 }
 
 /* ------------------------------------------------------------------ */
@@ -157,6 +159,26 @@ export interface AgentConfig {
   maxDurationSec?: number;
   /** Numéro (E.164) vers lequel transférer l'appel quand un humain est demandé. */
   transferNumber?: string;
+  /** Prise de rendez-vous (horaires, durée, confirmation SMS). */
+  booking?: BookingConfig;
+}
+
+/** Plage horaire « HH:MM » → « HH:MM ». */
+export type TimeRange = [string, string];
+
+export interface BookingConfig {
+  /** Fuseau horaire IANA (ex. Europe/Paris, Africa/Abidjan). */
+  timezone: string;
+  /** Durée d'un rendez-vous, en minutes. */
+  durationMin: number;
+  /** Horaires d'ouverture par jour (0 = dimanche … 6 = samedi). */
+  hours: Partial<Record<"0" | "1" | "2" | "3" | "4" | "5" | "6", TimeRange[]>>;
+  /** Délai minimal avant un rendez-vous, en minutes. */
+  minNoticeMin: number;
+  /** Horizon de réservation, en jours. */
+  maxDaysAhead: number;
+  /** Envoyer un SMS de confirmation à l'appelant. */
+  smsConfirmation: boolean;
 }
 
 export interface Agent {

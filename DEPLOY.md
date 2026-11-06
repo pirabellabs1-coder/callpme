@@ -68,6 +68,20 @@ données de l'application.
 3. **Application** : renseignez `VOICE_SERVER_URL` (`wss://voice.votre-domaine.com`)
    côté Vercel. Vérifiez `https://voice.votre-domaine.com/health`.
 
+### Actions des agents (agenda, prospects, SMS)
+
+- **Agenda intégré** : fonctionne sans configuration (horaires réglés par agent).
+- **Google Agenda** : dans la console Google Cloud, activez l'API Google
+  Calendar et ajoutez l'URI de redirection
+  `https://votre-domaine.com/api/integrations/google/callback` au client OAuth
+  (`GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET`). Les clients se connectent
+  ensuite depuis « Intégrations ».
+- **HubSpot / Pipedrive** : jeton saisi par le client dans « Intégrations ».
+- **SMS** : le numéro de l'opérateur doit pouvoir envoyer des SMS
+  (`TWILIO_SMS_FROM` / `TELNYX_SMS_FROM` s'il diffère du numéro d'appel).
+- **E-mails de suivi** : via Resend (`RESEND_API_KEY`).
+- Nouvelles tables (`Appointment`, `Lead`) : `npx prisma db push`.
+
 ### Téléphonie (Twilio ou Telnyx)
 
 - `TELEPHONY_PROVIDER` = `twilio` ou `telnyx`, avec les identifiants et le

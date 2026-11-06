@@ -4,6 +4,8 @@ import {
   LayoutTemplate,
   Megaphone,
   PhoneCall,
+  CalendarDays,
+  Inbox,
   BarChart3,
   Building2,
   Hash,
@@ -30,6 +32,8 @@ export const PRIMARY_NAV: NavItem[] = [
   { href: "/templates", label: "Modèles", icon: LayoutTemplate },
   { href: "/campaigns", label: "Campagnes", icon: Megaphone, match: "/campaigns" },
   { href: "/calls", label: "Appels", icon: PhoneCall, match: "/calls" },
+  { href: "/appointments", label: "Rendez-vous", icon: CalendarDays },
+  { href: "/leads", label: "Prospects", icon: Inbox },
   { href: "/analytics", label: "Statistiques", icon: BarChart3 },
 ];
 

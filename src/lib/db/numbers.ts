@@ -2,6 +2,7 @@
  * Dépôt « Numéros » et « Connexions opérateur ».
  */
 import { prisma } from "./client";
+import { encryptSecret } from "../crypto/secrets";
 import type {
   PhoneNumberRecord,
   ProviderConnectionRecord,
@@ -111,10 +112,10 @@ export async function createProvider(
       organizationId: orgId,
       provider: data.provider,
       label: data.label,
-      accountSid: data.accountSid || null,
-      authToken: data.authToken || null,
-      apiKey: data.apiKey || null,
-      apiSecret: data.apiSecret || null,
+      accountSid: encryptSecret(data.accountSid),
+      authToken: encryptSecret(data.authToken),
+      apiKey: encryptSecret(data.apiKey),
+      apiSecret: encryptSecret(data.apiSecret),
     },
   });
   return {

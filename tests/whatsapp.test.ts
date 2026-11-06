@@ -9,6 +9,8 @@ const db = vi.hoisted(() => ({
 vi.mock("@/lib/db/client", () => ({
   prisma: {
     channelEvent: {
+      deleteMany: async () => ({ count: 0 }),
+      delete: async () => ({}),
       create: async ({ data }: { data: { id: string } }) => {
         if (db.events.has(data.id)) {
           const { Prisma } = await import("@prisma/client");

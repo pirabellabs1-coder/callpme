@@ -7,6 +7,7 @@ import { prisma } from "../db/client";
 import { recordContactOutcome } from "../campaigns/engine";
 import { dispatchEvent } from "../webhooks/dispatch";
 import { analyzeCall } from "../analysis/analyze";
+import { consumeExtraMinutes } from "../billing/limits";
 import type { Agent, CallStatus, TranscriptTurn } from "../shared/types";
 
 export interface FinishCallInput {
@@ -92,6 +93,9 @@ export async function finishCall(input: FinishCallInput) {
     // Relance planifiée selon les réglages de la campagne (non-réponse, répondeur…).
     await recordContactOutcome({ contactId, organizationId: input.organizationId }, status, outcome).catch(() => {});
   }
+
+  // Minutes rechargées : seule la partie au-delà de l'offre est décomptée.
+  await consumeExtraMinutes(input.organizationId, durationSec).catch(() => {});
 
   await dispatchEvent(input.organizationId, input.status === "transferred" ? "call.transferred" : "call.completed", {
     id: call.id,

@@ -123,7 +123,9 @@ export async function handleWhatsAppWebhook(channel: WhatsAppChannel, payload: W
   if (!token || !channel.enabled) return;
   // Purge occasionnelle des identifiants déjà traités (7 jours suffisent contre les renvois de Meta).
   if (Math.random() < 0.02) {
-    void prisma.channelEvent.deleteMany({ where: { createdAt: { lt: new Date(Date.now() - 7 * 86_400_000) } } }).catch(() => {});
+    Promise.resolve()
+      .then(() => prisma.channelEvent.deleteMany({ where: { createdAt: { lt: new Date(Date.now() - 7 * 86_400_000) } } }))
+      .catch(() => {});
   }
   for (const { message, name } of extractMessages(payload, channel.phoneNumberId).slice(0, 5)) {
     if (!message.id || IGNORED_TYPES.has(message.type) || !(await claimMessage(message.id))) continue;

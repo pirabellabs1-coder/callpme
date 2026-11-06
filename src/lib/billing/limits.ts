@@ -3,6 +3,7 @@
  */
 import { getPlan } from "./plans";
 import { subscriptionState, type SubscriptionState } from "./subscription";
+import { extraMinutesConsumed } from "./topups";
 import { countAgents } from "@/lib/db/agents";
 import { prisma } from "@/lib/db/client";
 
@@ -59,20 +60,50 @@ function quotaMessage(sub: SubscriptionState): string {
   return `Quota de l'offre ${sub.plan.name} atteint (${sub.minutesIncluded} minutes). Passez à une offre supérieure pour continuer.`;
 }
 
+/** Minutes rechargées encore disponibles (inutilisables si l'abonnement a expiré). */
+export async function extraMinutesBalance(orgId: string, sub?: SubscriptionState): Promise<number> {
+  const state = sub ?? (await orgSubscription(orgId));
+  if (state.status === "expired") return 0;
+  const org = await prisma.organization.findUnique({ where: { id: orgId }, select: { extraMinutes: true } });
+  return Math.max(0, org?.extraMinutes ?? 0);
+}
+
 /**
- * Reste-t-il des minutes sur l'abonnement ? (Le paramètre `_plan` est
- * conservé pour compatibilité : l'offre est relue en base.)
+ * Reste-t-il des minutes (offre + recharges) ? Le paramètre `_plan` est
+ * conservé pour compatibilité : l'offre est relue en base.
  */
 export async function canUseMinutes(orgId: string, _plan?: string): Promise<LimitCheck> {
   const sub = await orgSubscription(orgId);
-  const used = sub.minutesIncluded > 0 ? await minutesUsedSince(orgId, sub.periodStart) : 0;
-  if (used >= sub.minutesIncluded) return { ok: false, message: quotaMessage(sub) };
+  if (sub.status === "expired") return { ok: false, message: quotaMessage(sub) };
+  const [used, extra] = await Promise.all([minutesUsedSince(orgId, sub.periodStart), extraMinutesBalance(orgId, sub)]);
+  if (used >= sub.minutesIncluded + extra) {
+    return {
+      ok: false,
+      message: `${quotaMessage(sub)} Vous pouvez aussi recharger des minutes en Mobile Money dans Facturation.`,
+    };
+  }
   return { ok: true };
 }
 
-/** Minutes restantes (sert à plafonner la durée d'un appel). */
+/** Minutes restantes, recharges comprises (sert à plafonner la durée d'un appel). */
 export async function remainingMinutes(orgId: string, _plan?: string): Promise<number> {
   const sub = await orgSubscription(orgId);
-  if (sub.minutesIncluded <= 0) return 0;
-  return Math.max(0, sub.minutesIncluded - (await minutesUsedSince(orgId, sub.periodStart)));
+  if (sub.status === "expired") return 0;
+  const [used, extra] = await Promise.all([minutesUsedSince(orgId, sub.periodStart), extraMinutesBalance(orgId, sub)]);
+  return Math.max(0, sub.minutesIncluded + extra - used);
+}
+
+/**
+ * Fin d'appel : retire des recharges la partie de l'appel qui dépasse les
+ * minutes de l'offre (l'appel vient d'être enregistré).
+ */
+export async function consumeExtraMinutes(orgId: string, callDurationSec: number): Promise<void> {
+  if (callDurationSec <= 0) return;
+  const sub = await orgSubscription(orgId);
+  const usedAfter = await minutesUsedSince(orgId, sub.periodStart);
+  const callMinutes = Math.round(callDurationSec / 60);
+  const consumed = extraMinutesConsumed(usedAfter - callMinutes, callMinutes, sub.minutesIncluded);
+  if (consumed <= 0) return;
+  // Jamais en dessous de zéro, même si deux appels se terminent en même temps.
+  await prisma.$executeRaw`UPDATE "Organization" SET "extraMinutes" = GREATEST(0, "extraMinutes" - ${consumed}) WHERE id = ${orgId}`;
 }

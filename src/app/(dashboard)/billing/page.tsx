@@ -2,7 +2,8 @@ import { Bot, Hash, Clock, ShieldCheck } from "lucide-react";
 import { requireSession } from "@/lib/auth/session";
 import { prisma } from "@/lib/db/client";
 import { countAgents } from "@/lib/db/agents";
-import { minutesUsedSince, orgSubscription } from "@/lib/billing/limits";
+import { extraMinutesBalance, minutesUsedSince, orgSubscription } from "@/lib/billing/limits";
+import { TopupPacks } from "@/components/billing/topup-packs";
 import { getPlan, limitLabel, UNLIMITED } from "@/lib/billing/plans";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { Card } from "@/components/ui/card";
@@ -89,7 +90,7 @@ export default async function BillingPage() {
   const sub = await orgSubscription(session.org.id);
   const plan = getPlan(session.org.plan);
 
-  const [agents, numbers, minutesUsed, agencyRow, payments] = await Promise.all([
+  const [agents, numbers, minutesUsed, agencyRow, payments, extraMinutes] = await Promise.all([
     countAgents(session.org.id),
     // Same count as the limit enforced by POST /api/numbers.
     prisma.phoneNumber.count({ where: { organizationId: session.org.id } }),
@@ -103,6 +104,7 @@ export default async function BillingPage() {
       orderBy: { createdAt: "desc" },
       take: 12,
     }),
+    extraMinutesBalance(session.org.id),
   ]);
   const dateFmt = new Intl.DateTimeFormat("fr-FR", { day: "numeric", month: "long", year: "numeric" });
   const statusText =
@@ -177,7 +179,7 @@ export default async function BillingPage() {
         <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
           <UsageRow icon={Bot} label="Agents" used={agents} max={sub.plan.maxAgents} />
           <UsageRow icon={Hash} label="Numéros" used={numbers} max={sub.plan.maxNumbers} />
-          <UsageRow icon={Clock} label="Minutes" used={minutesUsed} max={sub.minutesIncluded} unit="min" />
+          <UsageRow icon={Clock} label="Minutes" used={minutesUsed} max={sub.minutesIncluded + extraMinutes} unit="min" />
         </div>
       </Card>
 
@@ -196,6 +198,23 @@ export default async function BillingPage() {
         <BillingPlans currentPlan={session.org.plan} status={sub.status} agency={agency} xofRate={EUR_TO_XOF} />
       </section>
 
+      {/* Recharges de minutes */}
+      <section aria-labelledby="topup-title" className="space-y-3">
+        <div>
+          <h2 id="topup-title" className="text-[0.95rem] font-semibold tracking-tight text-foreground">
+            Recharger des minutes
+          </h2>
+          <p className="text-sm text-muted-foreground">
+            Minutes rechargées disponibles :{" "}
+            <span className="tabular font-medium text-foreground">{new Intl.NumberFormat("fr-FR").format(extraMinutes)}</span>
+          </p>
+        </div>
+        <TopupPacks
+          xofRate={EUR_TO_XOF}
+          disabledReason={sub.status === "expired" ? "Renouvelez d'abord votre offre : les recharges s'utilisent avec une offre active." : undefined}
+        />
+      </section>
+
       {/* Historique des paiements */}
       <section aria-labelledby="payments-title">
         <h2 id="payments-title" className="mb-3 text-[0.95rem] font-semibold tracking-tight text-foreground">
@@ -212,6 +231,9 @@ export default async function BillingPage() {
                   <th scope="col" className="px-4 py-2.5 font-medium">Objet</th>
                   <th scope="col" className="px-4 py-2.5 text-right font-medium">Montant</th>
                   <th scope="col" className="px-4 py-2.5 font-medium">Statut</th>
+                  <th scope="col" className="px-4 py-2.5 text-right font-medium">
+                    <span className="sr-only">Facture</span>
+                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -219,7 +241,11 @@ export default async function BillingPage() {
                   <tr key={p.id} className="border-b border-border last:border-0">
                     <td className="px-4 py-2.5 tabular">{dateFmt.format(p.createdAt)}</td>
                     <td className="px-4 py-2.5">
-                      {p.kind === "agency" ? "Offre Agence" : `Offre ${getPlan(p.plan).name} · 30 jours`}
+                      {p.kind === "agency"
+                        ? "Offre Agence"
+                        : p.kind === "topup"
+                          ? `Recharge de ${new Intl.NumberFormat("fr-FR").format(p.minutes ?? 0)} minutes`
+                          : `Offre ${getPlan(p.plan).name} · 30 jours`}
                       {p.promoCode && <span className="ml-2 font-mono text-xs text-muted-foreground">{p.promoCode}</span>}
                     </td>
                     <td className="px-4 py-2.5 text-right tabular">
@@ -227,6 +253,13 @@ export default async function BillingPage() {
                     </td>
                     <td className="px-4 py-2.5">
                       {p.status === "completed" ? <Badge variant="success">Payé</Badge> : <Badge variant="danger">Échoué</Badge>}
+                    </td>
+                    <td className="px-4 py-2.5 text-right">
+                      {p.status === "completed" && p.invoiceNumber && (
+                        <a href={`/facture/${p.id}`} target="_blank" rel="noopener" className="text-sm font-medium text-brand hover:underline">
+                          Facture
+                        </a>
+                      )}
                     </td>
                   </tr>
                 ))}

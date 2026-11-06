@@ -31,6 +31,7 @@ const PRIVATE_PAGE_PREFIXES = [
   "/start",
   "/conversations",
   "/channels",
+  "/facture",
   "/agents",
   "/analytics",
   "/billing",

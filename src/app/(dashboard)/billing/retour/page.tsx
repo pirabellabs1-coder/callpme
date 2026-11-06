@@ -26,7 +26,7 @@ export default async function RetourPage({
           icon: CheckCircle2,
           color: "text-emerald-600",
           title: "Paiement confirmé",
-          text: "Votre offre est activée. Merci ! Vous pouvez retourner à votre espace.",
+          text: "Votre paiement est confirmé : votre offre ou vos minutes sont actives. Merci ! Votre facture est disponible dans Facturation.",
         }
       : state === "pending"
         ? {

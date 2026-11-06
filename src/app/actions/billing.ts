@@ -5,7 +5,9 @@ import { prisma } from "@/lib/db/client";
 import { isOrgAdmin, requireSession } from "@/lib/auth/session";
 import { PLANS } from "@/lib/billing/plans";
 import { applyPromo } from "@/lib/billing/subscription";
-import { activatePaidPlan } from "@/lib/payments/confirm";
+import { activatePaidPlan, assignInvoiceNumber } from "@/lib/payments/confirm";
+import { getPack } from "@/lib/billing/topups";
+import { orgSubscription } from "@/lib/billing/limits";
 import { isRateLimited } from "@/lib/security/rate-limit";
 import { sendEmail } from "@/lib/email/resend";
 import {
@@ -52,9 +54,10 @@ async function claimPromo(code: string, max: number): Promise<boolean> {
 
 /** Activation sans paiement (code promo couvrant tout le prix, déjà réservé). */
 async function activateFree(orgId: string, plan: string, code: string) {
-  await prisma.payment.create({
+  const p = await prisma.payment.create({
     data: { organizationId: orgId, kind: "promo", plan, amountEur: 0, amountXof: 0, status: "completed", promoCode: code },
   });
+  await assignInvoiceNumber(p.id);
   await activatePaidPlan(orgId, plan);
   revalidatePath("/billing");
   revalidatePath("/", "layout");
@@ -206,6 +209,41 @@ export async function payAgencyRequest(requestId: string): Promise<CheckoutResul
       kind: "agency",
       agencyRequestId: requestId,
     },
+    successUrl: `${PUBLIC_URL}/billing/retour?pid=${payment.id}`,
+    errorUrl: `${PUBLIC_URL}/billing/retour?pid=${payment.id}&e=1`,
+  });
+  if (!result) {
+    await prisma.payment.update({ where: { id: payment.id }, data: { status: "failed" } });
+    return { error: "Le paiement n'a pas pu être initié. Réessayez." };
+  }
+  await prisma.payment.update({ where: { id: payment.id }, data: { reference: result.reference } });
+  return { url: result.checkoutUrl };
+}
+
+/** Recharge de minutes en Mobile Money (s'ajoutent à l'offre, restent acquises). */
+export async function startTopup(packId: string): Promise<CheckoutResult> {
+  const session = await requireSession();
+  if (!isOrgAdmin(session)) return { error: "Seul un administrateur peut acheter des minutes." };
+  const pack = getPack(packId);
+  if (!pack) return { error: "Recharge inconnue." };
+  const sub = await orgSubscription(session.org.id);
+  if (sub.status === "expired") return { error: "Renouvelez d'abord votre offre : les minutes rechargées s'utilisent avec une offre active." };
+  if (!geniusConfigured()) return { error: "Paiement momentanément indisponible." };
+  const payment = await prisma.payment.create({
+    data: {
+      organizationId: session.org.id,
+      kind: "topup",
+      minutes: pack.minutes,
+      amountEur: pack.priceEur,
+      amountXof: eurToXof(pack.priceEur),
+      status: "pending",
+    },
+  });
+  const result = await createGeniusPayment({
+    amountEur: pack.priceEur,
+    description: `Recharge Callpme — ${pack.label}`,
+    customer: { name: session.user.name ?? session.user.email, email: session.user.email },
+    metadata: { paymentId: payment.id, orgId: session.org.id, kind: "topup", minutes: String(pack.minutes) },
     successUrl: `${PUBLIC_URL}/billing/retour?pid=${payment.id}`,
     errorUrl: `${PUBLIC_URL}/billing/retour?pid=${payment.id}&e=1`,
   });

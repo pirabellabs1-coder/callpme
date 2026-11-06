@@ -29,6 +29,8 @@ model Organization {
   alerts         String?
   /** Pays (ISO) : format des numéros saisis sans indicatif, fuseau par défaut. */
   country        String               @default("FR")
+  /** Minutes rechargées (Mobile Money), utilisées après celles de l'offre. */
+  extraMinutes   Int                  @default(0)
   agents         Agent[]
   users          User[]
   invitations    Invitation[]
@@ -449,6 +451,10 @@ model Payment {
   status         String       @default("pending") // pending | completed | failed
   /** Code promo utilisé (compté à la confirmation du paiement). */
   promoCode      String?
+  /** Recharge : minutes achetées. */
+  minutes        Int?
+  /** Numéro de facture, attribué à la confirmation (FAC-2026-000001). */
+  invoiceNumber  String?      @unique
   createdAt      DateTime     @default(now())
 
   @@index([organizationId])

@@ -22,12 +22,15 @@ const PUBLIC_API_PREFIXES = [
   "/api/telephony/status", // signature de l'opérateur (Twilio / Telnyx)
   "/api/payments/geniuspay/webhook", // revérifié auprès de GeniusPay
   "/api/widget/", // widget site web : domaines autorisés (Origin) + limites
+  "/api/whatsapp/webhook/", // Meta : signature X-Hub-Signature-256 vérifiée
 ];
 
 /** Pages applicatives réservées aux utilisateurs connectés. */
 const PRIVATE_PAGE_PREFIXES = [
   "/overview",
   "/start",
+  "/conversations",
+  "/channels",
   "/agents",
   "/analytics",
   "/billing",

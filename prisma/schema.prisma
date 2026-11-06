@@ -32,6 +32,8 @@ model Organization {
   agents         Agent[]
   users          User[]
   invitations    Invitation[]
+  whatsapp       WhatsAppChannel?
+  conversations  Conversation[]
   apiKeys        ApiKey[]
   webhooks       Webhook[]
   customTools    CustomTool[]
@@ -595,4 +597,55 @@ model SipSession {
   createdAt      DateTime  @default(now())
 
   @@index([expiresAt])
+}
+
+/// Canal WhatsApp Business (API Cloud de Meta) d'une organisation.
+model WhatsAppChannel {
+  id             String       @id @default(cuid())
+  organizationId String       @unique
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  /** Agent qui répond sur WhatsApp. */
+  agentId        String
+  /** Identifiant du numéro chez Meta (« Phone number ID »). */
+  phoneNumberId  String       @unique
+  displayNumber  String?
+  /** Jeton d'accès et secret de l'application Meta, chiffrés (AES-GCM). */
+  accessToken    String
+  appSecret      String
+  /** Jeton de vérification du webhook (généré, à copier chez Meta). */
+  verifyToken    String
+  enabled        Boolean      @default(true)
+  createdAt      DateTime     @default(now())
+}
+
+/// Conversation écrite (WhatsApp…) entre un contact et un agent.
+model Conversation {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  agentId        String
+  channel        String       // whatsapp
+  /** Numéro du contact (E.164). */
+  contact        String
+  contactName    String?
+  /** JSON : [{ role: "user" | "agent" | "tool", text, at, kind? }] */
+  messages       String       @default("[]")
+  /** Dernier message (liste des conversations sans charger tout l'historique). */
+  lastText       String?
+  /** Compteur de messages du contact sur la journée (limite par contact). */
+  dayKey         String?
+  dayCount       Int          @default(0)
+  lastMessageAt  DateTime     @default(now())
+  createdAt      DateTime     @default(now())
+
+  @@unique([organizationId, channel, contact])
+  @@index([organizationId, lastMessageAt])
+}
+
+/// Messages déjà traités (Meta renvoie un message tant qu'il n'a pas reçu 200).
+model ChannelEvent {
+  id        String   @id // identifiant du message chez Meta (wamid)
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
 }

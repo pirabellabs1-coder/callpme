@@ -43,6 +43,8 @@ export interface BrainContext {
   onText?: TextSink;
   /** Prévenu avant chaque exécution d'outil (ex. couper la parole avant un transfert). */
   onToolCall?: (name: string) => void;
+  /** Outils sans objet sur ce canal (ex. raccrocher ou transférer sur WhatsApp). */
+  excludeTools?: string[];
 }
 
 /** Date et heure courantes dans le fuseau de l'agent (indispensable pour l'agenda). */
@@ -115,7 +117,8 @@ export async function prepareTurn(ctx: BrainContext, history: Turn[]): Promise<P
 
   // Outils activés : intégrés + fonctions personnalisées de l'organisation.
   // Outils du parcours (actions, transfert, fin) activés même s'ils ne sont pas cochés.
-  const enabled = Array.from(new Set([...(agent.config.tools ?? []), ...flowToolNames(flow)]));
+  const excluded = new Set(ctx.excludeTools ?? []);
+  const enabled = Array.from(new Set([...(agent.config.tools ?? []), ...flowToolNames(flow)])).filter((t) => !excluded.has(t));
   const customByName = new Map(customs.map((c) => [c.name, c]));
   const tools: ResolvedTool[] = [
     ...resolveTools(enabled).map((d) => ({ name: d.name, description: d.description, parameters: d.parameters })),

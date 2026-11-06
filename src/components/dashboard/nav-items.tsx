@@ -1,6 +1,8 @@
 import {
   LayoutDashboard,
   Rocket,
+  MessageCircle,
+  Radio,
   Bot,
   LayoutTemplate,
   Megaphone,
@@ -49,6 +51,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { href: "/start", label: "Bien démarrer", icon: Rocket },
       { href: "/overview", label: "Vue d'ensemble", icon: LayoutDashboard },
       { href: "/calls", label: "Appels", icon: PhoneCall, match: "/calls" },
+      { href: "/conversations", label: "Conversations", icon: MessageCircle },
       { href: "/appointments", label: "Rendez-vous", icon: CalendarDays },
       { href: "/leads", label: "Prospects", icon: Inbox },
       { href: "/analytics", label: "Statistiques", icon: BarChart3 },
@@ -75,6 +78,7 @@ export const NAV_GROUPS: NavGroup[] = [
     id: "setup",
     label: "Configurer",
     items: [
+      { href: "/channels", label: "Canaux", icon: Radio },
       { href: "/numbers", label: "Numéros", icon: Hash },
       { href: "/integrations", label: "Intégrations", icon: Plug },
       { href: "/developers", label: "Développeurs", icon: Code2, match: "/developers" },

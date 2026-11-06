@@ -4,7 +4,7 @@
  */
 import { prisma } from "../db/client";
 
-export const DAILY_LIMITS = { sms: 200, email: 100, number: 10, invite: 30, widget: 500, apicall: 300 } as const;
+export const DAILY_LIMITS = { sms: 200, email: 100, number: 10, invite: 30, widget: 500, apicall: 300, whatsapp: 2000, whatsapp_voice: 300 } as const;
 export type DailyKind = keyof typeof DAILY_LIMITS;
 
 /** Réserve une unité ; false si le plafond du jour est atteint. */

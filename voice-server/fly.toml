@@ -1,0 +1,34 @@
+# Serveur vocal Callpme sur Fly.io (Paris : proche de l'Europe et de l'Afrique de l'Ouest).
+# Déploiement : bash scripts/voix-en-ligne.sh (depuis la racine du dépôt).
+app = "callpme-voix"
+primary_region = "cdg"
+
+[env]
+  NODE_ENV = "production"
+  VOICE_SERVER_PORT = "4100"
+  VOICE_MAX_SESSIONS = "50"
+  VOICE_MAX_PER_ORG = "10"
+
+[http_service]
+  internal_port = 4100
+  force_https = true
+  # Les appels sont des WebSockets longues : la machine reste allumée.
+  auto_stop_machines = "off"
+  auto_start_machines = true
+  min_machines_running = 1
+
+  [http_service.concurrency]
+    type = "connections"
+    soft_limit = 40
+    hard_limit = 60
+
+  [[http_service.checks]]
+    interval = "15s"
+    timeout = "3s"
+    grace_period = "20s"
+    method = "GET"
+    path = "/health"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "1gb"

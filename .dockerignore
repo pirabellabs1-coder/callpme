@@ -1,0 +1,13 @@
+# Jamais dans l'image du serveur vocal : secrets locaux et artefacts
+.env
+.env.*
+.git
+.next
+.neon
+.claude
+.vercel
+node_modules
+tests
+infra
+voice-clone-server
+tsconfig.tsbuildinfo

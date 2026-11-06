@@ -33,7 +33,7 @@ echo "Secrets du serveur vocal :"
   printf 'DATABASE_URL=%s\n' "$DB_SESSION"
   # Identiques à Vercel : ils signent les jetons de session vocale et chiffrent les identifiants.
   for k in NEXTAUTH_SECRET ENCRYPTION_KEY; do printf '%s=%s\n' "$k" "$(val "$k" .env.production.local)"; done
-  printf 'PUBLIC_URL=%s\n' "${PROD_URL:-https://callpme-five.vercel.app}"
+  printf 'PUBLIC_URL=%s\n' "${PROD_URL:-https://callpme.com}"
   for k in ANTHROPIC_API_KEY OPENAI_API_KEY MISTRAL_API_KEY DEEPGRAM_API_KEY ELEVENLABS_API_KEY CARTESIA_API_KEY \
            VOICE_TTS_PROVIDER VOICE_DEFAULT_FEMALE_ID VOICE_DEFAULT_MALE_ID \
            TWILIO_ACCOUNT_SID TWILIO_AUTH_TOKEN RESEND_API_KEY RESEND_FROM; do

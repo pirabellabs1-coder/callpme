@@ -139,3 +139,15 @@ describe("numéro de transfert", () => {
     expect(parse("+882 1234 5678")).toBe(false);
   });
 });
+
+import { classifyAnsweredBy } from "@/lib/telephony/provider";
+
+describe("détection de répondeur", () => {
+  it("classe la réponse de l'opérateur", () => {
+    expect(classifyAnsweredBy("human")).toBe("human");
+    expect(classifyAnsweredBy("machine_end_beep")).toBe("machine");
+    expect(classifyAnsweredBy("machine_start")).toBe("machine");
+    expect(classifyAnsweredBy("fax")).toBe("fax");
+    expect(classifyAnsweredBy(undefined)).toBe("unknown");
+  });
+});

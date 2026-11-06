@@ -71,7 +71,7 @@ export async function indexDocument(documentId: string): Promise<{ chunks: numbe
   await prisma.$transaction(async (tx) => {
     await tx.knowledgeChunk.deleteMany({ where: { documentId } });
     for (let i = 0; i < parts.length; i++) {
-      const id = `${documentId}_${i}`;
+      const id = `${documentId}_${i}_${Date.now().toString(36)}`;
       if (vectors?.[i]) {
         await tx.$executeRaw`INSERT INTO "KnowledgeChunk" ("id","documentId","knowledgeBaseId","position","content","embedding")
           VALUES (${id}, ${documentId}, ${doc.knowledgeBaseId}, ${i}, ${parts[i]}, ${vectorLiteral(vectors[i])}::vector)`;
@@ -89,6 +89,19 @@ export async function indexDocument(documentId: string): Promise<{ chunks: numbe
   return { chunks: parts.length, vectors: Boolean(vectors) };
 }
 
+/** Indexation sans exception : un échec marque le document en erreur (pas de boucle). */
+export async function indexDocumentSafe(documentId: string): Promise<number> {
+  try {
+    return (await indexDocument(documentId)).chunks;
+  } catch (e) {
+    console.error("[knowledge] indexation :", e instanceof Error ? e.message : e);
+    await prisma.document
+      .update({ where: { id: documentId }, data: { status: "error", error: "Indexation impossible." } })
+      .catch(() => {});
+    return 0;
+  }
+}
+
 /** Indexe les documents antérieurs à la découpe en passages (migration douce). */
 export async function ensureIndexed(knowledgeBaseId: string): Promise<void> {
   const pending = await prisma.document.findMany({
@@ -96,7 +109,7 @@ export async function ensureIndexed(knowledgeBaseId: string): Promise<void> {
     select: { id: true },
     take: 20,
   });
-  for (const d of pending) await indexDocument(d.id).catch(() => {});
+  for (const d of pending) await indexDocumentSafe(d.id);
 }
 
 export interface KnowledgeHit {
@@ -110,7 +123,6 @@ export interface KnowledgeHit {
 export async function searchKnowledge(knowledgeBaseId: string, query: string, limit = 4): Promise<KnowledgeHit[]> {
   const q = query.trim().slice(0, 500);
   if (!q) return [];
-  await ensureIndexed(knowledgeBaseId);
 
   // 1. Plein texte (français) : websearch_to_tsquery tolère la syntaxe libre.
   //    On élargit en OU pour ne pas exiger tous les mots de la question.

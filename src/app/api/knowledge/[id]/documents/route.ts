@@ -3,7 +3,7 @@ import { z } from "zod";
 import { getSession } from "@/lib/auth/session";
 import { prisma } from "@/lib/db/client";
 import { addDocument } from "@/lib/db/knowledge";
-import { indexDocument } from "@/lib/knowledge";
+import { ensureIndexed, indexDocumentSafe } from "@/lib/knowledge";
 import { crawlSite, extractFileText, fetchPage, MAX_FILE_BYTES, SourceError } from "@/lib/knowledge/sources";
 import { isRateLimited } from "@/lib/security/rate-limit";
 import { created, badRequest, unauthorized, notFound, serverError, tooMany } from "@/lib/api/respond";
@@ -67,15 +67,16 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       if (type.startsWith("multipart/form-data")) {
         // Refus avant lecture du corps : pas de gros envoi chargé en mémoire.
         const declared = Number(req.headers.get("content-length") ?? 0);
-        if (!declared || declared > MAX_FILE_BYTES + 64 * 1024) return badRequest("Fichier trop volumineux (10 Mo maximum).");
+        if (!declared || declared > MAX_FILE_BYTES + 64 * 1024) return badRequest("Fichier trop volumineux (4 Mo maximum).");
         const form = await req.formData();
         const file = form.get("file");
         if (!(file instanceof File)) return badRequest("Fichier manquant.");
-        if (file.size > MAX_FILE_BYTES) return badRequest("Fichier trop volumineux (10 Mo maximum).");
+        if (file.size > MAX_FILE_BYTES) return badRequest("Fichier trop volumineux (4 Mo maximum).");
         const text = await extractFileText(file.name, file.type, new Uint8Array(await file.arrayBuffer()));
         const title = String(form.get("title") || "").trim().slice(0, 160) || file.name.replace(/\.[^.]+$/, "").slice(0, 160);
         docs.push({ title, source: file.name.toLowerCase().endsWith(".pdf") ? "pdf" : "file", content: text, origin: file.name.slice(0, 200) });
       } else {
+        if (!type.startsWith("application/json")) return badRequest("Format de requête invalide.");
         const parsed = schema.safeParse(await req.json().catch(() => null));
         if (!parsed.success) return badRequest("Données invalides");
         const d = parsed.data;
@@ -108,11 +109,14 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     for (const d of docs) {
       const doc = await addDocument(session.org.id, kb.id, d);
       if (!doc) continue;
-      const { chunks } = await indexDocument(doc.id).catch(() => ({ chunks: 0 }));
+      const chunks = await indexDocumentSafe(doc.id);
       out.push(summary(doc, chunks));
     }
+    // Documents plus anciens éventuellement non indexés : rattrapés ici, pas pendant un appel.
+    void ensureIndexed(kb.id).catch(() => {});
     return created({ document: out[0], documents: out });
-  } catch {
+  } catch (e) {
+    console.error("[knowledge] import :", e instanceof Error ? e.message : e);
     return serverError();
   }
 }

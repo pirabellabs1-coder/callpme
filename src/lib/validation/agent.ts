@@ -77,6 +77,12 @@ export const configSchema = z.object({
     .refine((v) => !v || checkDestination(v).ok, "Destination non autorisée (pays non couvert ou numéro surtaxé).")
     .optional(),
   booking: bookingSchema.optional(),
+  voicemail: z
+    .object({
+      action: z.enum(["message", "hangup", "off"]),
+      message: z.string().trim().max(600).optional(),
+    })
+    .optional(),
 });
 
 export const createAgentSchema = z.object({

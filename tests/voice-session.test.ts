@@ -292,4 +292,29 @@ describe("CallSession (moteur vocal)", () => {
     expect(t.hungUp).toBe(true);
     expect(tts.spoken).toHaveLength(0);
   });
+
+  it("laisse un message sur répondeur avec la voix de l'agent, puis raccroche", async () => {
+    const { t, transport } = makeTransport();
+    const s = new CallSession({ ...ctx, direction: "outbound", metadata: { voicemail: "1" } }, transport);
+    await s.start();
+    expect(stt.events).toBeNull(); // pas d'écoute : c'est un répondeur
+    expect(tts.spoken[0]).toContain("Léa");
+    expect(tts.spoken[0]).toContain("Cabinet Diallo");
+    expect(t.hungUp).toBe(true);
+    expect((persisted.calls[0] as { outcome: string }).outcome).toBe("Message laissé sur répondeur");
+  });
+
+  it("regroupe les touches tapées et les transmet à l'agent", async () => {
+    const { transport } = makeTransport();
+    const s = new CallSession(ctx, transport);
+    await s.start();
+    s.onDtmf("1");
+    s.onDtmf("2");
+    s.onDtmf("x"); // ignorée
+    await new Promise((r) => setTimeout(r, 1700));
+    expect(brain.histories).toHaveLength(1);
+    const last = (brain.histories[0] as { content: string }[]).at(-1)!;
+    expect(last.content).toBe("[Touches tapées : 1 2]");
+    await s.end("completed");
+  });
 });

@@ -31,7 +31,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 
 /** Limites côté API (POST /api/knowledge/:id/documents). */
 const MAX_CHARS = 400_000;
-const MAX_FILE_MB = 10;
+const MAX_FILE_MB = 4;
 
 type Mode = "text" | "file" | "url" | "site";
 

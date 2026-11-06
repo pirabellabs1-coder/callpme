@@ -44,6 +44,10 @@ const VOICE_STYLE =
   "pas de markdown, pas d'émojis. Annonce que tu es un assistant IA si on te le demande.";
 
 const SILENCE_HANGUP_MS = 30_000;
+/** Délai après la dernière touche avant de transmettre la saisie à l'agent. */
+const DTMF_GROUP_MS = 1500;
+const DEFAULT_VOICEMAIL =
+  "Bonjour, ici {agent}, l'assistant de {organisation}. Nous avons essayé de vous joindre. Vous pouvez nous rappeler à ce numéro quand vous le souhaitez. Bonne journée.";
 /** Plafond technique d'un appel (aligné sur la validation : 7 200 s). */
 const MAX_CALL_SEC = 7200;
 /** Mots courts qui doivent suffire à couper l'agent. */
@@ -76,6 +80,9 @@ export class CallSession {
   private timers: NodeJS.Timeout[] = [];
   private providerCallId: string | null = null;
   private quotaSec = MAX_CALL_SEC;
+  private voicemailLeft = false;
+  private dtmfDigits = "";
+  private dtmfTimer: NodeJS.Timeout | null = null;
 
   constructor(
     private readonly ctx: VoiceTokenPayload,
@@ -116,6 +123,9 @@ export class CallSession {
       return this.end("failed");
     }
 
+    // Répondeur détecté par l'opérateur (après le bip) : message, puis raccroché.
+    if (this.ctx.metadata?.voicemail === "1") return this.leaveVoicemail();
+
     this.stt = openDeepgram(agent.config.voice.language || "fr-FR", {
       onSpeechStarted: () => this.onCallerSpeech(),
       onTranscript: (text, isFinal) => this.onTranscript(text, isFinal),
@@ -142,6 +152,44 @@ export class CallSession {
       this.addTurn("agent", greeting);
       await this.speak(greeting);
     }
+  }
+
+  /** Message laissé sur un répondeur, avec la voix de l'agent. */
+  private async leaveVoicemail() {
+    const custom = this.agent.config.voicemail?.message?.trim();
+    const text =
+      sanitizeSpoken(
+        (custom || DEFAULT_VOICEMAIL)
+          .replace(/\{agent\}/g, this.agent.name)
+          .replace(/\{organisation\}/g, this.organizationName || "notre équipe"),
+        { agentName: this.agent.name, organizationName: this.organizationName },
+      ) || DEFAULT_VOICEMAIL;
+    this.voicemailLeft = true;
+    this.addTurn("agent", text);
+    await this.speak(text);
+    const wait = Math.max(0, this.playbackUntil - Date.now()) + 600;
+    await new Promise((r) => setTimeout(r, wait));
+    await this.end("missed");
+  }
+
+  /**
+   * Touche du clavier téléphonique (DTMF). Les touches tapées à la suite sont
+   * regroupées puis transmises à l'agent comme une prise de parole.
+   */
+  onDtmf(digit: string) {
+    if (this.ended || !/^[0-9*#A-D]$/.test(digit)) return;
+    this.lastActivity = Date.now();
+    this.dtmfDigits += digit;
+    this.transport.sendEvent?.({ type: "dtmf", digit });
+    if (this.dtmfTimer) clearTimeout(this.dtmfTimer);
+    this.dtmfTimer = setTimeout(() => {
+      const digits = this.dtmfDigits;
+      this.dtmfDigits = "";
+      this.dtmfTimer = null;
+      if (!digits || this.ended) return;
+      this.userBuffer = `${this.userBuffer} [Touches tapées : ${digits.split("").join(" ")}]`.trim();
+      void this.onUtteranceEnd();
+    }, DTMF_GROUP_MS);
   }
 
   /** Audio de l'appelant (µ-law 8 kHz). */
@@ -338,6 +386,7 @@ export class CallSession {
     this.ended = true;
     this.speaking?.abort();
     this.timers.forEach((t) => clearTimeout(t));
+    if (this.dtmfTimer) clearTimeout(this.dtmfTimer);
     this.stt?.close();
     // Téléphone : on raccroche tout de suite (on ne paie plus la ligne).
     // Navigateur : on garde la connexion pour envoyer le résultat de l'enregistrement.
@@ -358,6 +407,7 @@ export class CallSession {
         startedAt: this.startedAt,
         transcript: [...this.transcript],
         status: this.hasCallerSpoken() || status === "transferred" ? status : "missed",
+        ...(this.voicemailLeft ? { outcome: "Message laissé sur répondeur" } : {}),
         metadata: this.ctx.metadata,
         providerCallId: this.providerCallId,
       });

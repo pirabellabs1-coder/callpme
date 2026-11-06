@@ -48,6 +48,9 @@ export interface WizardState {
   transferNumber: string;
   /** Prise de rendez-vous (horaires, durée, SMS) ; null = réglages par défaut. */
   booking: BookingConfig | null;
+  /** Répondeur sur appel sortant. */
+  voicemailAction: "message" | "hangup" | "off";
+  voicemailMessage: string;
   guardrails: string[];
   persona: string;
   tools: string[];
@@ -95,6 +98,8 @@ export function initialState(
       phoneNumber: agent.phoneNumber ?? null,
       transferNumber: agent.config.transferNumber ?? "",
       booking: agent.config.booking ?? null,
+      voicemailAction: agent.config.voicemail?.action ?? "message",
+      voicemailMessage: agent.config.voicemail?.message ?? "",
       knowledgeBaseId: agent.knowledgeBaseId ?? "",
     };
   }
@@ -121,6 +126,8 @@ export function initialState(
     phoneNumber: null,
     transferNumber: "",
     booking: null,
+    voicemailAction: "message",
+    voicemailMessage: "",
     knowledgeBaseId: "",
   };
 }
@@ -239,6 +246,10 @@ export function buildPayload(
     maxDurationSec: s.maxDurationMin > 0 ? s.maxDurationMin * 60 : undefined,
     ...(s.transferNumber.trim() ? { transferNumber: s.transferNumber.trim() } : {}),
     ...(s.booking ? { booking: s.booking } : {}),
+    voicemail: {
+      action: s.voicemailAction,
+      ...(s.voicemailMessage.trim() ? { message: s.voicemailMessage.trim().slice(0, 600) } : {}),
+    },
   };
   return {
     name: s.name.trim() || "Agent sans nom",

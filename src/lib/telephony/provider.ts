@@ -100,6 +100,9 @@ export async function placeOutboundCall(opts: {
   const to = toE164(opts.toNumber);
   if (!to) return { ok: false, error: "Numéro invalide (format attendu : +33…)." };
   const from = fromNumber()!;
+  // Détection de répondeur : l'opérateur attend la fin de l'annonce (bip)
+  // avant de nous appeler, avec « AnsweredBy » (human / machine_end_beep…).
+  const detect = (opts.agent.config.voicemail?.action ?? "message") !== "off";
   const token = createVoiceToken({
     callId: `out_${Date.now().toString(36)}`,
     agentId: opts.agent.id,
@@ -122,7 +125,9 @@ export async function placeOutboundCall(opts: {
         body: new URLSearchParams({
           To: to,
           From: from,
-          Twiml: streamInstructions(token),
+          Url: `${publicUrl()}/api/telephony/answer?t=${encodeURIComponent(token)}`,
+          Method: "POST",
+          ...(detect ? { MachineDetection: "DetectMessageEnd", MachineDetectionTimeout: "30" } : {}),
           // Sans réponse / occupé / échec : aucun flux ne s'ouvre, ce rappel met le contact à jour.
           StatusCallback: `${publicUrl()}/api/telephony/status`,
           StatusCallbackEvent: "completed",
@@ -141,8 +146,9 @@ export async function placeOutboundCall(opts: {
       body: JSON.stringify({
         To: to,
         From: from,
-        Url: `${publicUrl()}/api/telephony/texml?t=${encodeURIComponent(token)}`,
+        Url: `${publicUrl()}/api/telephony/answer?t=${encodeURIComponent(token)}`,
         UrlMethod: "GET",
+        ...(detect ? { MachineDetection: "DetectMessageEnd", MachineDetectionTimeout: 30000 } : {}),
         StatusCallback: `${publicUrl()}/api/telephony/status`,
         StatusCallbackEvent: "completed",
         StatusCallbackMethod: "POST",
@@ -269,4 +275,16 @@ export async function readSignedWebhook(
       ? verifyTwilioSignature(`${publicUrl()}${path}`, params, req.headers.get("x-twilio-signature"))
       : verifyTelnyxSignature(raw, req.headers.get("telnyx-signature-ed25519"), req.headers.get("telnyx-timestamp"));
   return valid ? params : null;
+}
+
+/** Réponse de l'opérateur au décroché : humain, répondeur (après le bip) ou fax. */
+export type AnsweredBy = "human" | "machine" | "fax" | "unknown";
+
+export function classifyAnsweredBy(raw: string | null | undefined): AnsweredBy {
+  const v = (raw ?? "").toLowerCase();
+  if (!v) return "unknown";
+  if (v === "human") return "human";
+  if (v === "fax") return "fax";
+  if (v.startsWith("machine")) return "machine";
+  return "unknown";
 }

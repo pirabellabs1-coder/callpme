@@ -185,6 +185,7 @@ function onTelephony(ws: WebSocket, preAuth: VoiceTokenPayload | null, leavePend
         custom_parameters?: Record<string, string>;
       };
       media?: { payload?: string; track?: string };
+      dtmf?: { digit?: string };
     };
     try {
       msg = JSON.parse(data.toString());
@@ -218,6 +219,11 @@ function onTelephony(ws: WebSocket, preAuth: VoiceTokenPayload | null, leavePend
     if (msg.event === "media" && session && msg.media?.payload) {
       if (msg.media.track && msg.media.track !== "inbound" && msg.media.track !== "inbound_track") return;
       session.onAudio(Buffer.from(msg.media.payload, "base64"));
+      return;
+    }
+    // Touches du clavier téléphonique (« tapez 1 »).
+    if (msg.event === "dtmf" && session && msg.dtmf?.digit) {
+      session.onDtmf(String(msg.dtmf.digit).slice(0, 1));
       return;
     }
     if (msg.event === "stop") ws.close();

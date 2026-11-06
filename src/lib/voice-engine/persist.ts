@@ -22,6 +22,8 @@ export interface FinishCallInput {
   providerCallId?: string | null;
   /** Identifiant de session vocale (jeton) utilisé par les outils pendant l'appel. */
   sessionCallId?: string;
+  /** Issue connue d'avance (ex. message laissé sur répondeur) : pas de résumé LLM. */
+  outcome?: string;
 }
 
 /** Résumé court de l'appel : LLM si disponible, sinon repli déterministe. */
@@ -68,7 +70,9 @@ async function summarize(agent: Agent, transcript: TranscriptTurn[]): Promise<{ 
 
 export async function finishCall(input: FinishCallInput) {
   const durationSec = Math.max(0, Math.round((Date.now() - input.startedAt) / 1000));
-  const { summary, outcome } = await summarize(input.agent, input.transcript);
+  const { summary, outcome } = input.outcome
+    ? { summary: input.outcome, outcome: input.outcome }
+    : await summarize(input.agent, input.transcript);
   // Les tests navigateur sont enregistrés comme appels entrants de test.
   const direction = input.direction === "outbound" ? "outbound" : "inbound";
 

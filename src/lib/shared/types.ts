@@ -161,6 +161,15 @@ export interface AgentConfig {
   transferNumber?: string;
   /** Prise de rendez-vous (horaires, durée, confirmation SMS). */
   booking?: BookingConfig;
+  /** Appels sortants tombant sur un répondeur. */
+  voicemail?: VoicemailConfig;
+}
+
+export interface VoicemailConfig {
+  /** « message » : laisser un message après le bip ; « hangup » : raccrocher ; « off » : pas de détection. */
+  action: "message" | "hangup" | "off";
+  /** Message laissé (variables : {agent}, {organisation}). Vide = message par défaut. */
+  message?: string;
 }
 
 /** Plage horaire « HH:MM » → « HH:MM ». */

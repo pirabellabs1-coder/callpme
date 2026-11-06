@@ -61,6 +61,53 @@ export function StepTelephony({
       </div>
 
       <fieldset className="space-y-2">
+        <legend className="text-sm font-medium text-foreground">Si un répondeur décroche (appels sortants)</legend>
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-3" role="radiogroup" aria-label="Comportement face à un répondeur">
+          {(
+            [
+              ["message", "Laisser un message", "Après le bip, avec la voix de l'agent"],
+              ["hangup", "Raccrocher", "Sans laisser de message"],
+              ["off", "Ne pas détecter", "L'agent parle dès le décroché"],
+            ] as const
+          ).map(([value, title, note]) => (
+            <button
+              key={value}
+              type="button"
+              role="radio"
+              aria-checked={s.voicemailAction === value}
+              onClick={() => set({ voicemailAction: value })}
+              className={
+                "rounded-xl border p-3 text-left text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/30 " +
+                (s.voicemailAction === value ? "border-brand/50 bg-brand/[0.06]" : "border-border hover:bg-foreground/[0.03]")
+              }
+            >
+              <span className="block font-medium text-foreground">{title}</span>
+              <span className="mt-0.5 block text-xs text-muted-foreground">{note}</span>
+            </button>
+          ))}
+        </div>
+        {s.voicemailAction === "message" && (
+          <div className="space-y-1.5 pt-1">
+            <label htmlFor="voicemail-message" className="text-xs text-muted-foreground">
+              Message laissé <span className="font-normal">(facultatif — {"{agent}"} et {"{organisation}"} sont remplacés)</span>
+            </label>
+            <textarea
+              id="voicemail-message"
+              rows={3}
+              maxLength={600}
+              value={s.voicemailMessage}
+              onChange={(e) => set({ voicemailMessage: e.target.value })}
+              placeholder="Bonjour, ici {agent}, l'assistant de {organisation}. Nous avons essayé de vous joindre. Vous pouvez nous rappeler à ce numéro quand vous le souhaitez."
+              className="flex w-full rounded-lg border border-input bg-background/60 px-3 py-2 text-sm placeholder:text-muted-foreground/60 focus-visible:border-brand/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/15"
+            />
+          </div>
+        )}
+        <p className="text-xs text-muted-foreground">
+          La détection ajoute 2 à 4 secondes avant que l&apos;agent parle quand un humain décroche.
+        </p>
+      </fieldset>
+
+      <fieldset className="space-y-2">
         <legend className="mb-2 text-sm font-medium text-foreground">
           État à l&apos;enregistrement
         </legend>

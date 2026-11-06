@@ -83,7 +83,7 @@ données de l'application.
 - Nouvelles tables (`Appointment`, `Lead`, `DailyCounter`, `KnowledgeChunk`) :
   `npx prisma db push`. La base de connaissances utilise l'extension
   PostgreSQL **pgvector** (activée automatiquement sur Neon par `db push`).
-- **Base de connaissances** : import de PDF, fichiers texte, pages et sites
+- **Base de connaissances** : import de PDF (4 Mo, 300 pages), fichiers texte, pages et sites
   web ; recherche plein texte en français sans configuration, recherche par
   le sens si `OPENAI_API_KEY` est défini (modèle `EMBEDDING_MODEL`).
 
@@ -95,6 +95,11 @@ données de l'application.
   `https://votre-domaine.com/api/telephony/inbound` (POST). Twilio : « A call
   comes in » ; Telnyx : application TeXML (renseignez `TELNYX_TEXML_APP_ID` et
   `TELNYX_PUBLIC_KEY` pour la vérification de signature).
+- **Appels sortants et répondeurs** : au décroché, l'opérateur appelle
+  `${PUBLIC_URL}/api/telephony/answer` avec la détection de répondeur
+  (Twilio et Telnyx « DetectMessageEnd ») : l'agent parle à un humain, laisse
+  un message après le bip ou raccroche, selon le réglage de l'agent.
+- **Touches du clavier** (« tapez 1 ») : transmises à l'agent pendant l'appel.
 - **Fin d'appel** : les appels sortants déclarent `${PUBLIC_URL}/api/telephony/status`
   comme rappel de statut (non-réponse, occupé, échec) ; rien à configurer.
 - **Numéros** : un numéro ajouté à la main par un client est « en attente »

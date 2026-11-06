@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db/client";
-import { requireSession } from "@/lib/auth/session";
+import { isOrgAdmin, requireSession } from "@/lib/auth/session";
 import { PLANS } from "@/lib/billing/plans";
 import { sendEmail } from "@/lib/email/resend";
 import {
@@ -26,6 +26,7 @@ export interface CheckoutResult {
 /** Démarre un paiement GeniusPay pour Starter/Pro. Renvoie l'URL de checkout. */
 export async function startCheckout(planId: string): Promise<CheckoutResult> {
   const session = await requireSession();
+  if (!isOrgAdmin(session)) return { error: "Seul un administrateur peut changer d'offre." };
   if (planId !== "starter" && planId !== "pro") {
     return { error: "Cette offre n'est pas payable directement." };
   }
@@ -59,6 +60,11 @@ export async function startCheckout(planId: string): Promise<CheckoutResult> {
 }
 
 /** Le client envoie une demande pour l'offre Agence (objectifs + budget). */
+/** Échappe un texte saisi avant insertion dans un e-mail HTML. */
+function esc(s: string): string {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+
 export async function submitAgencyRequest(formData: FormData): Promise<BillingResult> {
   const session = await requireSession();
   const objectives = String(formData.get("objectives") || "").trim();
@@ -83,10 +89,10 @@ export async function submitAgencyRequest(formData: FormData): Promise<BillingRe
     subject: "Nouvelle demande — Offre Agence Callpme",
     html:
       `<p>Nouvelle demande d'offre <b>Agence</b>.</p>` +
-      `<p><b>Organisation :</b> ${session.org.name}<br/>` +
-      `<b>Contact :</b> ${name} (${email})<br/>` +
+      `<p><b>Organisation :</b> ${esc(session.org.name)}<br/>` +
+      `<b>Contact :</b> ${esc(name)} (${esc(email)})<br/>` +
       `<b>Budget annoncé :</b> ${budget} €</p>` +
-      `<p><b>Objectifs :</b><br/>${objectives.replace(/</g, "&lt;").replace(/\n/g, "<br/>")}</p>` +
+      `<p><b>Objectifs :</b><br/>${esc(objectives).replace(/\n/g, "<br/>")}</p>` +
       `<p>Validez et fixez le montant dans l'admin : ${PUBLIC_URL}/admin/demandes</p>`,
     text: `Demande Agence de ${session.org.name} — budget ${budget} €\n\n${objectives}`,
   }).catch(() => {});

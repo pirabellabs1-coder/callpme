@@ -28,8 +28,16 @@ export function isRateLimited(key: string, max: number, windowMs: number): boole
   return false;
 }
 
-/** Adresse IP du client (derrière le proxy de l'hébergeur). */
+/**
+ * Adresse IP du client. On privilégie les en-têtes posés par l'hébergeur
+ * (Vercel : x-vercel-forwarded-for / x-real-ip), que le client ne peut pas
+ * imposer ; à défaut, la DERNIÈRE valeur de x-forwarded-for (ajoutée par le
+ * proxy le plus proche), jamais la première, fournie par le client.
+ */
 export function clientIp(): string {
   const h = headers();
-  return (h.get("x-forwarded-for")?.split(",")[0] ?? h.get("x-real-ip") ?? "unknown").trim();
+  const platform = h.get("x-vercel-forwarded-for") ?? h.get("x-real-ip");
+  if (platform) return platform.split(",")[0].trim();
+  const chain = h.get("x-forwarded-for")?.split(",").map((s) => s.trim()).filter(Boolean);
+  return chain && chain.length > 0 ? chain[chain.length - 1] : "unknown";
 }

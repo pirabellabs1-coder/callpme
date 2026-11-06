@@ -29,7 +29,13 @@ const loginSchema = z.object({
 
 export async function login(formData: FormData): Promise<AuthResult> {
   // 10 essais / 15 min par IP : freine le bourrage d'identifiants.
-  if (isRateLimited(`login:${clientIp()}`, 10, 15 * 60_000)) return { error: "Trop de tentatives. Patientez quelques minutes avant de réessayer." };
+  const loginEmail = String(formData.get("email") ?? "").toLowerCase().trim();
+  if (
+    isRateLimited(`login:${clientIp()}`, 10, 15 * 60_000) ||
+    (loginEmail && isRateLimited(`login-mail:${loginEmail}`, 10, 15 * 60_000))
+  ) {
+    return { error: "Trop de tentatives. Patientez quelques minutes avant de réessayer." };
+  }
   const parsed = loginSchema.safeParse({
     email: formData.get("email"),
     password: formData.get("password"),

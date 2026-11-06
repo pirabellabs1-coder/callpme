@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db/client";
 import { verifyPassword } from "@/lib/auth/password";
+import { clientIp, isRateLimited } from "@/lib/security/rate-limit";
 import { createSession, setSessionCookie } from "@/lib/auth/session";
 import {
   adminGateSlug,
@@ -35,6 +36,14 @@ export async function adminGateLogin(formData: FormData): Promise<GateResult> {
   const passphrase = String(formData.get("passphrase") || "");
 
   const fail: GateResult = { error: "Accès refusé. Vérifiez vos informations." };
+
+  // 5 essais / 15 min par IP et par e-mail (les requêtes parallèles comptent toutes).
+  if (
+    isRateLimited(`admin:${clientIp()}`, 5, 15 * 60_000) ||
+    isRateLimited(`admin-mail:${email}`, 5, 15 * 60_000)
+  ) {
+    return { error: "Trop de tentatives. Réessayez plus tard." };
+  }
 
   // L'URL secrète doit correspondre (re-vérification côté serveur).
   const slug = adminGateSlug();

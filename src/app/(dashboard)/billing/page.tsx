@@ -118,6 +118,8 @@ export default async function BillingPage() {
     creditBalanceCents(session.org.id),
   ]);
   const dateFmt = new Intl.DateTimeFormat("fr-FR", { day: "numeric", month: "long", year: "numeric" });
+  // Jamais payé et sans accès démo : aucune offre à afficher comme « actuelle ».
+  const noOffer = sub.status === "expired" && sub.neverPaid;
   const statusText =
     sub.status === "trial"
       ? `Accès démo jusqu'au ${dateFmt.format(sub.endsAt)} (${sub.daysLeft} jour${sub.daysLeft > 1 ? "s" : ""}) : ${sub.minutesIncluded} minutes d'appel offertes par l'équipe Callpme.`
@@ -167,16 +169,19 @@ export default async function BillingPage() {
               id="current-plan-title"
               className="mt-3 text-display-sm font-semibold tracking-tight text-foreground"
             >
-              {plan.name}
+              {noOffer ? "Aucune offre active" : plan.name}
             </h2>
             <p className="mt-1 max-w-xl text-sm text-muted-foreground">{statusText}</p>
           </div>
-          <div className="text-right">
-            <p className="tabular text-xl font-semibold tracking-tight text-foreground">
-              {plan.priceLabel}
-              <span className="text-sm font-normal text-muted-foreground"> {plan.period}</span>
-            </p>
-          </div>
+          {/* Le prix n'a de sens que pour une offre réellement souscrite. */}
+          {!noOffer && (
+            <div className="text-right">
+              <p className="tabular text-xl font-semibold tracking-tight text-foreground">
+                {plan.priceLabel}
+                <span className="text-sm font-normal text-muted-foreground"> {plan.period}</span>
+              </p>
+            </div>
+          )}
         </div>
 
         <h3 className="mt-6 text-sm font-medium text-foreground">
@@ -185,11 +190,19 @@ export default async function BillingPage() {
             · {sub.status === "trial" ? "pendant la démo" : sub.status === "active" ? `depuis le ${dateFmt.format(sub.periodStart)}` : monthLabel}
           </span>
         </h3>
-        <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
-          <UsageRow icon={Bot} label="Agents" used={agents} max={sub.plan.maxAgents} slots />
-          <UsageRow icon={Hash} label="Numéros" used={numbers} max={sub.plan.maxNumbers} slots />
-          <UsageRow icon={Clock} label="Minutes" used={minutesUsed} max={sub.minutesIncluded + extraMinutes} unit="min" />
-        </div>
+        {sub.status === "expired" ? (
+          <p className="mt-3 rounded-xl border border-dashed border-border p-4 text-sm text-muted-foreground">
+            {noOffer
+              ? "Votre consommation s'affichera ici dès que vous aurez choisi une offre."
+              : "Offre expirée : renouvelez-la pour retrouver vos minutes. Vos agents, numéros et données sont conservés."}
+          </p>
+        ) : (
+          <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <UsageRow icon={Bot} label="Agents" used={agents} max={sub.plan.maxAgents} slots />
+            <UsageRow icon={Hash} label="Numéros" used={numbers} max={sub.plan.maxNumbers} slots />
+            <UsageRow icon={Clock} label="Minutes" used={minutesUsed} max={sub.minutesIncluded + extraMinutes} unit="min" />
+          </div>
+        )}
       </Card>
 
       {/* Changement d'offre */}
@@ -204,7 +217,8 @@ export default async function BillingPage() {
           Essentiel, Starter et Pro se règlent en ligne. L&apos;offre Agence se fait sur devis :
           envoyez une demande, l&apos;équipe fixe le montant, puis vous réglez.
         </p>
-        <BillingPlans currentPlan={session.org.plan} status={sub.status} agency={agency} />
+        {/* Sans offre souscrite, aucune carte n'est marquée « Offre actuelle ». */}
+        <BillingPlans currentPlan={noOffer ? "" : session.org.plan} status={sub.status} agency={agency} />
       </section>
 
       {/* Recharges de minutes */}

@@ -6,6 +6,7 @@
  * chaque rendez-vous y est créé / supprimé. La double réservation est
  * impossible : un verrou unique (`slotKey`) protège chaque créneau.
  */
+import { orgCountry } from "../geo/org-country";
 import { randomInt } from "crypto";
 import { Prisma } from "@prisma/client";
 import { prisma } from "../db/client";
@@ -169,7 +170,7 @@ export async function bookAppointment(
   }
 
   const phoneRaw = typeof input.phone === "string" && input.phone.trim() ? input.phone : ctx.callerNumber;
-  const phone = phoneRaw ? toE164(phoneRaw) : null;
+  const phone = phoneRaw ? toE164(phoneRaw, await orgCountry(agent.organizationId)) : null;
   const caller = ctx.callerNumber ? toE164(ctx.callerNumber) : null;
   // Anti-saturation : un même appel ou un même numéro ne bloque pas tout l'agenda.
   const [byCall, byPhone] = await Promise.all([

@@ -9,6 +9,7 @@
  * Le tour est lancé par le serveur vocal (toutes les 30 s), par la route
  * /api/cron/campaigns (cron de l'hébergeur), et immédiatement au lancement.
  */
+import { orgCountry } from "../geo/org-country";
 import { prisma } from "../db/client";
 import { getAgentById } from "../db/agents";
 import { canUseMinutes } from "../billing/limits";
@@ -27,15 +28,16 @@ const TICK_BUDGET_MS = 45_000;
 /* ----------------------------- Liste d'opposition ----------------------------- */
 
 export async function isOptedOut(organizationId: string, phone: string): Promise<boolean> {
-  const e164 = toE164(phone);
+  const e164 = toE164(phone, await orgCountry(organizationId));
   if (!e164) return false;
   return Boolean(await prisma.doNotCall.findUnique({ where: { organizationId_phone: { organizationId, phone: e164 } } }));
 }
 
 /** Ajout en masse (import Bloctel…) : requêtes groupées, numéros normalisés et dédoublonnés. */
 export async function addOptOuts(organizationId: string, phones: string[], reason: string): Promise<{ added: number; invalid: number }> {
-  const valid = Array.from(new Set(phones.map((p) => toE164(p)).filter((p): p is string => Boolean(p))));
-  const invalid = phones.length - phones.filter((p) => toE164(p)).length;
+  const cc = await orgCountry(organizationId);
+  const valid = Array.from(new Set(phones.map((p) => toE164(p, cc)).filter((p): p is string => Boolean(p))));
+  const invalid = phones.length - phones.filter((p) => toE164(p, cc)).length;
   let added = 0;
   for (let i = 0; i < valid.length; i += 1000) {
     const chunk = valid.slice(i, i + 1000);
@@ -54,7 +56,7 @@ export async function addOptOuts(organizationId: string, phones: string[], reaso
 
 /** Ajoute un numéro à la liste d'opposition et retire ses appels en attente. */
 export async function addOptOut(organizationId: string, phone: string, reason: string): Promise<boolean> {
-  const e164 = toE164(phone);
+  const e164 = toE164(phone, await orgCountry(organizationId));
   if (!e164) return false;
   await prisma.doNotCall.upsert({
     where: { organizationId_phone: { organizationId, phone: e164 } },

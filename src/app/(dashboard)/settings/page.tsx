@@ -93,7 +93,7 @@ export default async function SettingsPage() {
       select: { twoFactorEnabled: true, twoFactorBackupCodes: true },
     }),
   ]);
-  const orgRow = await prisma.organization.findUnique({ where: { id: org.id }, select: { alerts: true } });
+  const orgRow = await prisma.organization.findUnique({ where: { id: org.id }, select: { alerts: true, country: true } });
   const alertSettings = parseAlertSettings(orgRow?.alerts);
   let backupRemaining = 0;
   try {
@@ -161,7 +161,7 @@ export default async function SettingsPage() {
               description="Le nom affiché dans votre espace et vos e-mails."
             />
             <div className="mt-5 grid grid-cols-1 gap-6 md:grid-cols-2">
-              <OrganizationForm name={org.name} />
+              <OrganizationForm name={org.name} country={orgRow?.country ?? "FR"} />
               <div className="space-y-2">
                 <p className="text-sm font-medium text-foreground/90">Offre</p>
                 <Link

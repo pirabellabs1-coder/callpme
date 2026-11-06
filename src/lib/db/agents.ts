@@ -2,6 +2,9 @@
  * Dépôt « Agents » — accès typé aux agents, avec (dé)sérialisation de la
  * config JSON et statistiques d'appels agrégées (sans requête N+1).
  */
+import { bookingConfig } from "../agenda/slots";
+import { getCountry } from "../geo/countries";
+import { orgCountry } from "../geo/org-country";
 import { prisma } from "./client";
 import { toE164 } from "../telephony/e164";
 import { zonedDayStart, zonedParts } from "./calls";
@@ -244,6 +247,11 @@ export async function createAgent(
 ): Promise<Agent> {
   await assertOwnedRefs(orgId, input);
   const phoneNumber = await ownedPhoneNumber(orgId, input.phoneNumber);
+  // Agenda : par défaut, le fuseau horaire du pays de l'organisation.
+  if (!input.config.booking?.timezone) {
+    const tz = getCountry(await orgCountry(orgId)).timezone;
+    input = { ...input, config: { ...input.config, booking: { ...bookingConfig(input.config.booking), timezone: tz } } };
+  }
   const row = await prisma.agent.create({
     data: {
       organizationId: orgId,

@@ -1,4 +1,5 @@
 import { NextRequest } from "next/server";
+import { orgCountry } from "@/lib/geo/org-country";
 import { z } from "zod";
 import { getSession, isOrgAdmin } from "@/lib/auth/session";
 import { isRateLimited } from "@/lib/security/rate-limit";
@@ -45,7 +46,7 @@ export async function POST(req: NextRequest) {
         `Limite de l'offre ${plan.name} atteinte (${plan.maxNumbers} numéros). Passez à une offre supérieure.`,
       );
     }
-    const e164 = toE164(parsed.data.number);
+    const e164 = toE164(parsed.data.number, await orgCountry(session.org.id));
     if (!e164) return badRequest("Numéro invalide : format international attendu (ex. +33 1 84 80 11 02).");
     const existing = await prisma.phoneNumber.findFirst({
       where: { number: { in: [e164, parsed.data.number] } },

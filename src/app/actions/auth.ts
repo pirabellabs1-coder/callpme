@@ -1,5 +1,6 @@
 "use server";
 
+import { DEFAULT_COUNTRY, isCountryCode } from "@/lib/geo/countries";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { clientIp, isRateLimited } from "@/lib/security/rate-limit";
@@ -102,6 +103,8 @@ export async function register(formData: FormData): Promise<AuthResult> {
     password: formData.get("password"),
     plan: formData.get("plan") ?? undefined,
   });
+  const countryRaw = String(formData.get("country") ?? "");
+  const country = isCountryCode(countryRaw) ? countryRaw : DEFAULT_COUNTRY;
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "Champs invalides." };
   }
@@ -120,6 +123,7 @@ export async function register(formData: FormData): Promise<AuthResult> {
     data: {
       name: parsed.data.organizationName.trim(),
       plan,
+      country,
       users: {
         create: {
           email,

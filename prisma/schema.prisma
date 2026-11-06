@@ -27,6 +27,8 @@ model Organization {
   trialEndsAt    DateTime?
   /** Réglages des alertes au propriétaire (JSON, voir src/lib/alerts). */
   alerts         String?
+  /** Pays (ISO) : format des numéros saisis sans indicatif, fuseau par défaut. */
+  country        String               @default("FR")
   agents         Agent[]
   users          User[]
   invitations    Invitation[]

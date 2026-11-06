@@ -1,6 +1,8 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { Select } from "@/components/ui/select";
+import { COUNTRIES } from "@/lib/geo/countries";
+import { useEffect, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Loader2, AlertCircle } from "lucide-react";
@@ -20,7 +22,18 @@ export function RegisterForm({ plan }: { plan?: string }) {
     name: "",
     email: "",
     password: "",
+    country: "BJ",
   });
+  // Pays proposé d'après le fuseau horaire du navigateur (modifiable).
+  useEffect(() => {
+    try {
+      const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      const guess = COUNTRIES.find((c) => c.timezone === tz);
+      if (guess) setForm((f) => ({ ...f, country: guess.code }));
+    } catch {
+      /* fuseau inconnu : Bénin par défaut */
+    }
+  }, []);
   const selectedPlan = plan && isPlanId(plan) ? getPlan(plan) : null;
 
   function set(k: keyof typeof form, v: string) {
@@ -72,6 +85,19 @@ export function RegisterForm({ plan }: { plan?: string }) {
             placeholder="Mon agence vocale"
             required
           />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="country">Pays</Label>
+          <Select id="country" value={form.country} onChange={(e) => set("country", e.target.value)} aria-describedby="country-help">
+            {COUNTRIES.map((c) => (
+              <option key={c.code} value={c.code}>
+                {c.name} (+{c.dial})
+              </option>
+            ))}
+          </Select>
+          <p id="country-help" className="text-xs text-muted-foreground">
+            Sert à lire les numéros saisis sans indicatif et à régler l&apos;heure de vos agents.
+          </p>
         </div>
         <div className="space-y-2">
           <Label htmlFor="name">Votre nom</Label>

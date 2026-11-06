@@ -3,6 +3,7 @@
  * Enregistrés dans Callpme (source de vérité), puis notifiés et poussés
  * vers les CRM connectés et les webhooks — sauf en conversation de test.
  */
+import { orgCountry } from "../geo/org-country";
 import { prisma } from "../db/client";
 import { createNotification } from "../db/notifications";
 import { dispatchEvent } from "../webhooks/dispatch";
@@ -49,7 +50,7 @@ function clip(s: string | null | undefined, n: number): string | null {
  */
 export async function recordLead(input: LeadInput) {
   const kind = input.kind ?? "lead";
-  const phone = input.phone ? toE164(input.phone) ?? clip(input.phone, 40) : null;
+  const phone = input.phone ? toE164(input.phone, await orgCountry(input.organizationId)) ?? clip(input.phone, 40) : null;
   const data = {
     name: clip(input.name, 120) ?? "Appelant",
     phone,

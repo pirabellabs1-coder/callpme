@@ -1,5 +1,7 @@
 "use client";
 
+import { Select } from "@/components/ui/select";
+import { COUNTRIES } from "@/lib/geo/countries";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2, AlertCircle, Check } from "lucide-react";
@@ -47,9 +49,10 @@ function Feedback({
 
 /* --------------------------- Organisation -------------------------------- */
 
-export function OrganizationForm({ name }: { name: string }) {
+export function OrganizationForm({ name, country }: { name: string; country: string }) {
   const router = useRouter();
   const [value, setValue] = useState(name);
+  const [cc, setCc] = useState(country);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const [pending, start] = useTransition();
@@ -60,6 +63,7 @@ export function OrganizationForm({ name }: { name: string }) {
     setSaved(false);
     const fd = new FormData();
     fd.set("name", value);
+    fd.set("country", cc);
     start(async () => {
       const res: SettingsResult = await updateOrganization(fd);
       if (res.error) return setError(res.error);
@@ -83,6 +87,27 @@ export function OrganizationForm({ name }: { name: string }) {
           }}
           placeholder="Mon agence"
         />
+      </div>
+      <div className="space-y-2">
+        <Label htmlFor="org-country">Pays</Label>
+        <Select
+          id="org-country"
+          value={cc}
+          onChange={(e) => {
+            setCc(e.target.value);
+            setSaved(false);
+          }}
+          aria-describedby="org-country-help"
+        >
+          {COUNTRIES.map((c) => (
+            <option key={c.code} value={c.code}>
+              {c.name} (+{c.dial})
+            </option>
+          ))}
+        </Select>
+        <p id="org-country-help" className="text-xs text-muted-foreground">
+          Un numéro saisi sans indicatif est lu dans ce pays (ex. Bénin : 01 97 12 34 56 → +229 01 97 12 34 56).
+        </p>
       </div>
       <Feedback error={error} saved={saved} />
       <Button

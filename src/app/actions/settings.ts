@@ -1,5 +1,7 @@
 "use server";
 
+import { forgetOrgCountry } from "@/lib/geo/org-country";
+import { isCountryCode } from "@/lib/geo/countries";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { prisma } from "@/lib/db/client";
@@ -26,10 +28,13 @@ export async function updateOrganization(
   if (name.length < 2) {
     return { error: "Le nom doit contenir au moins 2 caractères." };
   }
+  const countryRaw = String(formData.get("country") ?? "");
+  const country = isCountryCode(countryRaw) ? countryRaw : undefined;
   await prisma.organization.update({
     where: { id: session.org.id },
-    data: { name },
+    data: { name, ...(country ? { country } : {}) },
   });
+  forgetOrgCountry(session.org.id);
   revalidatePath("/settings");
   revalidatePath("/", "layout");
   return { ok: true };

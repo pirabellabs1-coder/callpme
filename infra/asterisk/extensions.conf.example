@@ -7,7 +7,7 @@
 #include callpme-secrets.conf
 CALLPME_API=https://app.votre-domaine.com     ; application Callpme
 CALLPME_VOICE=10.0.0.10:4200                  ; serveur vocal (VOICE_AUDIOSOCKET_PORT)
-CALLPME_COUNTRY=225                           ; indicatif ajouté aux numéros reçus en format national
+CALLPME_COUNTRY=229                           ; indicatif ajouté aux numéros reçus en format national (229 Bénin, 225 Côte d'Ivoire, 221 Sénégal…)
 TRUNK=operateur                               ; point de terminaison PJSIP de l'opérateur
 ; Destinations autorisées en sortie et en transfert (miroir de
 ; src/lib/telephony/destinations.ts, sans surtaxés). Protège contre la fraude

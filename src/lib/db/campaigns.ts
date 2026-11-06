@@ -1,4 +1,6 @@
 /** Dépôt « Campagnes » — appels sortants par lot. */
+import { getCountry } from "../geo/countries";
+import { orgCountry } from "../geo/org-country";
 import { prisma } from "./client";
 import { telephonyConfigured } from "@/lib/telephony/provider";
 import { canUseMinutes } from "@/lib/billing/limits";
@@ -93,8 +95,15 @@ export async function createCampaign(
     select: { id: true },
   });
   if (!agent) return null;
+  // Plages d'appel : fuseau horaire du pays de l'organisation.
+  const timezone = getCountry(await orgCountry(orgId)).timezone;
   return prisma.campaign.create({
-    data: { organizationId: orgId, name: data.name, agentId: data.agentId },
+    data: {
+      organizationId: orgId,
+      name: data.name,
+      agentId: data.agentId,
+      settings: JSON.stringify(campaignSettings({ timezone })),
+    },
   });
 }
 
@@ -110,14 +119,15 @@ export async function addContacts(
   // Plafond total de 5 000 contacts par campagne (et pas seulement par import).
   const existing = await prisma.contact.count({ where: { campaignId } });
   const room = Math.max(0, MAX_CONTACTS_PER_CAMPAIGN - existing);
+  const cc = await orgCountry(orgId);
   const clean = contacts
     .filter((c) => c.phone?.trim())
     .slice(0, room)
     .map((c) => ({
       campaignId,
       name: c.name?.trim() || "Contact",
-      // Format international : « 06 12… » devient « +33612… » (sinon refusé à l'appel).
-      phone: toE164(c.phone) ?? c.phone.trim(),
+      // Format international selon le pays de l'organisation (« 01 97… » au Bénin → +229 01 97…).
+      phone: toE164(c.phone, cc) ?? c.phone.trim(),
       data: c.data && Object.keys(c.data).length ? JSON.stringify(Object.fromEntries(Object.entries(c.data).slice(0, 20))) : null,
     }));
   if (clean.length === 0) return 0;

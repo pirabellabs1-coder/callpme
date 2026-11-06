@@ -6,6 +6,7 @@
  * Les SMS sont payés par la plateforme : mêmes destinations autorisées que les
  * appels, et au plus quelques SMS par appel.
  */
+import { orgCountry } from "../geo/org-country";
 import { checkDestination } from "./destinations";
 import { toE164 } from "./e164";
 import { telephonyProvider } from "./provider";
@@ -34,7 +35,7 @@ export async function sendSms(
 ): Promise<SmsResult> {
   const provider = telephonyProvider();
   if (!provider || !smsConfigured()) return { ok: false, error: "SMS non configurés." };
-  const to = toE164(rawTo);
+  const to = toE164(rawTo, opts.organizationId ? await orgCountry(opts.organizationId) : undefined);
   if (!to) return { ok: false, error: "Numéro invalide." };
   const dest = checkDestination(to);
   if (!dest.ok) return { ok: false, error: dest.reason };

@@ -1,4 +1,5 @@
 import { NextRequest } from "next/server";
+import { orgCountry } from "@/lib/geo/org-country";
 import { authenticateApiKey } from "@/lib/auth/api-key";
 import { listCalls } from "@/lib/db/calls";
 import { ok, unauthorized, badRequest, forbidden, notFound, serverError } from "@/lib/api/respond";
@@ -88,7 +89,7 @@ export async function POST(req: NextRequest) {
     if (agent.status !== "active") return badRequest("L'agent doit être « En ligne » pour passer des appels.");
     if (!telephonyConfigured()) return forbidden("Les appels sortants ne sont pas encore activés sur la plateforme.");
 
-    const to = toE164(parsed.data.to);
+    const to = toE164(parsed.data.to, await orgCountry(org.id));
     if (!to) return badRequest("Numéro invalide (format international attendu, ex. +22901970000).");
     const dest = checkDestination(to);
     if (!dest.ok) return badRequest(dest.reason ?? "Destination non autorisée");

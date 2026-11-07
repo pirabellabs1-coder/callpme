@@ -25,10 +25,16 @@ export function geniusConfigured(): boolean {
   );
 }
 
-function headers() {
+/** Clés d'un compte GeniusPay marchand (entreprise cliente). Sans clés : compte de la plateforme. */
+export interface GeniusCredentials {
+  apiKey: string;
+  apiSecret: string;
+}
+
+function headers(creds?: GeniusCredentials) {
   return {
-    "X-API-Key": process.env.GENIUS_PAY_API_KEY ?? "",
-    "X-API-Secret": process.env.GENIUS_PAY_API_SECRET ?? "",
+    "X-API-Key": creds ? creds.apiKey : process.env.GENIUS_PAY_API_KEY ?? "",
+    "X-API-Secret": creds ? creds.apiSecret : process.env.GENIUS_PAY_API_SECRET ?? "",
     "Content-Type": "application/json",
   };
 }
@@ -36,19 +42,22 @@ function headers() {
 /** Crée un paiement et renvoie l'URL de checkout + la référence. */
 export async function createGeniusPayment(opts: {
   amountEur: number;
+  /** Montant exact en FCFA (prioritaire sur `amountEur`). */
+  amountXof?: number;
   description: string;
-  customer: { name: string; email: string; phone?: string };
+  customer: { name: string; email?: string; phone?: string };
   metadata: Record<string, string>;
   successUrl: string;
   errorUrl: string;
+  creds?: GeniusCredentials;
 }): Promise<{ checkoutUrl: string; reference: string } | null> {
-  if (!geniusConfigured()) return null;
+  if (!opts.creds && !geniusConfigured()) return null;
   try {
     const res = await fetch(`${API}/payments`, {
       method: "POST",
-      headers: headers(),
+      headers: headers(opts.creds),
       body: JSON.stringify({
-        amount: eurToXof(opts.amountEur),
+        amount: opts.amountXof ?? eurToXof(opts.amountEur),
         currency: "XOF",
         description: opts.description,
         customer: opts.customer,
@@ -78,11 +87,12 @@ export async function createGeniusPayment(opts: {
 /** Statut serveur-à-serveur d'un paiement (authentifié) : pending|completed|… */
 export async function getGeniusPaymentStatus(
   reference: string,
+  creds?: GeniusCredentials,
 ): Promise<string | null> {
-  if (!geniusConfigured() || !reference) return null;
+  if ((!creds && !geniusConfigured()) || !reference) return null;
   try {
     const res = await fetch(`${API}/payments/${encodeURIComponent(reference)}`, {
-      headers: headers(),
+      headers: headers(creds),
       signal: AbortSignal.timeout(10000),
     });
     const data = await res.json().catch(() => null);

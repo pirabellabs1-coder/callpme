@@ -260,6 +260,34 @@ const TOOLS: AgentToolDef[] = [
     },
   },
 
+  /* ------------------------------ Paiement ------------------------------ */
+  {
+    name: "requestPayment",
+    label: "Encaisser un paiement",
+    description:
+      "Envoie à l'appelant, par SMS ou WhatsApp, un lien de paiement sécurisé (Mobile Money ou carte) au profit de l'entreprise. Avant de l'appeler : annonce clairement le montant et le motif, et obtiens l'accord explicite de l'appelant. Utilise un tarif de l'entreprise (item) ; sans tarif connu, appelle-le sans montant pour obtenir la liste. Ne demande jamais de code, de mot de passe ni de numéro de carte : le paiement se fait uniquement sur la page du lien.",
+    category: "paiement",
+    icon: "Wallet",
+    parameters: {
+      type: "object",
+      properties: {
+        item: { type: "string", description: "Prestation ou produit, tel que nommé dans les tarifs de l'entreprise." },
+        amount: { type: "number", description: "Montant, seulement si l'entreprise autorise les montants libres (dans sa devise : FCFA ou euros)." },
+        reason: { type: "string", description: "Motif du paiement en quelques mots (ex : consultation du 12 mars)." },
+      },
+      required: ["reason"],
+    },
+  },
+  {
+    name: "checkPayment",
+    label: "Vérifier un paiement",
+    description:
+      "Vérifie si l'appelant a payé le lien envoyé pendant cet appel. Annonce « paiement reçu » seulement si cet outil le confirme.",
+    category: "paiement",
+    icon: "BadgeCheck",
+    parameters: { type: "object", properties: {}, required: [] },
+  },
+
   /* --------------------------- Communication ---------------------------- */
   {
     name: "sendFollowUpEmail",
@@ -355,6 +383,7 @@ export const TOOL_CATEGORY_LABELS: Record<string, string> = {
   agenda: "Agenda",
   crm: "CRM",
   commerce: "Commerce",
+  paiement: "Paiement",
   communication: "Communication",
   systeme: "Système",
 };

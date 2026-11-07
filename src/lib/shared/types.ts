@@ -112,6 +112,7 @@ export type ToolCategory =
   | "agenda"
   | "crm"
   | "commerce"
+  | "paiement"
   | "communication"
   | "systeme";
 

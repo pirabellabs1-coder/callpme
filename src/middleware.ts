@@ -22,6 +22,7 @@ const PUBLIC_API_PREFIXES = [
   "/api/cron/campaigns", // secret CRON_SECRET (en-tête Authorization)
   "/api/telephony/status", // signature de l'opérateur (Twilio / Telnyx)
   "/api/payments/geniuspay/webhook", // revérifié auprès de GeniusPay
+  "/api/payments/merchant/", // webhook marchand : signature HMAC + statut revérifié
   "/api/widget/", // widget site web : domaines autorisés (Origin) + limites
   "/api/whatsapp/webhook/", // Meta : signature X-Hub-Signature-256 vérifiée
 ];
@@ -43,6 +44,7 @@ const PRIVATE_PAGE_PREFIXES = [
   "/integrations",
   "/knowledge",
   "/numbers",
+  "/payments",
   "/settings",
   "/templates",
   "/voices",

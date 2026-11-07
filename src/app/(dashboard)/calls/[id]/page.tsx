@@ -16,6 +16,7 @@ import {
 import { getCallById } from "@/lib/db/calls";
 import { requireSession } from "@/lib/auth/session";
 import { getAgentById } from "@/lib/db/agents";
+import { asCurrency, formatAmount } from "@/lib/payments/merchant-rules";
 import { prisma } from "@/lib/db/client";
 import { getTool } from "@/lib/tools/registry";
 import { formatValue } from "@/lib/analysis/fields";
@@ -75,7 +76,7 @@ export default async function CallTranscriptPage({
   const call = await getCallById(params.id, session.org.id);
   if (!call) notFound();
 
-  const [evaluation, agent, appointments, leads, qualityRow] = await Promise.all([
+  const [evaluation, agent, appointments, leads, qualityRow, payments] = await Promise.all([
     prisma.evaluation.findUnique({ where: { callId: call.id } }),
     getAgentById(call.agentId),
     prisma.appointment.findMany({
@@ -87,6 +88,11 @@ export default async function CallTranscriptPage({
       select: { id: true, kind: true, name: true, score: true },
     }),
     prisma.call.findUnique({ where: { id: call.id }, select: { quality: true } }),
+    prisma.paymentRequest.findMany({
+      where: { organizationId: session.org.id, callRef: call.id },
+      orderBy: { createdAt: "asc" },
+      select: { id: true, amount: true, currency: true, reason: true, status: true },
+    }),
   ]);
   const quality = parseQuality(qualityRow?.quality);
   const seconds = (ms: number | null) => (ms === null ? "—" : `${(ms / 1000).toFixed(1).replace(".", ",")} s`);
@@ -278,7 +284,7 @@ export default async function CallTranscriptPage({
             </Card>
           )}
 
-          {(appointments.length > 0 || leads.length > 0) && (
+          {(appointments.length > 0 || leads.length > 0 || payments.length > 0) && (
             <Card className="border-emerald-500/20 p-5">
               <SectionTitle icon={CalendarCheck2}>Résultats de l&apos;appel</SectionTitle>
               <ul className="mt-3 space-y-2 text-sm">
@@ -299,6 +305,18 @@ export default async function CallTranscriptPage({
                         {KIND_LABEL[l.kind] ?? l.kind} · {l.name}
                       </span>
                       {l.score != null && <span className="text-xs tabular-nums text-muted-foreground">{l.score}/100</span>}
+                    </Link>
+                  </li>
+                ))}
+                {payments.map((p) => (
+                  <li key={p.id}>
+                    <Link href="/payments" className="flex items-baseline justify-between gap-3 rounded-lg px-2 py-1.5 hover:bg-foreground/[0.04]">
+                      <span>
+                        Paiement · {formatAmount(p.amount, asCurrency(p.currency))} · {p.reason}
+                      </span>
+                      <span className="text-xs text-muted-foreground">
+                        {p.status === "completed" ? "Payé" : p.status === "failed" ? "Échoué" : "En attente"}
+                      </span>
                     </Link>
                   </li>
                 ))}

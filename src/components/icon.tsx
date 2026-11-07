@@ -26,6 +26,8 @@ import {
   Mail,
   NotebookPen,
   ListChecks,
+  Wallet,
+  BadgeCheck,
   CircleHelp,
   type LucideIcon,
 } from "lucide-react";
@@ -53,6 +55,8 @@ const ICONS: Record<string, LucideIcon> = {
   Mail,
   NotebookPen,
   ListChecks,
+  Wallet,
+  BadgeCheck,
 };
 
 export function DynamicIcon({

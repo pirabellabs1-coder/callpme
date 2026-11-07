@@ -86,6 +86,7 @@ export async function finishCall(input: FinishCallInput) {
     await Promise.all([
       prisma.appointment.updateMany({ where, data: { callRef: call.id } }),
       prisma.lead.updateMany({ where, data: { callRef: call.id } }),
+      prisma.paymentRequest.updateMany({ where, data: { callRef: call.id } }),
     ]).catch(() => {});
   }
 

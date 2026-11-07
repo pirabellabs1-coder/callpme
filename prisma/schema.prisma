@@ -69,6 +69,8 @@ model Organization {
   appointments   Appointment[]
   leads          Lead[]
   callbacks      Callback[]
+  paymentSettings PaymentSettings?
+  paymentRequests PaymentRequest[]
   createdAt      DateTime             @default(now())
 }
 
@@ -788,4 +790,58 @@ model Callback {
   @@index([status, dueAt])
   @@index([organizationId, phone, createdAt])
   @@index([agentId])
+}
+
+/// Encaissement pendant l'appel : compte GeniusPay MARCHAND de l'organisation
+/// (l'argent va à l'entreprise, pas à Callpme). Clés chiffrées (AES-GCM).
+model PaymentSettings {
+  id             String       @id @default(cuid())
+  organizationId String       @unique
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  enabled        Boolean      @default(false)
+  apiKey         String // chiffré
+  apiSecret      String // chiffré
+  webhookSecret  String // chiffré : signature HMAC des webhooks GeniusPay
+  /// Identifiant public et aléatoire de l'URL du webhook marchand.
+  webhookToken   String       @unique
+  /// Devise des montants annoncés : XOF (FCFA) ou EUR (converti en XOF).
+  currency       String       @default("XOF")
+  /// Plafond par demande, dans la devise ci-dessus.
+  maxAmount      Int          @default(50000)
+  /// L'agent peut-il demander un montant libre (sinon : tarifs ci-dessous seulement) ?
+  allowCustomAmount Boolean   @default(false)
+  /// JSON : [{ "label": "Consultation", "amount": 5000 }] — tarifs fixés par l'entreprise.
+  items          String?
+  /// Canal d'envoi du lien : sms | whatsapp (repli SMS si WhatsApp échoue).
+  delivery       String       @default("sms")
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+}
+
+/// Demande de paiement créée par un agent pendant un appel.
+model PaymentRequest {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  agentId        String
+  /// Appel : identifiant de session pendant l'appel, puis celui de l'appel enregistré.
+  callRef        String?
+  amount         Float // dans `currency`
+  currency       String // XOF | EUR
+  amountXof      Int // montant réellement encaissé
+  reason         String
+  customerPhone  String
+  status         String       @default("pending") // pending | completed | failed
+  /// Référence GeniusPay.
+  reference      String?      @unique
+  checkoutUrl    String?
+  channel        String? // sms | whatsapp
+  /// Une seule demande pour un même appel, montant et motif.
+  idempotencyKey String       @unique
+  paidAt         DateTime?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@index([organizationId, createdAt])
+  @@index([callRef])
 }

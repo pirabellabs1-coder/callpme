@@ -31,6 +31,14 @@ const SECTIONS = [
     h: "7. Sous-traitants",
     p: "Nous faisons appel à des prestataires techniques (hébergement, modèles d'IA, téléphonie, e-mail) sélectionnés pour leurs garanties de conformité. La liste est disponible sur demande.",
   },
+  {
+    h: "8. Données Google (Google Agenda)",
+    p: "Si vous connectez votre compte Google, Callpme accède uniquement à : votre adresse e-mail (pour afficher le compte connecté), vos créneaux occupés/libres (calendar.freebusy, pour proposer des horaires disponibles à vos appelants) et la création ou mise à jour des rendez-vous pris par votre agent (calendar.events). Callpme ne lit pas le contenu de vos autres événements, ne les stocke pas et ne les partage avec personne. L'autorisation d'accès est conservée chiffrée (AES-256-GCM) et sert seulement à faire fonctionner l'agenda de vos agents. Ces données ne sont jamais vendues, jamais utilisées pour de la publicité, et jamais utilisées pour entraîner des modèles d'intelligence artificielle. Vous pouvez retirer l'accès à tout moment depuis la page Intégrations de Callpme ou depuis les autorisations de votre compte Google (myaccount.google.com/permissions).",
+  },
+  {
+    h: "9. Utilisation limitée des données Google (Limited Use)",
+    p: "Callpme's use and transfer to any other app of information received from Google APIs will adhere to the Google API Services User Data Policy, including the Limited Use requirements. — L'utilisation et le transfert par Callpme des informations reçues des API Google respectent la Politique relative aux données utilisateur des services d'API Google, y compris les exigences d'utilisation limitée.",
+  },
 ];
 
 export default function ConfidentialitePage() {

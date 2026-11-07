@@ -22,6 +22,8 @@ describe("alertes au propriétaire", () => {
       email: false,
       events: [],
       recipients: ["awa@cabinet.bj"],
+      // E-mails coupés avant l'arrivée du résumé : résumé coupé aussi.
+      digest: { ...DEFAULT_ALERTS.digest, enabled: false },
     });
   });
 });

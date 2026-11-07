@@ -21,6 +21,7 @@ const PUBLIC_API_PREFIXES = [
   "/api/telephony/sip/", // passerelle Asterisk : secret SIP_GATEWAY_SECRET
   "/api/cron/campaigns", // secret CRON_SECRET (en-tête Authorization)
   "/api/cron/reminders", // secret CRON_SECRET (en-tête Authorization)
+  "/api/cron/digest", // secret CRON_SECRET (en-tête Authorization)
   "/api/telephony/status", // signature de l'opérateur (Twilio / Telnyx)
   "/api/payments/geniuspay/webhook", // revérifié auprès de GeniusPay
   "/api/payments/merchant/", // webhook marchand : signature HMAC + statut revérifié

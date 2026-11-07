@@ -189,7 +189,19 @@ export function AgentWizard({
   const greetingCtx = { organizationName, template };
 
   function selectRole(role: AgentRole) {
-    setS((prev) => followGreeting(prev, { role, tools: ROLE_META[role].defaultTools }, firstMsgDirty, greetingCtx));
+    // Recliquer sur le rôle choisi ne doit pas écraser les outils d'un modèle clé en main.
+    // Revenir au rôle du modèle rend ses outils (et l'accueil suit la langue et le modèle).
+    const fromTemplate = !isEdit && template && template.role === role;
+    setS((prev) =>
+      prev.role === role
+        ? prev
+        : followGreeting(
+            prev,
+            { role, tools: fromTemplate && template.preset ? template.preset.tools : ROLE_META[role].defaultTools },
+            firstMsgDirty,
+            greetingCtx,
+          ),
+    );
   }
 
   /** Langue ou mode bilingue changés : l'accueil suit, tant qu'il n'a pas été réécrit à la main. */

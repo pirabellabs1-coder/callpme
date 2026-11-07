@@ -94,7 +94,7 @@ export default async function SettingsPage() {
       select: { twoFactorEnabled: true, twoFactorBackupCodes: true },
     }),
   ]);
-  const orgRow = await prisma.organization.findUnique({ where: { id: org.id }, select: { alerts: true, country: true } });
+  const orgRow = await prisma.organization.findUnique({ where: { id: org.id }, select: { alerts: true, country: true, whatsapp: { select: { enabled: true } } } });
   const alertSettings = parseAlertSettings(orgRow?.alerts);
   let backupRemaining = 0;
   try {
@@ -214,10 +214,10 @@ export default async function SettingsPage() {
               id="alertes"
               icon={Bell}
               title="Alertes"
-              description="Soyez prévenu par e-mail quand vos agents reçoivent un message, un rendez-vous ou transfèrent un appel."
+              description="Soyez prévenu par e-mail quand vos agents reçoivent un message, un rendez-vous ou transfèrent un appel, et recevez chaque soir le résumé de la journée."
             />
             <div className="mt-5 max-w-2xl">
-              <AlertsForm initial={alertSettings} canEdit={session.user.role === "owner" || session.user.role === "admin"} />
+              <AlertsForm initial={alertSettings} hasWhatsApp={Boolean(orgRow?.whatsapp?.enabled)} canEdit={session.user.role === "owner" || session.user.role === "admin"} />
             </div>
           </Card>
 

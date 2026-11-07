@@ -12,7 +12,7 @@
  *  - Telnyx : TELNYX_API_KEY, TELNYX_TEXML_APP_ID, TELNYX_FROM_NUMBER, TELNYX_PUBLIC_KEY
  */
 import { attachProviderCall, releaseHold, reserveOutbound, sweepStaleHolds, type OutboundRefusal } from "../billing/credit";
-import { createHmac, createPublicKey, timingSafeEqual, verify as edVerify } from "crypto";
+import { createHmac, createPublicKey, timingSafeEqual, verify as edVerify, randomBytes } from "crypto";
 import type { Agent } from "../shared/types";
 import { createVoiceToken } from "../voice-engine/token";
 import { sttConfigured } from "../voice-engine/stt";
@@ -156,7 +156,7 @@ async function dialOutbound(opts: {
   // avant de nous appeler, avec « AnsweredBy » (human / machine_end_beep…).
   const detect = (opts.agent.config.voicemail?.action ?? "message") !== "off";
   const token = createVoiceToken({
-    callId: `out_${Date.now().toString(36)}`,
+    callId: `out_${Date.now().toString(36)}${randomBytes(6).toString("hex")}`,
     agentId: opts.agent.id,
     organizationId: opts.agent.organizationId,
     direction: "outbound",

@@ -1,3 +1,4 @@
+import { randomBytes } from "crypto";
 import { NextRequest } from "next/server";
 import { requireOwnedAgent } from "@/lib/api/agent-access";
 import { canUseMinutes } from "@/lib/billing/limits";
@@ -28,7 +29,7 @@ export async function POST(_req: NextRequest, { params }: { params: { id: string
 
     const token = createVoiceToken(
       {
-        callId: `web_${Date.now().toString(36)}`,
+        callId: `web_${Date.now().toString(36)}${randomBytes(6).toString("hex")}`,
         agentId: agent.id,
         organizationId: session.org.id,
         direction: "web",

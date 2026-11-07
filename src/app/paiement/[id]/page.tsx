@@ -10,15 +10,15 @@ export const dynamic = "force-dynamic";
 
 /**
  * Page de retour publique après un paiement GeniusPay demandé pendant un
- * appel. N'affiche que l'entreprise, le montant, le motif et le statut
- * (relu auprès de GeniusPay) : ni numéro de téléphone, ni référence.
+ * appel. N'affiche que l'entreprise, le montant et le statut (relu auprès
+ * de GeniusPay) : ni motif (données possiblement sensibles), ni numéro, ni référence.
  */
 export default async function PaymentReturnPage({ params }: { params: { id: string } }) {
   if (!/^[a-z0-9]{20,40}$/i.test(params.id)) notFound();
   const limited = isRateLimited(`pay-return:${clientIp()}`, 30, 10 * 60_000);
   const req = await prisma.paymentRequest.findUnique({
     where: { id: params.id },
-    select: { id: true, amount: true, currency: true, reason: true, status: true, organization: { select: { name: true } } },
+    select: { id: true, amount: true, currency: true, status: true, organization: { select: { name: true } } },
   });
   if (!req) notFound();
   const status = limited ? req.status : ((await confirmPaymentRequest(req.id).catch(() => null)) ?? req.status);
@@ -45,10 +45,6 @@ export default async function PaymentReturnPage({ params }: { params: { id: stri
           <div className="flex justify-between gap-4">
             <dt className="text-muted-foreground">Montant</dt>
             <dd className="font-medium">{amount}</dd>
-          </div>
-          <div className="flex justify-between gap-4">
-            <dt className="text-muted-foreground">Motif</dt>
-            <dd className="text-right font-medium">{req.reason}</dd>
           </div>
         </dl>
         <p className="mt-6 text-xs text-muted-foreground">Paiement sécurisé par GeniusPay. Callpme ne voit jamais vos données de paiement.</p>

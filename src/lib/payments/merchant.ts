@@ -15,6 +15,7 @@ import { decryptSecret } from "../crypto/secrets";
 import { createNotification } from "../db/notifications";
 import { sendSms } from "../telephony/sms";
 import { sendWhatsAppText } from "../whatsapp/cloud";
+import { containsLink } from "../security/daily-quota";
 import { createGeniusPayment, getGeniusPaymentStatus, verifyGeniusWebhook, type GeniusCredentials } from "./geniuspay";
 import {
   asCurrency,
@@ -64,6 +65,14 @@ function callerPhone(ctx: ToolContext): string | undefined {
   return /\d{6,}/.test(ctx.callerNumber) ? ctx.callerNumber : undefined;
 }
 
+function isHttpsUrl(u: string): boolean {
+  try {
+    return new URL(u).protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
 const str = (v: unknown, max: number): string | undefined =>
   typeof v === "string" && v.trim() ? v.trim().replace(/\s+/g, " ").slice(0, max) : undefined;
 
@@ -92,6 +101,8 @@ export async function requestPaymentTool(args: Record<string, unknown>, ctx: Too
       data: { test: true },
     };
   }
+  // Écrit (WhatsApp) : identifiant de conversation permanent, encaissement non pris en charge.
+  if (ctx.callId.startsWith("wa_")) return { ok: false, message: "L'encaissement n'est disponible que pendant un appel téléphonique." };
   const account = await merchantAccount(ctx.organizationId);
   if (!account?.enabled) {
     return { ok: false, message: "L'encaissement n'est pas activé pour cette entreprise : propose de prendre un message pour l'équipe." };
@@ -100,34 +111,40 @@ export async function requestPaymentTool(args: Record<string, unknown>, ctx: Too
   if (!to) return { ok: false, message: "Numéro de l'appelant inconnu : impossible d'envoyer le lien de paiement." };
   const reason = str(args.reason, 120);
   if (!reason) return { ok: false, message: "Motif du paiement manquant." };
+  // Le motif part dans un SMS avec le lien : jamais d'autre lien ni d'adresse web.
+  if (containsLink(reason)) return { ok: false, message: "Le motif ne peut pas contenir de lien ni d'adresse web." };
 
   const amount = resolvePaymentAmount({ amount: args.amount, item: args.item }, account.rules);
   if (!amount.ok) return { ok: false, message: amount.message };
   const label = formatAmount(amount.amount, account.rules.currency);
 
-  const key = paymentIdempotencyKey(ctx.organizationId, ctx.callId, amount.amountXof, reason);
+  // Clé liée à l'appel ET au numéro de l'appelant (défense si deux appels partageaient un identifiant).
+  const key = paymentIdempotencyKey(ctx.organizationId, `${ctx.callId}|${to}`, amount.amountXof, reason);
   const existing = await prisma.paymentRequest.findUnique({ where: { idempotencyKey: key } });
   if (existing?.status === "completed") {
-    return { ok: true, message: `Ce paiement (${label}) est déjà reçu.`, data: { status: "completed", requestId: existing.id } };
+    return { ok: true, message: `Ce paiement (${label}) a déjà été reçu pendant cet appel.`, data: { status: "completed", requestId: existing.id } };
   }
-  // Demande restée « en cours » sans lien envoyé (interruption pendant la création) : abandonnée.
-  const stale = existing?.status === "pending" && !existing.channel && Date.now() - existing.createdAt.getTime() > 60_000;
-  if (existing?.status === "pending" && !stale) {
+  // Abandonnée : restée « en cours » sans lien créé (interruption). Un lien créé n'est jamais abandonné.
+  const abandoned = existing?.status === "pending" && !existing.reference && Date.now() - existing.createdAt.getTime() > 60_000;
+  if (existing?.status === "pending" && !abandoned) {
     return {
       ok: true,
       message: existing.channel
         ? `Le lien de paiement de ${label} a déjà été envoyé${existing.channel === "whatsapp" ? " sur WhatsApp" : " par SMS"} : ne le renvoie pas, invite l'appelant à l'ouvrir.`
-        : `Le lien de paiement de ${label} est en cours d'envoi : ne le redemande pas.`,
+        : `Le lien de paiement de ${label} est en cours d'envoi : ne le redemande pas, vérifie avec checkPayment.`,
       data: { status: "pending", requestId: existing.id, alreadySent: true },
     };
   }
-  // Une demande échouée (ou abandonnée) peut être retentée : on repart d'une ligne neuve.
+  // Échec ou abandon : la ligne est conservée (historique, webhook), seule sa clé est libérée.
   if (existing) {
-    await prisma.paymentRequest.deleteMany({
-      where: { id: existing.id, OR: [{ status: "failed" }, { status: "pending", channel: null }] },
+    const released = await prisma.paymentRequest.updateMany({
+      where: { id: existing.id, OR: [{ status: "failed" }, { status: "pending", reference: null }] },
+      data: { status: "failed", idempotencyKey: `${key}:${existing.id}` },
     });
+    if (released.count === 0) return { ok: false, message: "Une demande identique est en cours : vérifie avec checkPayment." };
   }
 
+  // Toutes les tentatives comptent, échecs compris.
   const perCall = await prisma.paymentRequest.count({ where: { organizationId: ctx.organizationId, callRef: ctx.callId } });
   if (perCall >= MAX_REQUESTS_PER_CALL) {
     return { ok: false, message: "Nombre maximal de demandes de paiement atteint pour cet appel : propose de prendre un message." };
@@ -151,7 +168,7 @@ export async function requestPaymentTool(args: Record<string, unknown>, ctx: Too
   } catch (e) {
     // Double appel simultané : l'autre requête crée le lien.
     if ((e as { code?: string }).code === "P2002") {
-      return { ok: true, message: `Le lien de paiement de ${label} est en cours d'envoi : ne le redemande pas.`, data: { status: "pending" } };
+      return { ok: false, message: "Une demande identique est en cours d'envoi : ne la redemande pas, vérifie avec checkPayment." };
     }
     throw e;
   }
@@ -168,7 +185,7 @@ export async function requestPaymentTool(args: Record<string, unknown>, ctx: Too
     errorUrl: `${PUBLIC_URL}/paiement/${request.id}?e=1`,
     creds: account.creds,
   });
-  if (!created) {
+  if (!created || !isHttpsUrl(created.checkoutUrl)) {
     await prisma.paymentRequest.update({ where: { id: request.id }, data: { status: "failed" } });
     return { ok: false, message: "Le lien de paiement n'a pas pu être créé (service de paiement indisponible). Propose de prendre un message." };
   }
@@ -194,6 +211,8 @@ export async function requestPaymentTool(args: Record<string, unknown>, ctx: Too
 /** Dernière vérification auprès de GeniusPay, par demande (limite les appels). */
 const lastCheck = new Map<string, number>();
 const CHECK_INTERVAL_MS = 4000;
+/** Au-delà, une demande non payée est considérée comme expirée. */
+export const EXPIRY_MS = 48 * 60 * 60_000;
 
 /**
  * Relit le statut d'une demande auprès de GeniusPay et l'enregistre.
@@ -215,8 +234,9 @@ export async function confirmPaymentRequest(
   if (lastCheck.size > 5000) lastCheck.clear();
 
   const account = await merchantAccount(req.organizationId);
-  if (!account) return "pending";
-  const status = paymentStatusFrom(await getGeniusPaymentStatus(req.reference, account.creds));
+  let status = account ? paymentStatusFrom(await getGeniusPaymentStatus(req.reference, account.creds)) : "pending";
+  // Lien jamais payé au bout de 48 h (ou compte supprimé) : expiré.
+  if (status === "pending" && now - req.createdAt.getTime() > EXPIRY_MS) status = "failed";
   if (status === "pending") return "pending";
 
   const changed = await prisma.paymentRequest.updateMany({
@@ -234,24 +254,29 @@ export async function confirmPaymentRequest(
   return status;
 }
 
-/** Outil `checkPayment` : l'agent vérifie si l'appelant a payé. */
+/** Outil `checkPayment` : l'agent vérifie si l'appelant a payé (toutes les demandes de l'appel). */
 export async function checkPaymentTool(_args: Record<string, unknown>, ctx: ToolContext): Promise<ToolResult> {
   if (ctx.test) return { ok: false, message: "Conversation de test : aucun paiement réel à vérifier.", data: { test: true } };
-  const req = await prisma.paymentRequest.findFirst({
-    where: { organizationId: ctx.organizationId, callRef: ctx.callId },
-    orderBy: { createdAt: "desc" },
+  const to = callerPhone(ctx);
+  const requests = await prisma.paymentRequest.findMany({
+    where: { organizationId: ctx.organizationId, callRef: ctx.callId, ...(to ? { customerPhone: to } : {}), reference: { not: null } },
+    orderBy: { createdAt: "asc" },
+    take: MAX_REQUESTS_PER_CALL,
   });
-  if (!req) return { ok: false, message: "Aucune demande de paiement pendant cet appel." };
-  const status = (await confirmPaymentRequest(req.id)) ?? "pending";
-  const label = `${formatAmount(req.amount, asCurrency(req.currency))} (${req.reason})`;
-  if (status === "completed") return { ok: true, message: `Paiement reçu : ${label}. Remercie l'appelant.`, data: { status } };
-  if (status === "failed") {
-    return { ok: true, message: `Le paiement de ${label} a échoué ou a été annulé. Propose de réessayer ou de prendre un message.`, data: { status } };
+  if (!requests.length) return { ok: false, message: "Aucun lien de paiement envoyé pendant cet appel." };
+  const results = [];
+  for (const r of requests) {
+    const status = (await confirmPaymentRequest(r.id)) ?? "pending";
+    results.push({ label: `${formatAmount(r.amount, asCurrency(r.currency))} (${r.reason})`, status });
   }
+  const text = results
+    .map((r) => (r.status === "completed" ? `${r.label} : PAYÉ` : r.status === "failed" ? `${r.label} : échoué ou annulé` : `${r.label} : pas encore reçu`))
+    .join(" ; ");
+  const anyPending = results.some((r) => r.status === "pending");
   return {
     ok: true,
-    message: `Paiement de ${label} pas encore reçu. Invite l'appelant à ouvrir le lien et à valider sur son téléphone, puis revérifie dans quelques secondes.`,
-    data: { status },
+    message: `${text}.${anyPending ? " Pour un paiement pas encore reçu, invite l'appelant à ouvrir le lien et à valider sur son téléphone, puis revérifie dans quelques secondes." : ""} N'annonce « paiement reçu » que pour une ligne marquée PAYÉ.`,
+    data: { payments: results },
   };
 }
 

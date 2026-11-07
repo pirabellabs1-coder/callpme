@@ -1,3 +1,4 @@
+import { randomBytes } from "crypto";
 import { NextRequest } from "next/server";
 import { corsHeaders, widgetAccess, widgetJson } from "@/lib/widget/access";
 import { prisma } from "@/lib/db/client";
@@ -48,7 +49,7 @@ export async function POST(req: NextRequest) {
 
   const token = createVoiceToken(
     {
-      callId: `widget_${Date.now().toString(36)}`,
+      callId: `widget_${Date.now().toString(36)}${randomBytes(6).toString("hex")}`,
       agentId: agent.id,
       organizationId: agent.organizationId,
       direction: "web",

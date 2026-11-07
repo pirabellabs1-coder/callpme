@@ -9,6 +9,7 @@ import { encryptSecret } from "@/lib/crypto/secrets";
 import { isRateLimited } from "@/lib/security/rate-limit";
 import { asCurrency, formatAmount, HARD_MAX_XOF, maxXof, parseItemLines } from "@/lib/payments/merchant-rules";
 import { MIN_XOF } from "@/lib/payments/geniuspay";
+import { EXPIRY_MS } from "@/lib/payments/merchant";
 
 export interface PaymentSettingsResult {
   ok?: boolean;
@@ -27,6 +28,13 @@ const schema = z.object({
   delivery: z.enum(["sms", "whatsapp"]),
   items: z.string().max(5000).default(""),
 });
+
+async function hasRecentPending(organizationId: string): Promise<boolean> {
+  const n = await prisma.paymentRequest.count({
+    where: { organizationId, status: "pending", reference: { not: null }, createdAt: { gt: new Date(Date.now() - EXPIRY_MS) } },
+  });
+  return n > 0;
+}
 
 /** Enregistre le compte GeniusPay marchand de l'organisation (clés chiffrées). */
 export async function savePaymentSettings(formData: FormData): Promise<PaymentSettingsResult> {
@@ -55,6 +63,11 @@ export async function savePaymentSettings(formData: FormData): Promise<PaymentSe
   if (d.apiKey && !/^pk_/.test(d.apiKey)) return { error: "Clé publique GeniusPay attendue (commence par pk_)." };
   if (d.apiSecret && !/^sk_/.test(d.apiSecret)) return { error: "Clé secrète GeniusPay attendue (commence par sk_)." };
   if (d.webhookSecret && d.webhookSecret.length < 16) return { error: "Secret du webhook trop court." };
+
+  // Changer de compte orphelinerait les liens déjà envoyés (statut illisible avec d'autres clés).
+  if (existing && (d.apiKey || d.apiSecret) && (await hasRecentPending(session.org.id))) {
+    return { error: "Des paiements sont en attente : changez de clés quand ils seront réglés ou expirés (48 h au plus)." };
+  }
 
   const data = {
     currency,
@@ -99,6 +112,9 @@ export async function setPaymentsEnabled(enabled: boolean): Promise<PaymentSetti
 export async function removePaymentSettings(): Promise<PaymentSettingsResult> {
   const session = await requireSession();
   if (!isOrgAdmin(session)) return { error: "Réservé aux administrateurs de l'organisation." };
+  if (await hasRecentPending(session.org.id)) {
+    return { error: "Des paiements sont en attente : suspendez plutôt l'encaissement, puis supprimez les clés quand ils seront réglés ou expirés (48 h au plus)." };
+  }
   await prisma.paymentSettings.deleteMany({ where: { organizationId: session.org.id } });
   revalidatePath("/payments");
   return { ok: true };

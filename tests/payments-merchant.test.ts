@@ -6,6 +6,7 @@ const db = vi.hoisted(() => ({
   paymentRequest: {
     findUnique: vi.fn(),
     findFirst: vi.fn(),
+    findMany: vi.fn(),
     count: vi.fn(),
     create: vi.fn(),
     update: vi.fn(),
@@ -134,7 +135,7 @@ describe("idempotence", () => {
     const fetchMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);
     db.paymentSettings.findUnique.mockResolvedValue(settingsRow);
-    db.paymentRequest.findUnique.mockResolvedValue({ id: "pr1", status: "pending", channel: "sms" });
+    db.paymentRequest.findUnique.mockResolvedValue({ id: "pr1", status: "pending", reference: "GP-1", channel: "sms", createdAt: new Date() });
     const r = await requestPaymentTool({ item: "Consultation", reason: "Consultation" }, ctx);
     expect(r).toMatchObject({ ok: true, data: { alreadySent: true } });
     expect(db.paymentRequest.create).not.toHaveBeenCalled();
@@ -150,7 +151,7 @@ describe("idempotence", () => {
     db.paymentRequest.count.mockResolvedValue(0);
     db.paymentRequest.create.mockRejectedValue(Object.assign(new Error("unique"), { code: "P2002" }));
     const r = await requestPaymentTool({ item: "Consultation", reason: "Consultation" }, ctx);
-    expect(r.ok).toBe(true);
+    expect(r.ok).toBe(false);
     expect(fetchMock).not.toHaveBeenCalled();
     expect(sms).not.toHaveBeenCalled();
   });
@@ -172,10 +173,37 @@ describe("idempotence", () => {
     expect(sms).toHaveBeenCalledWith("+22997000000", expect.stringContaining("https://pay.example/c/1"), expect.objectContaining({ callId: "sess1" }));
   });
 
+  it("après un échec, l'ancienne demande est conservée (clé libérée) et compte dans le plafond", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => jsonResponse({ data: { checkout_url: "https://pay.example/c/2", reference: "GP-9" } })));
+    db.paymentSettings.findUnique.mockResolvedValue(settingsRow);
+    db.paymentRequest.findUnique.mockResolvedValue({ id: "old", status: "failed", reference: null, channel: null, createdAt: new Date() });
+    db.paymentRequest.updateMany.mockResolvedValue({ count: 1 });
+    db.paymentRequest.count.mockResolvedValue(3);
+    const r = await requestPaymentTool({ item: "Consultation", reason: "Consultation" }, ctx);
+    expect(db.paymentRequest.deleteMany).not.toHaveBeenCalled();
+    expect(db.paymentRequest.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: expect.objectContaining({ id: "old" }), data: expect.objectContaining({ idempotencyKey: expect.stringMatching(/:old$/) }) }),
+    );
+    expect(r.ok).toBe(false);
+    expect(r.message).toMatch(/maximal/);
+    expect(db.paymentRequest.create).not.toHaveBeenCalled();
+  });
+
+  it("un lien déjà créé mais pas encore marqué envoyé n'est jamais recréé", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    db.paymentSettings.findUnique.mockResolvedValue(settingsRow);
+    db.paymentRequest.findUnique.mockResolvedValue({ id: "pr5", status: "pending", reference: "GP-5", channel: null, createdAt: new Date(Date.now() - 10 * 60_000) });
+    const r = await requestPaymentTool({ item: "Consultation", reason: "Consultation" }, ctx);
+    expect(r.data).toMatchObject({ alreadySent: true });
+    expect(db.paymentRequest.updateMany).not.toHaveBeenCalled();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it("une confirmation répétée ne notifie l'entreprise qu'une fois", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => jsonResponse({ data: { status: "completed" } })));
     db.paymentSettings.findUnique.mockResolvedValue(settingsRow);
-    db.paymentRequest.findUnique.mockResolvedValue({ id: "pr2", organizationId: "org1", status: "pending", reference: "GP-2", amount: 5000, currency: "XOF", reason: "x" });
+    db.paymentRequest.findUnique.mockResolvedValue({ id: "pr2", organizationId: "org1", status: "pending", reference: "GP-2", amount: 5000, currency: "XOF", reason: "x", createdAt: new Date() });
     db.paymentRequest.updateMany.mockResolvedValueOnce({ count: 1 }).mockResolvedValueOnce({ count: 0 });
     expect(await confirmPaymentRequest("pr2", { force: true })).toBe("completed");
     expect(await confirmPaymentRequest("pr2", { force: true })).toBe("completed");
@@ -195,6 +223,39 @@ describe("garde-fous", () => {
     expect(db.paymentSettings.findUnique).not.toHaveBeenCalled();
     expect(db.paymentRequest.create).not.toHaveBeenCalled();
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("refuse un motif contenant un lien et toute conversation WhatsApp", async () => {
+    db.paymentSettings.findUnique.mockResolvedValue(settingsRow);
+    const r1 = await requestPaymentTool({ item: "Consultation", reason: "voir https://evil.example" }, ctx);
+    expect(r1.ok).toBe(false);
+    const r2 = await requestPaymentTool({ item: "Consultation", reason: "x" }, { ...ctx, callId: "wa_conv1" });
+    expect(r2.ok).toBe(false);
+    expect(db.paymentRequest.create).not.toHaveBeenCalled();
+  });
+
+  it("checkPayment : statut de chaque demande, filtré sur l'appel et le numéro de l'appelant", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => jsonResponse({ data: { status: "pending" } })));
+    db.paymentSettings.findUnique.mockResolvedValue(settingsRow);
+    const rows = [
+      { id: "a", organizationId: "org1", status: "completed", reference: "GP-a", amount: 5000, currency: "XOF", reason: "Consultation", createdAt: new Date() },
+      { id: "b", organizationId: "org1", status: "pending", reference: "GP-b", amount: 2000, currency: "XOF", reason: "Médicaments", createdAt: new Date() },
+    ];
+    db.paymentRequest.findMany.mockResolvedValue(rows);
+    db.paymentRequest.findUnique.mockImplementation(async ({ where }: { where: { id: string } }) => rows.find((r) => r.id === where.id));
+    const r = await checkPaymentTool({}, ctx);
+    expect(db.paymentRequest.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: expect.objectContaining({ callRef: "sess1", customerPhone: "+22997000000" }) }));
+    expect(r.message).toMatch(/Consultation\) : PAYÉ/);
+    expect(r.message).toMatch(/Médicaments\) : pas encore reçu/);
+  });
+
+  it("une demande non payée depuis plus de 48 h expire", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => jsonResponse({ data: { status: "pending" } })));
+    db.paymentSettings.findUnique.mockResolvedValue(settingsRow);
+    db.paymentRequest.findUnique.mockResolvedValue({ id: "old2", organizationId: "org1", status: "pending", reference: "GP-o", createdAt: new Date(Date.now() - 49 * 3600_000) });
+    db.paymentRequest.updateMany.mockResolvedValue({ count: 1 });
+    expect(await confirmPaymentRequest("old2", { force: true })).toBe("failed");
+    expect(notify).not.toHaveBeenCalled();
   });
 
   it("refuse si l'encaissement est désactivé", async () => {
@@ -247,7 +308,7 @@ describe("webhook marchand signé", () => {
     expect(fetchMock).not.toHaveBeenCalled();
     expect(db.paymentRequest.updateMany).not.toHaveBeenCalled();
 
-    db.paymentRequest.findUnique.mockResolvedValue({ id: "pr3", organizationId: "org1", status: "pending", reference: "GP-3", amount: 5000, currency: "XOF", reason: "x" });
+    db.paymentRequest.findUnique.mockResolvedValue({ id: "pr3", organizationId: "org1", status: "pending", reference: "GP-3", amount: 5000, currency: "XOF", reason: "x", createdAt: new Date() });
     db.paymentRequest.updateMany.mockResolvedValue({ count: 1 });
     expect(await handleMerchantWebhook({ token: TOKEN, rawBody: body, signature: sign(body, ts), timestamp: ts })).toBe("ok");
     expect(fetchMock).toHaveBeenCalledTimes(1);

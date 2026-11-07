@@ -22,6 +22,7 @@ import {
   type ToolExecutor,
 } from "../llm/chat";
 import type { Agent } from "../shared/types";
+import { effectiveBilingual, languageInstructions } from "./languages";
 
 export interface Turn {
   role: "user" | "assistant";
@@ -83,6 +84,10 @@ export async function prepareTurn(ctx: BrainContext, history: Turn[]): Promise<P
     systemContent += `\n\n${compileFlow(flow, label)}`;
   }
   if (ctx.extraInstructions) systemContent += `\n\n${ctx.extraInstructions}`;
+  // Langue locale : répondre dans la langue (ou suivre l'appelant en mode bilingue).
+  const lang = agent.config.voice?.language ?? "";
+  const langBlock = languageInstructions(lang, effectiveBilingual(lang, agent.config.voice?.bilingual));
+  if (langBlock) systemContent += `\n\n${langBlock}`;
   systemContent += `\n\n${nowContext(agent)}`;
 
   // RAG : contexte pertinent pour la dernière question de l'appelant.

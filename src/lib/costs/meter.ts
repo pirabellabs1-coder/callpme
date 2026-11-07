@@ -6,7 +6,8 @@ import type { LlmUsage } from "../llm/usage";
 import {
   llmPrice,
   outboundUsdPerMinute,
-  sttUsdPerMinute,
+  SPITCH_TTS_USD_PER_SEC,
+  sttUsdPerMinuteFor,
   ttsUsdPer1kChars,
   TWILIO_INBOUND_FR,
   TWILIO_MEDIA_STREAMS,
@@ -23,6 +24,11 @@ export interface CallCosts {
     cacheWriteTokens: number;
     cacheReadTokens: number;
     ttsChars: number;
+    /** Secondes de voix facturées à la durée (Spitch). */
+    ttsAudioSec?: number;
+    /** Fournisseurs de transcription et de voix utilisés. */
+    sttProvider?: string;
+    ttsProvider?: string;
     models: string[];
   };
   /** Coût par poste, en dollars. */
@@ -37,13 +43,32 @@ const r6 = (n: number) => Math.round(n * 1e6) / 1e6;
 export class CostMeter {
   private llm: LlmUsage[] = [];
   private ttsChars = 0;
+  private ttsUsd = 0;
+  private ttsAudioSec = 0;
+  private sttProvider: string | undefined;
+  private ttsProvider: string | undefined;
+
+  /** Fournisseurs de l'appel (selon la langue de l'agent). */
+  setProviders(stt: string | undefined, tts: string | undefined) {
+    this.sttProvider = stt;
+    this.ttsProvider = tts;
+  }
 
   addLlm(u: LlmUsage) {
     this.llm.push(u);
   }
 
-  addTts(text: string) {
+  /** Voix facturée au caractère (ElevenLabs, Cartesia), au prix du modèle utilisé. */
+  addTts(text: string, model?: string) {
     this.ttsChars += text.length;
+    this.ttsUsd += (text.length / 1000) * ttsUsdPer1kChars(model);
+  }
+
+  /** Voix facturée à la seconde d'audio produit (Spitch) : `mulawBytes` à 8 000 octets par seconde. */
+  addTtsAudio(mulawBytes: number) {
+    const sec = mulawBytes / 8000;
+    this.ttsAudioSec += sec;
+    this.ttsUsd += sec * SPITCH_TTS_USD_PER_SEC;
   }
 
   summary(opts: { durationSec: number; direction: "inbound" | "outbound" | "web"; to: string }): CallCosts {
@@ -58,8 +83,8 @@ export class CostMeter {
       t.cacheWrite += u.cacheWrite;
       t.cacheRead += u.cacheRead;
     }
-    const tts = (this.ttsChars / 1000) * ttsUsdPer1kChars();
-    const stt = min * sttUsdPerMinute();
+    const tts = this.ttsUsd;
+    const stt = min * sttUsdPerMinuteFor(this.sttProvider);
     // Facturation téléphonique à la minute entamée.
     const billedMin = Math.ceil(min);
     const telephony =
@@ -77,6 +102,9 @@ export class CostMeter {
         cacheWriteTokens: t.cacheWrite,
         cacheReadTokens: t.cacheRead,
         ttsChars: this.ttsChars,
+        ...(this.ttsAudioSec ? { ttsAudioSec: Math.round(this.ttsAudioSec * 10) / 10 } : {}),
+        ...(this.sttProvider ? { sttProvider: this.sttProvider } : {}),
+        ...(this.ttsProvider ? { ttsProvider: this.ttsProvider } : {}),
         models: Array.from(new Set(this.llm.map((u) => u.model))),
       },
       usd: { llm: r6(llmUsd), tts: r6(tts), stt: r6(stt), telephony: r6(telephony), total: r6(total) },

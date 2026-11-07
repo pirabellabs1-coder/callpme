@@ -6,8 +6,10 @@ import { cn } from "@/lib/utils";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
+import { Switch } from "@/components/ui/switch";
 import { SamplePlayButton } from "@/components/voices/sample-play-button";
 import { VoicePreview } from "./voice-preview";
+import { LanguageOptions } from "./language-options";
 import { FieldError, fieldId, invalidProps } from "./controls";
 import type { SetWizardState, StepErrors, StudioVoiceOption, WizardState } from "./state";
 
@@ -76,16 +78,20 @@ export function StepVoice({
   set,
   errors,
   studioVoices,
+  onLanguageChange,
 }: {
   s: WizardState;
   set: SetWizardState;
   errors: StepErrors;
   studioVoices: StudioVoiceOption[];
+  /** Langue ou mode bilingue changés (l'accueil proposé suit la langue). */
+  onLanguageChange: (patch: Partial<Pick<WizardState, "language" | "bilingual">>) => void;
 }) {
   const catalog = studioVoices.filter((v) => v.catalog);
   const own = studioVoices.filter((v) => !v.catalog);
   const selected = studioVoices.find((v) => v.id === s.voiceId);
   const choose = (id: string) => set({ voiceId: id });
+  const language = LANGUAGES.find((l) => l.id === s.language);
 
   return (
     <>
@@ -119,6 +125,7 @@ export function StepVoice({
           <VoicePreview
             text={s.firstMessage || FALLBACK_TEXT}
             language={s.language}
+            bilingual={Boolean(language?.local && (s.bilingual || language.bilingualOnly))}
             speed={s.speed}
             gender={selected.gender}
             provider={selected.provider}
@@ -134,16 +141,34 @@ export function StepVoice({
         <Select
           id={fieldId("language")}
           value={s.language}
-          onChange={(e) => set({ language: e.target.value })}
+          onChange={(e) => onLanguageChange({ language: e.target.value })}
           {...invalidProps("language", errors.language)}
         >
-          {LANGUAGES.map((l) => (
-            <option key={l.id} value={l.id}>
-              {l.label}
-            </option>
-          ))}
+          <LanguageOptions current={s.language} />
         </Select>
         <FieldError name="language" message={errors.language} />
+        {language?.local && (
+          <div className="mt-3 space-y-2 rounded-md border border-border p-3">
+            {language.note && <p className="text-xs text-muted-foreground">{language.note}</p>}
+            <div className="flex items-start gap-3">
+              <Switch
+                id="voice-bilingual"
+                checked={s.bilingual || language.bilingualOnly}
+                disabled={language.bilingualOnly}
+                onCheckedChange={(v) => onLanguageChange({ bilingual: v })}
+                aria-label="Mode bilingue français et langue locale"
+              />
+              <div>
+                <Label htmlFor="voice-bilingual">Mode bilingue (français + {language.label.toLowerCase()})</Label>
+                <p className="text-xs text-muted-foreground">
+                  {language.bilingualOnly
+                    ? "Toujours actif pour cette langue : l'agent comprend le mélange et répond surtout en français."
+                    : "L'appelant peut mélanger les deux langues ; l'agent lui répond dans la langue qu'il utilise."}
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {selected && !selected.catalog ? (

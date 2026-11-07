@@ -7,17 +7,26 @@ import { widgetSchema } from "../widget/widget";
  * Zod ne fait que valider la forme des requêtes entrantes.
  */
 import { z } from "zod";
+import { isRejectedLanguage } from "../voice-engine/languages";
+
+/** Langue d'agent : une langue locale pas encore disponible (ou non activée) est refusée. */
+export const languageField = z
+  .string()
+  .min(2)
+  .max(12)
+  .refine((l) => !isRejectedLanguage(l), "Cette langue n'est pas encore disponible au téléphone.");
 
 export const voiceSchema = z.object({
   provider: z.enum(["elevenlabs", "cartesia", "azure", "playht"]),
   voiceId: z.string().max(120),
-  language: z.string().min(2).max(12),
+  language: languageField,
   speed: z.number().min(0.5).max(2),
   // Champs optionnels conservés (sinon supprimés par zod). L'audio d'une voix Studio
   // n'est PAS copié dans l'agent : il est relu depuis la table Voice par son id.
   kind: z.enum(["preset", "custom", "provider"]).optional(),
   voiceLabel: z.string().max(120).optional(),
   providerVoiceId: z.string().regex(/^[A-Za-z0-9_-]{6,64}$/).optional(),
+  bilingual: z.boolean().optional(),
 });
 
 export const modelSchema = z.object({

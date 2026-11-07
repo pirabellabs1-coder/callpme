@@ -11,6 +11,7 @@ import {
 import type { ModelProvider } from "@/lib/shared/types";
 import { ROLE_META } from "@/lib/agents/roles";
 import { MODEL_PROVIDERS, MODELS } from "@/lib/agents/catalog";
+import { bilingualRequired, effectiveBilingual, languageFamily, languageName } from "@/lib/voice-engine/languages";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
@@ -28,6 +29,7 @@ export function StepConversation({
   onFirstMessageEdit,
   onPromptEdit,
   onRegeneratePrompt,
+  suggestedGreeting,
 }: {
   s: WizardState;
   set: SetWizardState;
@@ -37,7 +39,11 @@ export function StepConversation({
   onFirstMessageEdit: (value: string) => void;
   onPromptEdit: (value: string) => void;
   onRegeneratePrompt: () => void;
+  /** Accueil proposé dans la langue de l'agent. */
+  suggestedGreeting: string;
 }) {
+  const foreign = languageFamily(s.language) !== "fr";
+  const langName = languageName(s.language);
   return (
     <>
       {/* Qui parle en premier */}
@@ -74,7 +80,7 @@ export function StepConversation({
             onChange={(e) => onFirstMessageEdit(e.target.value)}
             rows={2}
             maxLength={2000}
-            placeholder={s.role ? ROLE_META[s.role].firstMessage : ""}
+            placeholder={suggestedGreeting || (s.role ? ROLE_META[s.role].firstMessage : "")}
             aria-describedby={
               errors.firstMessage ? "error-firstMessage" : "first-msg-hint"
             }
@@ -82,8 +88,22 @@ export function StepConversation({
           />
           <p id="first-msg-hint" className="text-xs text-muted-foreground">
             La première phrase entendue par l&apos;appelant. Laissez vide pour
-            utiliser le message proposé par le rôle.
+            utiliser le message proposé{foreign ? " dans la langue de l'agent" : " par le rôle"}.
+            {foreign && " L'agent le prononce tel quel : écrivez-le dans la langue de l'agent."}
           </p>
+          {foreign && suggestedGreeting && (
+            <button
+              type="button"
+              onClick={() => {
+                onFirstMessageEdit(suggestedGreeting);
+                document.getElementById(fieldId("firstMessage"))?.focus();
+              }}
+              disabled={s.firstMessage.trim() === suggestedGreeting}
+              className="rounded-sm text-xs font-medium text-brand-700 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/55 disabled:cursor-default disabled:text-muted-foreground disabled:no-underline"
+            >
+              Proposer un accueil en {langName}
+            </button>
+          )}
           <FieldError name="firstMessage" message={errors.firstMessage} />
         </div>
       )}
@@ -214,6 +234,16 @@ export function StepConversation({
               <Sparkles className="size-3.5 text-brand" aria-hidden />
               Généré automatiquement depuis le rôle. Modifiable librement.
             </p>
+            {foreign && (
+              <p className="text-xs text-muted-foreground">
+                Les instructions restent en français : à chaque appel, une consigne de langue est ajoutée pour que
+                l&apos;agent{" "}
+                {bilingualRequired(s.language)
+                  ? `réponde surtout en français, avec les formules de politesse en ${langName}`
+                  : `réponde en ${langName}${effectiveBilingual(s.language, s.bilingual) ? " (ou en français si l'appelant parle français)" : ""}`}
+                .
+              </p>
+            )}
           </div>
 
           <div className="max-w-xs space-y-2">

@@ -20,7 +20,8 @@ import type { Agent } from "../shared/types";
 import { agentReply, type Turn } from "./brain";
 import { SentenceChunker } from "./chunker";
 import { applyBehavior, pickVariant } from "../agents/versions";
-import { openDeepgram, type SttStream } from "./stt";
+import { openStt, sttProviderFor, type SttStream } from "./stt";
+import { effectiveBilingual, systemPhrases } from "./languages";
 import { resolveVoice, streamSpeech, type TtsVoice } from "./tts";
 import { finishCall } from "./persist";
 import { CALLBACK_CONTEXT, callbackGreeting, callbackSettings } from "../callbacks/settings";
@@ -56,14 +57,10 @@ const VOICE_STYLE =
 const SILENCE_HANGUP_MS = 30_000;
 /** Délai après la dernière touche avant de transmettre la saisie à l'agent. */
 const DTMF_GROUP_MS = 1500;
-const DEFAULT_VOICEMAIL =
-  "Bonjour, ici {agent}, l'assistant de {organisation}. Nous avons essayé de vous joindre. Vous pouvez nous rappeler à ce numéro quand vous le souhaitez. Bonne journée.";
 /** Plafond technique d'un appel (aligné sur la validation : 7 200 s). */
 const MAX_CALL_SEC = 7200;
 /** Mots courts qui doivent suffire à couper l'agent. */
 const INTERRUPTED_MARK = "[interrompu par l'appelant]";
-const TRANSFER_UNAVAILABLE =
-  "Je ne peux pas vous mettre en relation directement pour le moment, mais je transmets votre demande : un conseiller vous recontactera.";
 const STOP_WORDS =/^(stop|non|attendez|attends|pardon|excusez|arr[eê]te[zr]?|wait|no)\b/i;
 
 export class CallSession {
@@ -163,6 +160,15 @@ export class CallSession {
       this.transport.sendEvent?.({ type: "error", message: "Aucune voix configurée pour le moteur vocal." });
       return this.end("failed");
     }
+    // Langue locale sans fournisseur de transcription configuré : l'appel ne peut pas se faire.
+    const language = agent.config.voice.language || "fr-FR";
+    const bilingual = effectiveBilingual(language, agent.config.voice.bilingual);
+    const sttProvider = sttProviderFor(language, bilingual);
+    if (!sttProvider) {
+      this.transport.sendEvent?.({ type: "error", message: "Aucune transcription configurée pour cette langue." });
+      return this.end("failed");
+    }
+    this.costs.setProviders(sttProvider, this.voice.provider);
 
     // Contact de campagne : nom et colonnes importées, pour personnaliser l'appel.
     if (this.ctx.metadata?.contactId) await this.loadContact(this.ctx.metadata.contactId, agent.organizationId);
@@ -185,12 +191,17 @@ ${CALLBACK_CONTEXT}` : CALLBACK_CONTEXT;
     // Répondeur détecté par l'opérateur (après le bip) : message, puis raccroché.
     if (this.ctx.metadata?.voicemail === "1") return this.leaveVoicemail();
 
-    this.stt = openDeepgram(agent.config.voice.language || "fr-FR", {
-      onSpeechStarted: () => this.onCallerSpeech(),
-      onTranscript: (text, isFinal) => this.onTranscript(text, isFinal),
-      onUtteranceEnd: () => void this.onUtteranceEnd(),
-      onError: () => this.transport.sendEvent?.({ type: "error", message: "Transcription interrompue." }),
-    });
+    // Fournisseur de transcription choisi selon la langue de l'agent (français : Deepgram).
+    this.stt = openStt(
+      language,
+      {
+        onSpeechStarted: () => this.onCallerSpeech(),
+        onTranscript: (text, isFinal) => this.onTranscript(text, isFinal),
+        onUtteranceEnd: () => void this.onUtteranceEnd(),
+        onError: () => this.transport.sendEvent?.({ type: "error", message: "Transcription interrompue." }),
+      },
+      { bilingual },
+    );
 
     // 0 = pas de limite propre à l'agent, mais un plafond technique s'applique toujours.
     const configured = agent.config.maxDurationSec ?? 0;
@@ -207,11 +218,11 @@ ${CALLBACK_CONTEXT}` : CALLBACK_CONTEXT;
 
     if (isCallback || (agent.config.firstSpeaker ?? "agent") === "agent") {
       const opening = isCallback
-        ? callbackGreeting(callbackSettings(agent.config.callback), agent.name, this.organizationName)
+        ? callbackGreeting(callbackSettings(agent.config.callback), agent.name, this.organizationName, agent.config.voice.language)
         : this.fillVars(agent.config.firstMessage);
       const greeting =
         sanitizeSpoken(opening, { agentName: agent.name, organizationName: this.organizationName }) ||
-        "Bonjour, comment puis-je vous aider ?";
+        this.phrases.fallbackGreeting;
       this.history.push({ role: "assistant", content: greeting });
       this.addTurn("agent", greeting);
       await this.speak(greeting);
@@ -276,6 +287,11 @@ ${CALLBACK_CONTEXT}` : CALLBACK_CONTEXT;
       `<contact>${JSON.stringify(vars)}</contact>`;
   }
 
+  /** Phrases du moteur (repli, erreur, transfert, répondeur) dans la langue de l'agent. */
+  private get phrases() {
+    return systemPhrases(this.agent.config.voice.language);
+  }
+
   /** Remplace {nom}, {prenom}… par les valeurs du contact (inconnues : retirées). */
   private fillVars(text: string): string {
     return text.replace(/\{([a-z0-9_]{1,40})\}/gi, (m, k: string) => {
@@ -288,13 +304,14 @@ ${CALLBACK_CONTEXT}` : CALLBACK_CONTEXT;
   /** Message laissé sur un répondeur, avec la voix de l'agent. */
   private async leaveVoicemail() {
     const custom = this.agent.config.voicemail?.message?.trim();
+    const { voicemail, ourTeam } = this.phrases;
     const text =
       sanitizeSpoken(
-        this.fillVars(custom || DEFAULT_VOICEMAIL)
+        this.fillVars(custom || voicemail)
           .replace(/\{agent\}/g, this.agent.name)
-          .replace(/\{organisation\}/g, this.organizationName || "notre équipe"),
+          .replace(/\{organisation\}/g, this.organizationName || ourTeam),
         { agentName: this.agent.name, organizationName: this.organizationName },
-      ) || DEFAULT_VOICEMAIL;
+      ) || voicemail;
     this.voicemailLeft = true;
     this.addTurn("agent", text);
     await this.speak(text);
@@ -454,13 +471,13 @@ ${CALLBACK_CONTEXT}` : CALLBACK_CONTEXT;
         if (call.name === "endCall") this.hangupAfterSpeech = true;
         if (call.name === "transferToHuman") {
           // Sans numéro ou hors téléphone, ne pas annoncer un transfert qui n'aura pas lieu.
-          if (!this.canTransfer()) reply = TRANSFER_UNAVAILABLE;
-          else if (!(await this.transferToHuman())) reply = TRANSFER_UNAVAILABLE;
+          if (!this.canTransfer()) reply = this.phrases.transferUnavailable;
+          else if (!(await this.transferToHuman())) reply = this.phrases.transferUnavailable;
         }
       }
     } catch {
       this.quality.llmError();
-      reply = "Je suis désolé, je rencontre un problème technique. Pouvez-vous répéter ?";
+      reply = this.phrases.techError;
     }
     if (this.ended) return;
 
@@ -503,7 +520,7 @@ ${CALLBACK_CONTEXT}` : CALLBACK_CONTEXT;
     if (outbound && this.holdId && !(await extendHold(this.holdId, orgId, minutes * outboundRateCents(this.ctx.to)))) return false;
     if (legCents > 0 && !(await chargeNow(orgId, legCents))) return false;
     // Annonce courte, puis transfert une fois la phrase jouée.
-    await this.speak("Je vous mets en relation avec un conseiller, ne quittez pas.");
+    await this.speak(this.phrases.transfer);
     const wait = Math.max(0, this.playbackUntil - Date.now()) + 300;
     await new Promise((r) => setTimeout(r, wait));
     // Raccroché pendant l'annonce : rien d'autre à dire.
@@ -540,13 +557,17 @@ ${CALLBACK_CONTEXT}` : CALLBACK_CONTEXT;
     const ctrl = new AbortController();
     this.speaking = ctrl;
     this.transport.sendEvent?.({ type: "speaking", text });
-    // ElevenLabs facture chaque caractère envoyé, même si la phrase est coupée.
-    this.costs.addTts(text);
+    // ElevenLabs facture chaque caractère envoyé, même si la phrase est coupée ;
+    // Spitch facture la durée d'audio produite (comptée plus bas).
+    const voice = this.voice;
+    if (voice.provider !== "spitch") this.costs.addTts(text, voice.model);
+    let audioBytes = 0;
     try {
       for await (const chunk of streamSpeech(text, this.voice, ctrl.signal)) {
         if (ctrl.signal.aborted || this.ended) break;
         this.quality.firstAudio();
         this.transport.sendAudio(chunk);
+        audioBytes += chunk.length;
         // 8 000 octets µ-law = 1 seconde d'audio.
         this.playbackUntil = Math.max(this.playbackUntil, Date.now()) + (chunk.length / 8000) * 1000;
       }
@@ -558,6 +579,7 @@ ${CALLBACK_CONTEXT}` : CALLBACK_CONTEXT;
         this.transport.sendEvent?.({ type: "error", message: "Synthèse vocale impossible." });
       }
     } finally {
+      if (voice.provider === "spitch") this.costs.addTtsAudio(audioBytes);
       if (this.speaking === ctrl) this.speaking = null;
       this.lastActivity = Date.now();
     }

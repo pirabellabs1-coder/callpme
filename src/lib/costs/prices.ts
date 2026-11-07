@@ -35,13 +35,39 @@ export function sttUsdPerMinute(model = process.env.DEEPGRAM_MODEL || "nova-2"):
 }
 
 /**
- * ElevenLabs, $ pour 1 000 caractères. Tarif API à l'usage du modèle Flash
- * (0,04 $). Avec un abonnement, le prix réel dépend de l'offre : ELEVENLABS_USD_PER_1K_CHARS.
+ * Transcription des langues locales, $ par minute d'appel. Compté sur toute la
+ * durée de l'appel (estimation haute : en réalité seules les phrases de
+ * l'appelant sont envoyées). Sources (6 nov. 2026) :
+ * - Google Chirp 3 : tarif V2 « Standard » 0,016 $ / min (cloud.google.com/speech-to-text/pricing ;
+ *   chirp_3 n'y est pas nommé, à confirmer sur la facture) ;
+ * - ElevenLabs Scribe v2 par fichier : 0,22 $ / heure (elevenlabs.io/pricing/api) ;
+ * - Spitch : 0,00042 $ / seconde (docs.spitch.app/concepts/pricing).
  */
-export function ttsUsdPer1kChars(): number {
-  const v = Number(process.env.ELEVENLABS_USD_PER_1K_CHARS);
-  return Number.isFinite(v) && v > 0 ? v : 0.04;
+export const LOCAL_STT_USD_PER_MIN: Record<"google" | "elevenlabs" | "spitch", number> = {
+  google: 0.016,
+  elevenlabs: 0.22 / 60,
+  spitch: 0.00042 * 60,
+};
+
+/** Prix de la transcription selon le fournisseur ($ / min). */
+export function sttUsdPerMinuteFor(provider: string | undefined): number {
+  if (provider === "google" || provider === "elevenlabs" || provider === "spitch") return LOCAL_STT_USD_PER_MIN[provider];
+  return sttUsdPerMinute();
 }
+
+/**
+ * ElevenLabs, $ pour 1 000 caractères. Tarif API à l'usage : Flash, v3 Conversational
+ * et v4 Turbo à 0,04 $ ; Eleven v3 et v4 à 0,08 $ (elevenlabs.io/pricing/api).
+ * Avec un abonnement, le prix réel dépend de l'offre : ELEVENLABS_USD_PER_1K_CHARS.
+ */
+export function ttsUsdPer1kChars(model?: string): number {
+  const v = Number(process.env.ELEVENLABS_USD_PER_1K_CHARS);
+  if (Number.isFinite(v) && v > 0) return v;
+  return model && /^eleven_v[34]$/.test(model) ? 0.08 : 0.04;
+}
+
+/** Spitch, voix : 0,0014 $ par seconde d'audio produit (docs.spitch.app/concepts/pricing). */
+export const SPITCH_TTS_USD_PER_SEC = 0.0014;
 
 /** Twilio : recevoir un appel sur un numéro français + flux audio (Media Streams), $ / minute. */
 export const TWILIO_INBOUND_FR = 0.01;

@@ -14,6 +14,8 @@ const schema = z.object({
   voiceId: z.string().min(1).max(120),
   text: z.string().min(1).max(600),
   language: z.string().max(10).optional(),
+  /** Langue locale en mode bilingue : la voix n'est pas forcée dans la langue. */
+  bilingual: z.boolean().optional(),
   /** Réglages en cours d'édition dans le Studio. */
   tuning: tuningSchema.optional(),
   pronunciations: pronunciationsSchema.optional(),

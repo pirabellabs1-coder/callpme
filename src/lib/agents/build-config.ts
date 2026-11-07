@@ -5,6 +5,7 @@
  */
 import { ROLE_META } from "./roles";
 import { generateSystemPrompt } from "./role-templates";
+import { defaultGreeting, effectiveBilingual } from "../voice-engine/languages";
 import type {
   AgentConfig,
   AgentRole,
@@ -33,15 +34,16 @@ export function buildDefaultConfig(
   const tools = overrides.tools ?? meta.defaultTools;
   const guardrails = overrides.guardrails ?? [];
   const firstSpeaker = overrides.firstSpeaker ?? "agent";
+  const language = overrides.voice?.language || "fr-FR";
 
   return {
     voice: {
       provider: "elevenlabs",
       // Sans voix choisie, le moteur prend la première voix du catalogue.
       voiceId: "",
-      language: "fr-FR",
       speed: 1,
       ...overrides.voice,
+      language,
     },
     model: {
       provider: "openai",
@@ -49,7 +51,15 @@ export function buildDefaultConfig(
       temperature: 0.4,
       ...overrides.model,
     },
-    firstMessage: overrides.firstMessage ?? meta.firstMessage,
+    // Accueil dans la langue de l'agent (français : celui du rôle).
+    firstMessage:
+      overrides.firstMessage ??
+      defaultGreeting(
+        language,
+        { agentName, organizationName },
+        effectiveBilingual(language, overrides.voice?.bilingual),
+      ) ??
+      meta.firstMessage,
     firstSpeaker,
     guardrails,
     tools,

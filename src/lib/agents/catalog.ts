@@ -4,6 +4,8 @@
  * code pour pouvoir évoluer sans toucher à l'UI.
  */
 
+import { bilingualRequired, languageAvailability, languageFamily, VOICE_LANGUAGES, type LanguageAvailability } from "../voice-engine/languages";
+
 export const VOICE_PROVIDERS = [
   { id: "elevenlabs", label: "ElevenLabs", note: "Voix françaises très naturelles" },
   { id: "azure", label: "Azure Neural", note: "Large couverture linguistique" },
@@ -35,11 +37,37 @@ export const VOICES: Record<string, VoiceOption[]> = {
   ],
 };
 
-export const LANGUAGES = [
-  { id: "fr-FR", label: "Français (France)" },
-  { id: "fr-BE", label: "Français (Belgique)" },
-  { id: "fr-CA", label: "Français (Canada)" },
-] as const;
+export interface LanguageOption {
+  id: string;
+  label: string;
+  /** Langue locale d'Afrique de l'Ouest. */
+  local: boolean;
+  /** Groupe affiché dans la liste : français, anglais ou langues locales. */
+  family: ReturnType<typeof languageFamily>;
+  /**
+   * « disponible » : le moteur sait la transcrire ET la parler, et elle est activée ;
+   * « activation » : branchée, en attente des clés fournisseur et de l'activation ;
+   * « bientôt » : aucun fournisseur ne la couvre encore.
+   */
+  availability: LanguageAvailability;
+  /** Mode bilingue français + langue locale imposé (Claude trop faible dans la langue seule). */
+  bilingualOnly: boolean;
+  note?: string;
+}
+
+/**
+ * Langues proposées dans l'assistant. Une langue « bientôt » s'affiche mais ne
+ * peut pas être choisie : l'interface ne promet jamais ce que le moteur ne sait pas faire.
+ */
+export const LANGUAGES: LanguageOption[] = VOICE_LANGUAGES.map((l) => ({
+  id: l.id,
+  label: l.label,
+  local: l.local,
+  family: languageFamily(l.id),
+  availability: languageAvailability(l.id),
+  bilingualOnly: bilingualRequired(l.id),
+  ...(l.note ? { note: l.note } : {}),
+}));
 
 export const MODEL_PROVIDERS = [
   { id: "openai", label: "OpenAI" },
@@ -68,6 +96,13 @@ export const MODELS: Record<string, ModelOption[]> = {
     { id: "mistral-small", label: "Mistral Small", note: "Léger et rapide" },
   ],
 };
+
+/** Libellé d'une langue dans la liste, avec son état quand elle ne peut pas être choisie. */
+export function languageOptionLabel(l: LanguageOption): string {
+  if (l.availability === "activation") return `${l.label} — en activation (clé fournisseur manquante)`;
+  if (l.availability === "bientôt") return `${l.label} — bientôt`;
+  return l.label;
+}
 
 export function languageLabel(id: string): string {
   return LANGUAGES.find((l) => l.id === id)?.label ?? id;

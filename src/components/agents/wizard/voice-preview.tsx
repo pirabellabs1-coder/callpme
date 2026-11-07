@@ -17,6 +17,7 @@ import { normalizeTuning } from "@/lib/voices/tuning";
 export function VoicePreview({
   text,
   language,
+  bilingual,
   speed,
   pitch = 0,
   gender,
@@ -28,6 +29,8 @@ export function VoicePreview({
 }: {
   text: string;
   language: string;
+  /** Langue locale en mode bilingue (transmis au serveur comme à l'appel). */
+  bilingual?: boolean;
   speed: number;
   pitch?: number;
   gender?: string | null;
@@ -127,6 +130,7 @@ export function VoicePreview({
             voiceId: externalVoiceId,
             text: sample,
             language,
+            ...(bilingual ? { bilingual: true } : {}),
             // Voix Studio : réglages relus côté serveur ; sinon, la vitesse de l'agent.
             ...(studioVoiceId ? { studioVoiceId } : { tuning: normalizeTuning({}, speed) }),
           }),

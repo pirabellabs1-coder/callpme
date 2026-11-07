@@ -58,44 +58,112 @@ export function isMetaMediaUrl(url: string): boolean {
   }
 }
 
+export type MediaDownload =
+  | { ok: true; data: Buffer; mime: string }
+  /** expired : média introuvable chez Meta (plus de 30 jours, ou supprimé) ; too_large ; unsupported : pas de l'audio. */
+  | { ok: false; reason: "expired" | "too_large" | "unsupported" | "failed" };
+
 /** Télécharge une note vocale (2 étapes : URL signée, puis contenu). */
-export async function downloadWhatsAppMedia(mediaId: string, token: string): Promise<{ data: Buffer; mime: string } | null> {
+export async function downloadWhatsAppMedia(mediaId: string, token: string): Promise<MediaDownload> {
+  try {
+    return await download(mediaId, token);
+  } catch {
+    // Coupure pendant la lecture du corps (délai dépassé) : jamais d'exception vers l'appelant.
+    return { ok: false, reason: "failed" };
+  }
+}
+
+async function download(mediaId: string, token: string): Promise<MediaDownload> {
   const meta = await fetch(`${GRAPH}/${encodeURIComponent(mediaId)}`, {
     headers: { Authorization: `Bearer ${token}` },
     signal: AbortSignal.timeout(10_000),
   }).catch(() => null);
-  if (!meta?.ok) return null;
+  if (!meta) return { ok: false, reason: "failed" };
+  if (!meta.ok) {
+    // Média expiré ou inconnu : 404, ou 400 avec le code 100 (« objet inexistant »). Les autres 400 viennent de nous.
+    const err = (await meta.json().catch(() => ({}))) as { error?: { code?: number } };
+    const gone = meta.status === 404 || (meta.status === 400 && err.error?.code === 100);
+    return { ok: false, reason: gone ? "expired" : "failed" };
+  }
   const info = (await meta.json().catch(() => ({}))) as { url?: string; mime_type?: string; file_size?: number };
-  if (!info.url || !isMetaMediaUrl(info.url) || !info.file_size || info.file_size > MAX_VOICE_BYTES) return null;
+  if (!info.url || !isMetaMediaUrl(info.url)) return { ok: false, reason: "failed" };
+  if (!info.file_size) return { ok: false, reason: "failed" };
+  if (info.file_size > MAX_VOICE_BYTES) return { ok: false, reason: "too_large" };
+  const mime = (info.mime_type ?? "audio/ogg").split(";")[0].trim().toLowerCase();
+  if (!mime.startsWith("audio/")) return { ok: false, reason: "unsupported" };
   const res = await fetch(info.url, { headers: { Authorization: `Bearer ${token}` }, redirect: "error", signal: AbortSignal.timeout(20_000) }).catch(
     () => null,
   );
-  if (!res?.ok) return null;
+  if (!res) return { ok: false, reason: "failed" };
+  if (res.status === 404 || res.status === 410) return { ok: false, reason: "expired" };
+  if (!res.ok) return { ok: false, reason: "failed" };
   const buf = Buffer.from(await res.arrayBuffer());
-  if (buf.length > MAX_VOICE_BYTES) return null;
-  return { data: buf, mime: info.mime_type ?? "audio/ogg" };
+  if (buf.length > MAX_VOICE_BYTES) return { ok: false, reason: "too_large" };
+  return { ok: true, data: buf, mime };
 }
 
-/** Transcription d'une note vocale (Deepgram, fichier complet). */
-export async function transcribeAudio(audio: Buffer, mime: string, language = "fr"): Promise<string | null> {
+/** Transcription d'une note vocale (Deepgram, fichier complet) et durée mesurée par Deepgram. */
+export async function transcribeAudio(
+  audio: Buffer,
+  mime: string,
+  languageParams: Record<string, string> = { language: "fr" },
+  timeoutMs = 30_000,
+): Promise<{ text: string | null; durationSec: number } | null> {
   const key = process.env.DEEPGRAM_API_KEY;
   if (!key) return null;
-  const model = process.env.DEEPGRAM_MODEL || "nova-2";
-  const res = await fetch(
-    `https://api.deepgram.com/v1/listen?model=${encodeURIComponent(model)}&language=${encodeURIComponent(language)}&smart_format=true&punctuate=true`,
-    {
-      method: "POST",
-      headers: { Authorization: `Token ${key}`, "Content-Type": mime.split(";")[0] || "audio/ogg" },
-      body: new Uint8Array(audio),
-      signal: AbortSignal.timeout(30_000),
-    },
-  ).catch(() => null);
+  const q = new URLSearchParams({ model: process.env.DEEPGRAM_MODEL || "nova-2", smart_format: "true", punctuate: "true", ...languageParams });
+  const res = await fetch(`https://api.deepgram.com/v1/listen?${q}`, {
+    method: "POST",
+    headers: { Authorization: `Token ${key}`, "Content-Type": mime.split(";")[0] || "audio/ogg" },
+    body: new Uint8Array(audio),
+    signal: AbortSignal.timeout(Math.max(1_000, timeoutMs)),
+  }).catch(() => null);
   if (!res?.ok) return null;
   const data = (await res.json().catch(() => ({}))) as {
+    metadata?: { duration?: number };
     results?: { channels?: { alternatives?: { transcript?: string }[] }[] };
   };
-  const text = data.results?.channels?.[0]?.alternatives?.[0]?.transcript?.trim();
-  return text || null;
+  const text = data.results?.channels?.[0]?.alternatives?.[0]?.transcript?.trim() || null;
+  // Durée renvoyée même sans texte (silence) : la transcription est payée quand même.
+  return { text, durationSec: typeof data.metadata?.duration === "number" ? data.metadata.duration : 0 };
+}
+
+/** Dépose un fichier audio chez Meta ; renvoie l'identifiant du média, ou null. */
+export async function uploadWhatsAppMedia(phoneNumberId: string, token: string, data: Buffer, mime: string): Promise<string | null> {
+  const form = new FormData();
+  form.append("messaging_product", "whatsapp");
+  form.append("type", mime);
+  form.append("file", new Blob([new Uint8Array(data)], { type: mime }), "reponse.ogg");
+  const res = await fetch(`${GRAPH}/${encodeURIComponent(phoneNumberId)}/media`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}` },
+    body: form,
+    signal: AbortSignal.timeout(20_000),
+  }).catch(() => null);
+  if (!res?.ok) return null;
+  const json = (await res.json().catch(() => ({}))) as { id?: string };
+  return typeof json.id === "string" && json.id ? json.id : null;
+}
+
+/**
+ * Envoie une note vocale déjà déposée (OGG/Opus : affichée comme message vocal).
+ * « unknown » : pas de réponse de Meta (délai dépassé) — le message est peut-être parti.
+ */
+export async function sendWhatsAppVoice(phoneNumberId: string, token: string, to: string, mediaId: string): Promise<"sent" | "rejected" | "unknown"> {
+  const res = await fetch(`${GRAPH}/${encodeURIComponent(phoneNumberId)}/messages`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      messaging_product: "whatsapp",
+      recipient_type: "individual",
+      to: to.replace(/^\+/, ""),
+      type: "audio",
+      audio: { id: mediaId, voice: true },
+    }),
+    signal: AbortSignal.timeout(10_000),
+  }).catch(() => null);
+  if (!res) return "unknown";
+  return res.ok ? "sent" : "rejected";
 }
 
 /** Vérifie les identifiants à l'enregistrement : renvoie le numéro affiché, ou null. */

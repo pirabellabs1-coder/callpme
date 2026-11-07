@@ -8,6 +8,7 @@ import type {
   AgentConfig,
   BookingConfig,
   CallbackConfig,
+  WhatsAppReplyMode,
   AgentRole,
   AgentStatus,
   FirstSpeaker,
@@ -16,6 +17,7 @@ import type {
 } from "@/lib/shared/types";
 import { ROLE_META } from "@/lib/agents/roles";
 import { callbackSettings, DEFAULT_CALLBACK } from "@/lib/callbacks/settings";
+import { DEFAULT_REPLY_MODE } from "@/lib/whatsapp/reply-mode";
 import type { ExtractField } from "@/lib/analysis/fields";
 import type { AgentTemplate } from "@/lib/agents/templates";
 import type { PromptParams } from "@/lib/agents/role-templates";
@@ -56,6 +58,8 @@ export interface WizardState {
   voicemailMessage: string;
   /** Rappel automatique des bips et appels manqués. */
   callback: CallbackConfig;
+  /** Réponses WhatsApp : en note vocale, par écrit, ou comme la personne. */
+  whatsappReplyMode: WhatsAppReplyMode;
   /** Analyse de fin d'appel. */
   analysisFields: ExtractField[];
   successCriteria: string;
@@ -115,6 +119,7 @@ export function initialState(
       voicemailAction: agent.config.voicemail?.action ?? "message",
       voicemailMessage: agent.config.voicemail?.message ?? "",
       callback: callbackSettings(agent.config.callback),
+      whatsappReplyMode: agent.config.whatsapp?.replyMode ?? DEFAULT_REPLY_MODE,
       analysisFields: agent.config.analysis?.fields ?? [],
       successCriteria: agent.config.analysis?.successCriteria ?? "",
       knowledgeBaseId: agent.knowledgeBaseId ?? "",
@@ -147,6 +152,7 @@ export function initialState(
     voicemailAction: "message",
     voicemailMessage: "",
     callback: { ...DEFAULT_CALLBACK },
+    whatsappReplyMode: DEFAULT_REPLY_MODE,
     analysisFields: [],
     successCriteria: "",
     knowledgeBaseId: "",
@@ -281,6 +287,7 @@ export function buildPayload(
       ...(s.voicemailMessage.trim() ? { message: s.voicemailMessage.trim().slice(0, 600) } : {}),
     },
     callback: callbackSettings(s.callback),
+    whatsapp: { replyMode: s.whatsappReplyMode },
   };
   return {
     name: s.name.trim() || "Agent sans nom",

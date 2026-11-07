@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { FunctionSquare, Plus } from "lucide-react";
 import { toolsByCategory, TOOL_CATEGORY_LABELS } from "@/lib/tools/registry";
 import type { CustomToolRecord } from "@/lib/shared/types";
@@ -118,6 +119,15 @@ export function ToolsPicker({
           <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground/80">
             {TOOL_CATEGORY_LABELS[cat] ?? cat}
           </p>
+          {cat === "paiement" && (
+            <p className="mb-2 text-xs text-muted-foreground">
+              L&apos;argent est versé sur votre propre compte GeniusPay : renseignez vos clés dans{" "}
+              <Link href="/payments" className="font-medium text-brand hover:underline">
+                Configurer › Paiements
+              </Link>
+              .
+            </p>
+          )}
           <div className="space-y-2">
             {tools.map((tool) => (
               <Row

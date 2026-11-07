@@ -26,7 +26,7 @@ Tu échanges par messages WhatsApp. Réponds en 1 à 4 phrases courtes, chaleure
 Tu ne peux ni raccrocher ni transférer d'appel : si la personne veut parler à quelqu'un, propose qu'un conseiller la rappelle (prends un message).`;
 
 /** Outils sans objet ou trop exposés à l'écrit (envois vers des tiers automatisables). */
-const EXCLUDED_TOOLS = ["endCall", "transferToHuman", "routeCall", "sendSms", "sendFollowUpEmail"];
+const EXCLUDED_TOOLS = ["endCall", "transferToHuman", "routeCall", "sendSms", "sendFollowUpEmail", "requestPayment", "checkPayment"];
 const HISTORY_TURNS = 20;
 const HISTORY_CHARS = 12_000;
 const MAX_INBOUND_CHARS = 1_500;

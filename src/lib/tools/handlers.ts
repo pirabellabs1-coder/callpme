@@ -19,6 +19,7 @@ import { sendEmail } from "../email/resend";
 import { prisma } from "../db/client";
 import { containsLink, takeDailyQuota } from "../security/daily-quota";
 import { addOptOut } from "../campaigns/engine";
+import { checkPaymentTool, requestPaymentTool } from "../payments/merchant";
 import type { ToolContext, ToolResult } from "../shared/types";
 
 type Handler = (args: Record<string, unknown>, ctx: ToolContext) => Promise<ToolResult>;
@@ -238,6 +239,10 @@ const HANDLERS: Record<string, Handler> = {
     });
     return { ok: true, message: `Ticket créé (priorité ${priority}). L'équipe est prévenue.`, data: { ticketId: lead.id } };
   },
+
+  /* ------------------------------ Paiement ------------------------------ */
+  requestPayment: requestPaymentTool,
+  checkPayment: checkPaymentTool,
 
   /* --------------------------- Communication ---------------------------- */
   sendFollowUpEmail: async (args, ctx) => {

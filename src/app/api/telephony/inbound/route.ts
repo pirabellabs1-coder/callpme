@@ -1,3 +1,4 @@
+import { randomBytes } from "crypto";
 import { NextRequest } from "next/server";
 import { createVoiceToken } from "@/lib/voice-engine/token";
 import { agentForNumber, routeInbound } from "@/lib/telephony/routing";
@@ -72,7 +73,7 @@ export async function POST(req: NextRequest) {
   if (!providerCallId) return xml(sayAndHangup("Requête refusée."), 400);
 
   const token = createVoiceToken({
-    callId: `in_${Date.now().toString(36)}`,
+    callId: `in_${Date.now().toString(36)}${randomBytes(6).toString("hex")}`,
     agentId: agent.id,
     organizationId: agent.organizationId,
     direction: "inbound",

@@ -1,3 +1,4 @@
+import { syncMissingGoogleEvents } from "@/lib/agenda/service";
 import { NextRequest, NextResponse } from "next/server";
 import { getSession, isOrgAdmin } from "@/lib/auth/session";
 import { connectIntegration } from "@/lib/db/integrations";
@@ -25,6 +26,10 @@ export async function GET(req: NextRequest) {
       credentials: { refresh_token: tokens.refreshToken, calendar_id: "primary" },
     });
     forgetGoogleToken(session.org.id);
+    // Rendez-vous à venir déjà pris : envoyés tout de suite dans Google (sans clic).
+    await syncMissingGoogleEvents(session.org.id).catch((e) =>
+      console.error("[google-agenda] envoi initial impossible :", e instanceof Error ? e.message : e),
+    );
     const ok = NextResponse.redirect(`${base}/integrations?connected=google_calendar`);
     ok.cookies.delete("gcal_nonce");
     return ok;

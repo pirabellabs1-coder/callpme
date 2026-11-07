@@ -425,3 +425,19 @@ export async function syncMissingGoogleEvents(organizationId: string): Promise<{
   }
   return { synced, failed };
 }
+
+/** Organisations avec Google Agenda connecté et des rendez-vous à venir pas encore envoyés. */
+export async function orgsPendingGoogleSync(): Promise<string[]> {
+  const pending = await prisma.appointment.findMany({
+    where: { status: "booked", isTest: false, googleEventId: null, source: { not: "block" }, startsAt: { gt: new Date() } },
+    distinct: ["organizationId"],
+    select: { organizationId: true },
+    take: 200,
+  });
+  if (pending.length === 0) return [];
+  const connected = await prisma.integration.findMany({
+    where: { provider: "google_calendar", status: "connected", organizationId: { in: pending.map((p) => p.organizationId) } },
+    select: { organizationId: true },
+  });
+  return connected.map((c) => c.organizationId);
+}

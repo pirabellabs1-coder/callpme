@@ -8,7 +8,6 @@ import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { CancelAppointmentButton } from "@/components/agenda/cancel-appointment-button";
-import { SyncGoogleButton } from "@/components/agenda/sync-google-button";
 import { AgendaCalendar, type CalendarEvent } from "@/components/agenda/agenda-calendar";
 import { AgendaSettings, type AgendaAgent } from "@/components/agenda/agenda-settings";
 import { RemoveBlockButton } from "@/components/agenda/remove-block-button";
@@ -157,9 +156,8 @@ export default async function AppointmentsPage({
         {googleOn ? (
           <span className="inline-flex flex-wrap items-center gap-2">
             <Badge variant="success">
-              <RefreshCcw aria-hidden="true" /> Google Agenda connecté
+              <RefreshCcw aria-hidden="true" /> Google Agenda synchronisé automatiquement
             </Badge>
-            <SyncGoogleButton />
           </span>
         ) : (
           <Link href="/integrations" className="text-sm text-brand underline-offset-4 hover:underline">

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { verifyInternal } from "@/lib/integrations/internal-bridge";
 import { createGoogleEvent, deleteGoogleEvent, googleBusy } from "@/lib/integrations/google-calendar";
+import { syncMissingGoogleEvents } from "@/lib/agenda/service";
 
 export const dynamic = "force-dynamic";
 
@@ -19,6 +20,7 @@ const schema = z.discriminatedUnion("op", [
     }),
   }),
   z.object({ op: z.literal("delete"), orgId: z.string().min(1).max(40), eventId: z.string().min(1).max(200) }),
+  z.object({ op: z.literal("sync"), orgId: z.string().min(1).max(40) }),
 ]);
 
 /**
@@ -46,6 +48,9 @@ export async function POST(req: NextRequest) {
   if (d.op === "create") {
     const id = await createGoogleEvent(d.orgId, { ...d.ev, start: new Date(d.ev.start), end: new Date(d.ev.end) });
     return NextResponse.json({ id });
+  }
+  if (d.op === "sync") {
+    return NextResponse.json(await syncMissingGoogleEvents(d.orgId));
   }
   await deleteGoogleEvent(d.orgId, d.eventId);
   return NextResponse.json({ ok: true });

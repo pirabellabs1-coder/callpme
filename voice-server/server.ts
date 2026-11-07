@@ -24,6 +24,8 @@ import { WebSocketServer, type WebSocket, type RawData } from "ws";
 import { consumeVoiceToken, verifyVoiceToken, type VoiceTokenPayload } from "../src/lib/voice-engine/token";
 import { CallSession, type VoiceTransport } from "../src/lib/voice-engine/session";
 import { transferCall } from "../src/lib/telephony/provider";
+import { orgsPendingGoogleSync } from "../src/lib/agenda/service";
+import { callInternal } from "../src/lib/integrations/internal-bridge";
 import { TWILIO_RECORDING_PREFIX, connectionCreds, platformTwilio, startTwilioRecording } from "../src/lib/telephony/twilio-accounts";
 import { frames } from "../src/lib/voice-engine/audio";
 import { tickCampaigns } from "../src/lib/campaigns/engine";
@@ -342,6 +344,26 @@ const callbackTimer =
           .finally(() => (callingBack = false));
       }, 10_000);
 
+// Google Agenda : reprise automatique des rendez-vous pas encore envoyés (Google
+// momentanément indisponible, ou connecté après coup). Toutes les 5 minutes.
+let syncingGoogle = false;
+const googleSyncTimer =
+  process.env.VOICE_CAMPAIGN_TICK === "0"
+    ? null
+    : setInterval(() => {
+        if (syncingGoogle) return;
+        syncingGoogle = true;
+        orgsPendingGoogleSync()
+          .then(async (orgs) => {
+            for (const orgId of orgs) {
+              const r = await callInternal<{ synced: number; failed: number }>("/api/internal/google", { op: "sync", orgId }, 30_000);
+              if (r && (r.synced || r.failed)) console.info(`[voice] Google Agenda ${orgId} : ${r.synced} envoyé(s), ${r.failed} en échec`);
+            }
+          })
+          .catch((e) => console.error("[voice] synchro Google :", e instanceof Error ? e.message : e))
+          .finally(() => (syncingGoogle = false));
+      }, 5 * 60_000);
+
 // Résumé quotidien au gérant : toutes les 5 min, chaque organisation à son heure locale.
 let digesting = false;
 const digestTimer =
@@ -490,6 +512,7 @@ for (const sig of ["SIGINT", "SIGTERM"] as const) {
     audioSocketServer?.close();
     if (campaignTimer) clearInterval(campaignTimer);
     if (callbackTimer) clearInterval(callbackTimer);
+    if (googleSyncTimer) clearInterval(googleSyncTimer);
     if (digestTimer) clearInterval(digestTimer);
     // Filet de sécurité si un enregistrement reste bloqué.
     setTimeout(() => process.exit(0), 15_000).unref();

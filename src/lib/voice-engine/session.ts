@@ -433,9 +433,9 @@ ${CALLBACK_CONTEXT}` : CALLBACK_CONTEXT;
     if (!ok && !this.ended) {
       this.addTurn("system", "Reprise impossible : transfert refusé ou indisponible.");
       // L'appelant ne reste pas dans le silence.
-      this.addTurn("agent", TRANSFER_UNAVAILABLE);
-      this.history.push({ role: "assistant", content: TRANSFER_UNAVAILABLE });
-      await this.speak(TRANSFER_UNAVAILABLE);
+      this.addTurn("agent", this.phrases.transferUnavailable);
+      this.history.push({ role: "assistant", content: this.phrases.transferUnavailable });
+      await this.speak(this.phrases.transferUnavailable);
     }
     return ok;
   }

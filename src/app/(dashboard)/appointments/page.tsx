@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { CancelAppointmentButton } from "@/components/agenda/cancel-appointment-button";
+import { SyncGoogleButton } from "@/components/agenda/sync-google-button";
 import { cn } from "@/lib/utils";
 
 export const metadata = { title: "Rendez-vous" };
@@ -61,9 +62,12 @@ export default async function AppointmentsPage({
         description="Les rendez-vous pris par vos agents pendant les appels, avec leur référence et leur statut."
       >
         {googleOn ? (
-          <Badge variant="success">
-            <RefreshCcw aria-hidden="true" /> Google Agenda synchronisé
-          </Badge>
+          <span className="inline-flex flex-wrap items-center gap-2">
+            <Badge variant="success">
+              <RefreshCcw aria-hidden="true" /> Google Agenda connecté
+            </Badge>
+            <SyncGoogleButton />
+          </span>
         ) : (
           <Link href="/integrations" className="text-sm text-brand underline-offset-4 hover:underline">
             Connecter Google Agenda

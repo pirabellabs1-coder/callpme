@@ -129,8 +129,15 @@ export async function createGoogleEvent(
   orgId: string,
   ev: { summary: string; description: string; start: Date; end: Date; timezone: string },
 ): Promise<string | null> {
+  if (!googleCalendarAvailable()) {
+    console.error("[google-agenda] GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET absents : rendez-vous non envoyé à Google.");
+    return null;
+  }
   const auth = await accessToken(orgId).catch(() => null);
-  if (!auth) return null;
+  if (!auth) {
+    console.error(`[google-agenda] accès Google indisponible pour ${orgId} (connexion révoquée ou expirée ?).`);
+    return null;
+  }
   try {
     const res = await fetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(auth.calendarId)}/events`, {
       method: "POST",
@@ -143,9 +150,11 @@ export async function createGoogleEvent(
       }),
       signal: AbortSignal.timeout(8000),
     });
-    const data = (await res.json().catch(() => ({}))) as { id?: string };
+    const data = (await res.json().catch(() => ({}))) as { id?: string; error?: { message?: string } };
+    if (!res.ok) console.error(`[google-agenda] création refusée (HTTP ${res.status}) : ${data.error?.message ?? "sans détail"}`);
     return res.ok ? (data.id ?? null) : null;
-  } catch {
+  } catch (e) {
+    console.error("[google-agenda] création impossible :", e instanceof Error ? e.message : e);
     return null;
   }
 }

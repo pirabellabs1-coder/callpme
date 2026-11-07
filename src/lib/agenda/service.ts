@@ -15,7 +15,7 @@ import { createNotification } from "../db/notifications";
 import { createGoogleEvent, deleteGoogleEvent, googleBusy } from "../integrations/google-calendar";
 import { sendSms } from "../telephony/sms";
 import { toE164 } from "../telephony/e164";
-import type { Agent } from "../shared/types";
+import type { Agent, BookingConfig } from "../shared/types";
 import { bookingConfig, freeSlots, withinOpeningHours, type BusyInterval, type PartOfDay } from "./slots";
 import { isYmd, normalizeHm, spokenDateTime, utcToZoned, zonedToUtc } from "./time";
 
@@ -352,4 +352,43 @@ export async function cancelAppointment(
     });
   }
   return { ok: true, message: `Rendez-vous ${appt.reference} annulé.`, reference: appt.reference };
+}
+
+/**
+ * Envoie vers Google Agenda les rendez-vous à venir qui n'y sont pas encore
+ * (Google connecté après coup, ou indisponible au moment de la réservation).
+ */
+export async function syncMissingGoogleEvents(organizationId: string): Promise<{ synced: number; failed: number }> {
+  const rows = await prisma.appointment.findMany({
+    where: { organizationId, status: "booked", isTest: false, googleEventId: null, startsAt: { gt: new Date() } },
+    include: { agent: { select: { config: true } } },
+    orderBy: { startsAt: "asc" },
+    take: 50,
+  });
+  let synced = 0;
+  let failed = 0;
+  for (const a of rows) {
+    let booking: Partial<BookingConfig> | null = null;
+    try {
+      booking = (JSON.parse(a.agent?.config ?? "{}") as { booking?: Partial<BookingConfig> }).booking ?? null;
+    } catch {
+      booking = null;
+    }
+    const cfg = bookingConfig(booking);
+    const end = new Date(a.startsAt.getTime() + a.durationMin * 60_000);
+    const eventId = await createGoogleEvent(organizationId, {
+      summary: `RDV ${a.customerName}`,
+      description: [`Référence : ${a.reference}`, a.customerPhone && `Téléphone : ${a.customerPhone}`, a.customerEmail && `E-mail : ${a.customerEmail}`, a.notes]
+        .filter(Boolean)
+        .join("\n"),
+      start: a.startsAt,
+      end,
+      timezone: cfg.timezone,
+    });
+    if (eventId) {
+      await prisma.appointment.updateMany({ where: { id: a.id, googleEventId: null }, data: { googleEventId: eventId } });
+      synced++;
+    } else failed++;
+  }
+  return { synced, failed };
 }

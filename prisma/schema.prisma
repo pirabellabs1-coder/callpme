@@ -341,7 +341,7 @@ model ProviderConnection {
   createdAt      DateTime     @default(now())
 
   @@index([organizationId])
-  @@unique([provider, accountKey])
+  @@index([accountKey])
 }
 
 // ----- Espace agence multi-clients (Track 3) -----

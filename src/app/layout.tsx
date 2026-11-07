@@ -31,7 +31,9 @@ export const metadata: Metadata = {
     "automatisation des appels",
   ],
   authors: [{ name: "Callpme" }],
-  metadataBase: new URL("https://callpme.fr"),
+  metadataBase: new URL("https://callpme.com"),
+  // Propriété Google Search Console (validation de l'application Google : domaine callpme.com).
+  verification: { google: "hz9fnq4sy7NjndQ6jWNdBEKSr2icjLyQLNuaEktEBfc" },
   openGraph: {
     title: "Callpme — Agents vocaux IA",
     description:

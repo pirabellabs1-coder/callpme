@@ -16,7 +16,7 @@ import type {
 } from "@/lib/shared/types";
 import { ROLE_META } from "@/lib/agents/roles";
 import { callbackSettings, DEFAULT_CALLBACK } from "@/lib/callbacks/settings";
-import { bilingualRequired, isRejectedLanguage, voiceLanguage } from "@/lib/voice-engine/languages";
+import { bilingualRequired, defaultGreeting, effectiveBilingual, isRejectedLanguage, voiceLanguage } from "@/lib/voice-engine/languages";
 import type { ExtractField } from "@/lib/analysis/fields";
 import type { AgentTemplate } from "@/lib/agents/templates";
 import type { PromptParams } from "@/lib/agents/role-templates";
@@ -158,6 +158,50 @@ export function initialState(
   };
 }
 
+/**
+ * Accueil proposé pour un rôle dans une langue : en français, celui du rôle
+ * (ou du modèle choisi) ; dans une autre langue, un accueil court dans la langue.
+ */
+export function greetingFor(
+  role: AgentRole | null,
+  language: string,
+  names: { agentName?: string; organizationName?: string },
+  opts: { bilingual?: boolean; frenchDefault?: string } = {},
+): string {
+  const local = defaultGreeting(language, names, effectiveBilingual(language, opts.bilingual));
+  if (local) return local;
+  return opts.frenchDefault || (role ? ROLE_META[role].firstMessage : "");
+}
+
+/** Ce qui sert à proposer l'accueil : l'entreprise et le modèle de départ éventuel. */
+export interface GreetingContext {
+  organizationName?: string;
+  template?: { role: AgentRole; firstMessage: string };
+}
+
+/** Accueil proposé pour l'état courant de l'assistant (langue, rôle, noms). */
+export function suggestedGreeting(st: WizardState, ctx: GreetingContext = {}, role: AgentRole | null = st.role): string {
+  return greetingFor(role, st.language, { agentName: st.name.trim(), organizationName: ctx.organizationName }, {
+    bilingual: st.bilingual,
+    frenchDefault: ctx.template && role === ctx.template.role ? ctx.template.firstMessage : undefined,
+  });
+}
+
+/**
+ * Applique un changement (rôle, langue, mode bilingue, nom) et fait suivre
+ * l'accueil, sauf s'il a été réécrit à la main (`dirty`) ou sans rôle choisi.
+ */
+export function followGreeting(
+  prev: WizardState,
+  patch: Partial<WizardState>,
+  dirty: boolean,
+  ctx: GreetingContext = {},
+): WizardState {
+  const next = { ...prev, ...patch };
+  if (dirty || !next.role) return next;
+  return { ...next, firstMessage: suggestedGreeting(next, ctx) };
+}
+
 export function promptParams(st: WizardState, orgName: string): PromptParams {
   return {
     role: st.role!,
@@ -236,6 +280,8 @@ export function buildPayload(
   opts: {
     asDraft: boolean;
     studio?: StudioVoiceOption;
+    /** Pour l'accueil de repli : le même que celui proposé à l'écran. */
+    greeting?: GreetingContext;
   },
 ) {
   const { studio } = opts;
@@ -258,7 +304,7 @@ export function buildPayload(
       temperature: s.temperature,
     },
     systemPrompt: s.systemPrompt,
-    firstMessage: s.firstMessage || ROLE_META[s.role].firstMessage,
+    firstMessage: s.firstMessage || suggestedGreeting(s, opts.greeting),
     firstSpeaker: s.firstSpeaker,
     guardrails: s.guardrails.map((g) => g.trim()).filter(Boolean),
     tools: s.tools,

@@ -26,7 +26,7 @@ export interface VoiceLanguage {
   /** Identifiant stocké dans l'agent (config.voice.language). */
   id: string;
   label: string;
-  /** Langue locale d'Afrique de l'Ouest (sinon : français). */
+  /** Langue locale d'Afrique de l'Ouest (sinon : français ou anglais). */
   local: boolean;
   status: LanguageStatus;
   llm: LlmLevel;
@@ -49,6 +49,10 @@ export const VOICE_LANGUAGES: VoiceLanguage[] = [
   { id: "fr-FR", label: "Français (France)", local: false, status: "disponible", llm: "natif", stt: FR_STT, tts: FR_TTS, sttCodes: {}, ttsCodes: {} },
   { id: "fr-BE", label: "Français (Belgique)", local: false, status: "disponible", llm: "natif", stt: FR_STT, tts: FR_TTS, sttCodes: {}, ttsCodes: {} },
   { id: "fr-CA", label: "Français (Canada)", local: false, status: "disponible", llm: "natif", stt: FR_STT, tts: FR_TTS, sttCodes: {}, ttsCodes: {} },
+
+  // Anglais : mêmes fournisseurs que le français (Deepgram, ElevenLabs Flash, Cartesia le parlent).
+  { id: "en-US", label: "Anglais (États-Unis)", local: false, status: "disponible", llm: "natif", stt: FR_STT, tts: FR_TTS, sttCodes: {}, ttsCodes: {} },
+  { id: "en-GB", label: "Anglais (Royaume-Uni)", local: false, status: "disponible", llm: "natif", stt: FR_STT, tts: FR_TTS, sttCodes: {}, ttsCodes: {} },
 
   // Langues locales couvertes par des fournisseurs commerciaux.
   {
@@ -130,9 +134,39 @@ export function isSelectableLanguage(id: string, activated = activatedLocalLangu
 }
 
 /**
+ * État d'une langue dans l'assistant :
+ * - « disponible » : peut être choisie ;
+ * - « activation » : branchée, mais le fondateur ne l'a pas encore activée
+ *   (clés fournisseur à poser, puis NEXT_PUBLIC_VOICE_LOCAL_LANGUAGES) ;
+ * - « bientôt » : aucun fournisseur ne la couvre encore.
+ */
+export type LanguageAvailability = "disponible" | "activation" | "bientôt";
+
+export function languageAvailability(id: string, activated = activatedLocalLanguages()): LanguageAvailability {
+  const l = voiceLanguage(id);
+  if (!l || l.status !== "disponible") return "bientôt";
+  return isSelectableLanguage(id, activated) ? "disponible" : "activation";
+}
+
+/** Famille de la langue, pour regrouper la liste : français, anglais ou langue locale. */
+export function languageFamily(id: string): "fr" | "en" | "local" | "other" {
+  const l = voiceLanguage(id);
+  if (l?.local) return "local";
+  if (id.startsWith("en")) return "en";
+  // Identifiant hors registre (ex. « es-ES » créé par l'API) : ni français ni anglais.
+  return !id || id.startsWith("fr") ? "fr" : "other";
+}
+
+/** Nom courant de la langue, en minuscules (« anglais », « yoruba »…). */
+export function languageName(id: string): string {
+  const l = voiceLanguage(id);
+  return l ? l.label.split(" ")[0].toLowerCase() : id;
+}
+
+/**
  * Une langue est-elle refusée à l'enregistrement d'un agent ? Seules les
  * langues du registre non sélectionnables le sont : un identifiant inconnu
- * (ex. « en-US » via l'API) reste accepté comme avant.
+ * (ex. « es-ES » via l'API) reste accepté comme avant.
  */
 export function isRejectedLanguage(id: string, activated = activatedLocalLanguages()): boolean {
   return Boolean(voiceLanguage(id)) && !isSelectableLanguage(id, activated);
@@ -188,8 +222,17 @@ const SCRIPT_HINT: Record<string, string> = {
  */
 export function languageInstructions(language: string, bilingual = false): string {
   const l = voiceLanguage(language);
-  if (!l?.local) return "";
-  const name = l.label.split(" ")[0].toLowerCase();
+  if (!l) return "";
+  // Anglais : instructions rédigées en français, réponses en anglais.
+  if (!l.local) {
+    if (languageFamily(l.id) !== "en") return "";
+    return [
+      "## Langue",
+      "L'appelant parle anglais. Réponds toujours en anglais, même si tes instructions sont rédigées en français.",
+      "Dis les nombres, prix et heures de façon simple ; répète les numéros de téléphone chiffre par chiffre pour les confirmer.",
+    ].join("\n");
+  }
+  const name = languageName(l.id);
   const lines: string[] = ["## Langue"];
   const weak = l.llm === "faible" || l.llm === "insuffisant";
   if (bilingual || weak) {
@@ -222,4 +265,91 @@ export function effectiveBilingual(language: string | undefined | null, bilingua
   const l = voiceLanguage(language);
   if (!l?.local) return false;
   return Boolean(bilingual) || bilingualRequired(l.id);
+}
+
+/**
+ * Message d'accueil proposé quand l'agent ne parle pas français. Le français
+ * garde l'accueil propre à chaque rôle (ROLE_META). Les accueils en langue
+ * locale sont volontairement courts et à faire relire par un locuteur natif.
+ * Mode bilingue : une salutation dans la langue, puis la suite en français.
+ */
+export function defaultGreeting(
+  language: string,
+  names: { agentName?: string; organizationName?: string },
+  bilingual = false,
+): string | null {
+  const l = voiceLanguage(language);
+  if (!l || languageFamily(l.id) === "fr") return null;
+  const agent = names.agentName?.trim();
+  const org = names.organizationName?.trim();
+  if (languageFamily(l.id) === "en") {
+    const who = agent ? `This is ${agent}${org ? ` from ${org}` : ""}. ` : org ? `Thank you for calling ${org}. ` : "";
+    return `Hello! ${who}How can I help you today?`;
+  }
+  const fr = `Bonjour${agent ? `, ici ${agent}` : ""}${org ? ` de ${org}` : ""}. Comment puis-je vous aider ?`;
+  const local: Record<string, { hello: string; full: string }> = {
+    "yo-NG": {
+      hello: "Ẹ n lẹ́ o !",
+      full: `Ẹ n lẹ́ o !${agent ? ` Èmi ni ${agent}${org ? ` láti ${org}` : ""}.` : ""} Báwo ni mo ṣe lè ràn yín lọ́wọ́ ?`,
+    },
+    "ha-NG": {
+      hello: "Sannu !",
+      full: `Sannu !${agent ? ` Ni ne ${agent}${org ? ` daga ${org}` : ""}.` : ""} Ta yaya zan iya taimaka muku ?`,
+    },
+    "wo-SN": { hello: "Asalaa maalekum !", full: "" },
+  };
+  const g = local[l.id];
+  if (!g) return null;
+  // Wolof : Claude est faible dans la langue seule, l'accueil passe donc toujours au français.
+  if (bilingual || bilingualRequired(l.id) || !g.full) return `${g.hello} ${fr}`;
+  return g.full;
+}
+
+/** Phrases dites par le moteur lui-même (hors réponses de l'agent). */
+export interface SystemPhrases {
+  fallbackGreeting: string;
+  techError: string;
+  transfer: string;
+  transferUnavailable: string;
+  /** Répondeur, avec {agent} et {organisation}. */
+  voicemail: string;
+  /** Accueil d'un rappel automatique, avec {agent} et {organisation}. */
+  callback: string;
+  /** Remplace {organisation} quand l'entreprise n'a pas de nom. */
+  ourTeam: string;
+}
+
+const FR_PHRASES: SystemPhrases = {
+  fallbackGreeting: "Bonjour, comment puis-je vous aider ?",
+  techError: "Je suis désolé, je rencontre un problème technique. Pouvez-vous répéter ?",
+  transfer: "Je vous mets en relation avec un conseiller, ne quittez pas.",
+  transferUnavailable:
+    "Je ne peux pas vous mettre en relation directement pour le moment, mais je transmets votre demande : un conseiller vous recontactera.",
+  voicemail:
+    "Bonjour, ici {agent}, l'assistant de {organisation}. Nous avons essayé de vous joindre. Vous pouvez nous rappeler à ce numéro quand vous le souhaitez. Bonne journée.",
+  callback:
+    "Bonjour, ici {agent} de {organisation}. Vous avez essayé de nous joindre il y a quelques instants, je vous rappelle. Comment puis-je vous aider ?",
+  ourTeam: "notre équipe",
+};
+
+const EN_PHRASES: SystemPhrases = {
+  fallbackGreeting: "Hello, how can I help you?",
+  techError: "I'm sorry, I'm having a technical problem. Could you say that again?",
+  transfer: "I'm putting you through to an advisor, please hold.",
+  transferUnavailable:
+    "I can't put you through directly right now, but I'm passing on your request: an advisor will get back to you.",
+  voicemail:
+    "Hello, this is {agent}, the assistant at {organisation}. We tried to reach you. You can call us back on this number whenever suits you. Have a good day.",
+  callback:
+    "Hello, this is {agent} from {organisation}. You tried to reach us a few moments ago, so I'm calling you back. How can I help you?",
+  ourTeam: "our team",
+};
+
+/**
+ * Phrases du moteur dans la langue de l'agent. Anglais : en anglais. Français
+ * et langues locales : en français (les langues locales sont servies en mode
+ * bilingue ou avec une voix qui lit aussi le français ; pas de traduction non relue).
+ */
+export function systemPhrases(language: string | undefined | null): SystemPhrases {
+  return languageFamily(language || "fr-FR") === "en" ? EN_PHRASES : FR_PHRASES;
 }

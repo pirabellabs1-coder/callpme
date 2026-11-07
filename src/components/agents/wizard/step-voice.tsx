@@ -9,6 +9,7 @@ import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { SamplePlayButton } from "@/components/voices/sample-play-button";
 import { VoicePreview } from "./voice-preview";
+import { LanguageOptions } from "./language-options";
 import { FieldError, fieldId, invalidProps } from "./controls";
 import type { SetWizardState, StepErrors, StudioVoiceOption, WizardState } from "./state";
 
@@ -77,11 +78,14 @@ export function StepVoice({
   set,
   errors,
   studioVoices,
+  onLanguageChange,
 }: {
   s: WizardState;
   set: SetWizardState;
   errors: StepErrors;
   studioVoices: StudioVoiceOption[];
+  /** Langue ou mode bilingue changés (l'accueil proposé suit la langue). */
+  onLanguageChange: (patch: Partial<Pick<WizardState, "language" | "bilingual">>) => void;
 }) {
   const catalog = studioVoices.filter((v) => v.catalog);
   const own = studioVoices.filter((v) => !v.catalog);
@@ -137,24 +141,10 @@ export function StepVoice({
         <Select
           id={fieldId("language")}
           value={s.language}
-          onChange={(e) => set({ language: e.target.value })}
+          onChange={(e) => onLanguageChange({ language: e.target.value })}
           {...invalidProps("language", errors.language)}
         >
-          {/* Une langue « bientôt » reste visible mais ne peut pas être choisie. */}
-          <optgroup label="Français">
-            {LANGUAGES.filter((l) => !l.local).map((l) => (
-              <option key={l.id} value={l.id}>
-                {l.label}
-              </option>
-            ))}
-          </optgroup>
-          <optgroup label="Langues locales">
-            {LANGUAGES.filter((l) => l.local).map((l) => (
-              <option key={l.id} value={l.id} disabled={l.availability !== "disponible" && l.id !== s.language}>
-                {l.availability === "disponible" ? l.label : `${l.label} — bientôt`}
-              </option>
-            ))}
-          </optgroup>
+          <LanguageOptions current={s.language} />
         </Select>
         <FieldError name="language" message={errors.language} />
         {language?.local && (
@@ -165,7 +155,7 @@ export function StepVoice({
                 id="voice-bilingual"
                 checked={s.bilingual || language.bilingualOnly}
                 disabled={language.bilingualOnly}
-                onCheckedChange={(v) => set({ bilingual: v })}
+                onCheckedChange={(v) => onLanguageChange({ bilingual: v })}
                 aria-label="Mode bilingue français et langue locale"
               />
               <div>

@@ -14,6 +14,8 @@ import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { SamplePlayButton } from "./sample-play-button";
+import { LanguageOptions } from "@/components/agents/wizard/language-options";
+import { effectiveBilingual } from "@/lib/voice-engine/languages";
 import {
   DEFAULT_TUNING,
   MAX_PRONUNCIATIONS,
@@ -111,6 +113,8 @@ export function VoiceStudio({
   const nextKey = useRef(initial.pronunciations.length);
   const [rows, setRows] = useState<Row[]>(initial.pronunciations.map((p, i) => ({ ...p, key: i })));
   const [text, setText] = useState(DEFAULT_TEXT);
+  // Langue de l'écoute : la voix est la même, la synthèse suit la langue (comme au téléphone).
+  const [language, setLanguage] = useState("fr-FR");
   const [listen, setListen] = useState<"idle" | "loading" | "playing">("idle");
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
@@ -148,7 +152,9 @@ export function VoiceStudio({
           provider: source.provider,
           voiceId: source.externalId,
           text: text.trim() || DEFAULT_TEXT,
-          language: "fr-FR",
+          language,
+          // Wolof : bilingue imposé, la voix n'est pas forcée dans la langue (comme à l'appel).
+          ...(effectiveBilingual(language, false) ? { bilingual: true } : {}),
           tuning,
           pronunciations,
         }),
@@ -412,6 +418,13 @@ export function VoiceStudio({
             <Label htmlFor="studio-text">Texte d&apos;essai</Label>
             <Textarea id="studio-text" rows={5} maxLength={600} value={text} onChange={(e) => setText(e.target.value)} />
             <p className="text-xs text-muted-foreground">Ajoutez-y vos mots du dictionnaire pour entendre leur prononciation.</p>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="studio-language">Langue de l&apos;écoute</Label>
+            <Select id="studio-language" value={language} onChange={(e) => setLanguage(e.target.value)}>
+              <LanguageOptions current={language} />
+            </Select>
+            <p className="text-xs text-muted-foreground">Écrivez le texte d&apos;essai dans cette langue.</p>
           </div>
           <Button
             type="button"

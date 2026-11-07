@@ -4,7 +4,7 @@
  * code pour pouvoir évoluer sans toucher à l'UI.
  */
 
-import { bilingualRequired, isSelectableLanguage, VOICE_LANGUAGES } from "../voice-engine/languages";
+import { bilingualRequired, languageAvailability, languageFamily, VOICE_LANGUAGES, type LanguageAvailability } from "../voice-engine/languages";
 
 export const VOICE_PROVIDERS = [
   { id: "elevenlabs", label: "ElevenLabs", note: "Voix françaises très naturelles" },
@@ -42,8 +42,14 @@ export interface LanguageOption {
   label: string;
   /** Langue locale d'Afrique de l'Ouest. */
   local: boolean;
-  /** « disponible » seulement si le moteur sait la transcrire ET la parler, et qu'elle est activée. */
-  availability: "disponible" | "bientôt";
+  /** Groupe affiché dans la liste : français, anglais ou langues locales. */
+  family: ReturnType<typeof languageFamily>;
+  /**
+   * « disponible » : le moteur sait la transcrire ET la parler, et elle est activée ;
+   * « activation » : branchée, en attente des clés fournisseur et de l'activation ;
+   * « bientôt » : aucun fournisseur ne la couvre encore.
+   */
+  availability: LanguageAvailability;
   /** Mode bilingue français + langue locale imposé (Claude trop faible dans la langue seule). */
   bilingualOnly: boolean;
   note?: string;
@@ -57,7 +63,8 @@ export const LANGUAGES: LanguageOption[] = VOICE_LANGUAGES.map((l) => ({
   id: l.id,
   label: l.label,
   local: l.local,
-  availability: isSelectableLanguage(l.id) ? "disponible" : "bientôt",
+  family: languageFamily(l.id),
+  availability: languageAvailability(l.id),
   bilingualOnly: bilingualRequired(l.id),
   ...(l.note ? { note: l.note } : {}),
 }));
@@ -89,6 +96,13 @@ export const MODELS: Record<string, ModelOption[]> = {
     { id: "mistral-small", label: "Mistral Small", note: "Léger et rapide" },
   ],
 };
+
+/** Libellé d'une langue dans la liste, avec son état quand elle ne peut pas être choisie. */
+export function languageOptionLabel(l: LanguageOption): string {
+  if (l.availability === "activation") return `${l.label} — en activation (clé fournisseur manquante)`;
+  if (l.availability === "bientôt") return `${l.label} — bientôt`;
+  return l.label;
+}
 
 export function languageLabel(id: string): string {
   return LANGUAGES.find((l) => l.id === id)?.label ?? id;

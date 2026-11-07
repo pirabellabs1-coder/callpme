@@ -201,6 +201,17 @@ Hypothèses (voir `src/lib/costs/economics.ts`) :
   - Chaque fournisseur reste éteint tant que sa clé n'est pas posée.
 - **Transcription phrase par phrase.** Fichier `stt-batch.ts`. Le moteur détecte lui-même début et fin de parole, ce qui permet d'utiliser n'importe quel fournisseur « par fichier ».
 - **Consignes de langue et mode bilingue** dans le prompt de l'agent.
+- **Anglais** (États-Unis, Royaume-Uni) : disponible tout de suite, avec les mêmes fournisseurs que le français. Aucune clé de plus.
+  - Les phrases que le moteur dit lui-même passent aussi en anglais : accueil de secours, panne, transfert, répondeur, rappel automatique.
+  - Pour les langues locales, ces phrases restent en français : aucune traduction relue n'existe encore.
+- **Partout où l'on crée un agent**, la liste montre trois groupes : français, anglais et langues locales. C'est le cas dans l'assistant (y compris depuis un modèle) et dans l'écoute du Studio des voix. Une langue locale y affiche son état :
+  - « bientôt » quand aucun fournisseur ne la couvre ;
+  - « en activation (clé fournisseur manquante) » quand elle est branchée mais pas encore ouverte.
+- **Message d'accueil dans la langue.**
+  - Le message d'accueil suit la langue choisie, tant qu'il n'a pas été réécrit à la main ; c'est aussi vrai pour un agent créé par l'API.
+  - Un bouton « Proposer un accueil en … » le régénère pour un agent existant.
+  - Les instructions générées restent en français : une consigne de langue s'y ajoute à chaque appel.
+  - **Les accueils en yoruba, haoussa et wolof sont courts et doivent être relus par un locuteur natif.** Ils sont dans `defaultGreeting`, fichier `languages.ts`.
 
 **Pour ouvrir le yoruba, par exemple :**
 

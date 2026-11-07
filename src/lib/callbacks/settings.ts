@@ -10,6 +10,7 @@
  *    aussitôt. Le rappel est un appel sortant, payé sur le crédit prépayé.
  */
 import type { CallbackConfig } from "../shared/types";
+import { systemPhrases } from "../voice-engine/languages";
 
 export const DEFAULT_CALLBACK: CallbackConfig = {
   enabled: false,
@@ -52,11 +53,12 @@ export function callbackSettings(raw: Partial<CallbackConfig> | null | undefined
   };
 }
 
-/** Première phrase de l'agent quand il rappelle. */
-export function callbackGreeting(cfg: CallbackConfig, agentName: string, organizationName: string): string {
-  return (cfg.message?.trim() || DEFAULT_CALLBACK_MESSAGE)
+/** Première phrase de l'agent quand il rappelle (message par défaut dans la langue de l'agent). */
+export function callbackGreeting(cfg: CallbackConfig, agentName: string, organizationName: string, language?: string): string {
+  const phrases = systemPhrases(language);
+  return (cfg.message?.trim() || phrases.callback)
     .replace(/\{agent\}/g, agentName)
-    .replace(/\{organisation\}|\{entreprise\}/g, organizationName || "notre équipe");
+    .replace(/\{organisation\}|\{entreprise\}/g, organizationName || phrases.ourTeam);
 }
 
 /** Contexte donné à l'agent pendant le rappel (faits, pas consignes de l'appelant). */

@@ -35,7 +35,9 @@ import {
   STEPS,
   buildPayload,
   firstInvalidStep,
+  followGreeting,
   initialState,
+  suggestedGreeting,
   promptParams,
   validateStep,
   type StepErrors,
@@ -183,16 +185,23 @@ export function AgentWizard({
     setMaxReached((m) => Math.max(m, n));
   }
 
+  /** Accueil proposé dans la langue de l'agent (français : celui du rôle ou du modèle). */
+  const greetingCtx = { organizationName, template };
+
   function selectRole(role: AgentRole) {
-    setS((prev) => ({
-      ...prev,
-      role,
-      tools: ROLE_META[role].defaultTools,
-      firstMessage: firstMsgDirty
-        ? prev.firstMessage
-        : ROLE_META[role].firstMessage,
-    }));
+    setS((prev) => followGreeting(prev, { role, tools: ROLE_META[role].defaultTools }, firstMsgDirty, greetingCtx));
   }
+
+  /** Langue ou mode bilingue changés : l'accueil suit, tant qu'il n'a pas été réécrit à la main. */
+  function changeLanguage(patch: Partial<Pick<WizardState, "language" | "bilingual">>) {
+    setS((prev) => followGreeting(prev, patch, firstMsgDirty, greetingCtx));
+  }
+
+  // Nom de l'agent changé : l'accueil (qui le cite hors français) suit, tant qu'il n'est pas réécrit.
+  useEffect(() => {
+    if (!firstMsgDirty && s.role) setS((prev) => followGreeting(prev, {}, false, greetingCtx));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [s.name]);
 
   function toggleTool(name: string) {
     setS((prev) => ({
@@ -225,7 +234,7 @@ export function AgentWizard({
     const studio = studioVoices.find((v) => v.id === s.voiceId);
     const payload = buildPayload(
       { ...s, role: s.role },
-      { asDraft, studio },
+      { asDraft, studio, greeting: greetingCtx },
     );
     try {
       const res = await fetch(
@@ -309,6 +318,7 @@ export function AgentWizard({
                   <StepVoice
                     s={s}
                     set={set}
+                    onLanguageChange={changeLanguage}
                     errors={errors}
                     studioVoices={studioVoices}
                   />
@@ -320,6 +330,7 @@ export function AgentWizard({
                     errors={errors}
                     advancedOpen={advancedOpen}
                     onAdvancedOpenChange={setAdvancedOpen}
+                    suggestedGreeting={suggestedGreeting(s, greetingCtx)}
                     onFirstMessageEdit={(v) => {
                       setFirstMsgDirty(true);
                       set({ firstMessage: v });

@@ -121,6 +121,7 @@ export function StepVoice({
           <VoicePreview
             text={s.firstMessage || FALLBACK_TEXT}
             language={s.language}
+            bilingual={Boolean(language?.local && (s.bilingual || language.bilingualOnly))}
             speed={s.speed}
             gender={selected.gender}
             provider={selected.provider}

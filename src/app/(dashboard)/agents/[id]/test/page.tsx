@@ -11,6 +11,7 @@ import { TestCallPanel } from "@/components/agents/test-call-panel";
 import { RealCallCard } from "@/components/agents/real-call-card";
 import { telephonyConfigured, voiceEngineMissing } from "@/lib/telephony/provider";
 import { VoiceTestPanel } from "@/components/agents/voice-test-panel";
+import { effectiveBilingual, voiceLanguage } from "@/lib/voice-engine/languages";
 
 export const metadata = { title: "Test d'appel" };
 export const dynamic = "force-dynamic";
@@ -53,6 +54,9 @@ export default async function TestAgentPage({
     provider: v.providerVoiceId ? v.provider : undefined,
     externalVoiceId: v.providerVoiceId,
   };
+  // Langue locale (yoruba, haoussa…) : le test navigateur prévient qu'il la reconnaît mal.
+  const lang = voiceLanguage(v.language);
+  const localLabel = lang?.local ? lang.label.split(" ")[0].toLowerCase() : undefined;
 
   // Moteur vocal Callpme configuré : c'est LE test (même moteur qu'au téléphone).
   // Le test navigateur (texte et voix du navigateur) ne reste qu'en secours, tant que le moteur manque.
@@ -79,6 +83,8 @@ export default async function TestAgentPage({
             firstMessage={agent.config.firstMessage}
             firstSpeaker={agent.config.firstSpeaker ?? "agent"}
             language={agent.config.voice.language}
+            bilingual={effectiveBilingual(agent.config.voice.language, agent.config.voice.bilingual)}
+            localLanguageLabel={localLabel}
             liveMode={liveMode}
             modelLabel={modelLabel}
             voiceProfile={voiceProfile}

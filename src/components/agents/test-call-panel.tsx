@@ -84,6 +84,8 @@ export function TestCallPanel({
   firstMessage,
   firstSpeaker,
   language,
+  bilingual = false,
+  localLanguageLabel,
   liveMode,
   modelLabel,
   voiceProfile,
@@ -98,6 +100,10 @@ export function TestCallPanel({
   firstMessage: string;
   firstSpeaker: FirstSpeaker;
   language: string;
+  /** Langue locale en mode bilingue : le micro écoute le français. */
+  bilingual?: boolean;
+  /** Nom de la langue locale de l'agent (yoruba, haoussa…), sinon vide. */
+  localLanguageLabel?: string;
   liveMode: boolean;
   modelLabel: string;
   voiceProfile?: VoiceProfile;
@@ -144,7 +150,9 @@ export function TestCallPanel({
     if (SR) {
       setMicSupported(true);
       const r = new SR();
-      r.lang = language;
+      // Les navigateurs reconnaissent mal les langues locales : en mode
+      // bilingue, le micro écoute le français, que l'agent comprend aussi.
+      r.lang = bilingual ? "fr-FR" : language;
       r.interimResults = false;
       r.continuous = false;
       r.maxAlternatives = 1;
@@ -178,7 +186,7 @@ export function TestCallPanel({
       recCtxRef.current?.close().catch(() => {});
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [language]);
+  }, [language, bilingual]);
 
   // Timer d'appel + coupure automatique à la durée maximale configurée
   useEffect(() => {
@@ -344,6 +352,7 @@ export function TestCallPanel({
             voiceId: voiceProfile.externalVoiceId,
             text,
             language,
+            ...(bilingual ? { bilingual: true } : {}),
           }),
         });
         const data = await res.json();
@@ -716,6 +725,14 @@ export function TestCallPanel({
                 </Button>
               )}
             </form>
+            {micSupported && localLanguageLabel && (
+              <p className="text-xs text-muted-foreground">
+                {bilingual
+                  ? `Le micro du navigateur écoute le français ; tapez vos phrases en ${localLanguageLabel}.`
+                  : `Le micro du navigateur reconnaît mal le ${localLanguageLabel} : tapez vos phrases si besoin.`}{" "}
+                Pour un test fidèle de la langue, appelez le numéro de l'agent.
+              </p>
+            )}
             {!micSupported && (
               <p className="text-xs text-muted-foreground">
                 Le micro (reconnaissance vocale) est supporté sur Chrome et Edge.

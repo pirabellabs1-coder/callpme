@@ -41,7 +41,7 @@ export default async function PortalCall({ params }: { params: { id: string } })
         <h2 className="mb-3 text-sm font-semibold">Conversation</h2>
         <ol className="space-y-2">
           {turns
-            .filter((t) => t.speaker !== "tool")
+            .filter((t) => t.speaker !== "tool" && t.speaker !== "system")
             .map((t, i) => (
               <li key={i} className={cn("flex", t.speaker === "agent" ? "justify-start" : "justify-end")}>
                 <p

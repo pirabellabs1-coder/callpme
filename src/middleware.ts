@@ -40,6 +40,7 @@ const PRIVATE_PAGE_PREFIXES = [
   "/analytics",
   "/billing",
   "/calls",
+  "/live",
   "/campaigns",
   "/clients",
   "/developers",

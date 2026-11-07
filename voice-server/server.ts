@@ -7,6 +7,7 @@
  *
  *  - /ws/telephony : flux audio Twilio / Telnyx (<Connect><Stream>), µ-law 8 kHz.
  *  - /ws/web       : test au micro depuis le tableau de bord (µ-law 8 kHz binaire).
+ *  - /ws/monitor   : supervision en direct (jeton de supervision, voir voice-server/monitor.ts).
  *  - /health       : sonde de disponibilité.
  *
  * Chaque session exige un jeton signé par l'application, à usage unique
@@ -28,6 +29,8 @@ import { tickCampaigns } from "../src/lib/campaigns/engine";
 import { tickCallbacks } from "../src/lib/callbacks/engine";
 import { tickDigests } from "../src/lib/digest/digest";
 import { consumeSipSession } from "../src/lib/telephony/sip";
+import { acceptMonitorToken } from "../src/lib/live/token";
+import { onMonitor, reserveMonitor } from "./monitor";
 import {
   AS_AUDIO,
   AS_DTMF,
@@ -72,6 +75,8 @@ const server = http.createServer((req, res) => {
 
 const wssTelephony = new WebSocketServer({ noServer: true, maxPayload: 64 * 1024 });
 const wssWeb = new WebSocketServer({ noServer: true, maxPayload: 64 * 1024 });
+/** Supervision en direct (page « En direct » du tableau de bord) : petites commandes JSON. */
+const wssMonitor = new WebSocketServer({ noServer: true, maxPayload: 4 * 1024 });
 
 function reject(socket: import("node:stream").Duplex, status: string) {
   socket.write(`HTTP/1.1 ${status}\r\n\r\n`);
@@ -109,6 +114,16 @@ server.on("upgrade", (req, socket, head) => {
     if (!payload) return reject(socket, "401 Unauthorized");
     if (!reserve(payload)) return reject(socket, "503 Service Unavailable");
     return wssWeb.handleUpgrade(req, socket, head, (ws) => onWeb(ws, payload));
+  }
+
+  if (url.pathname === "/ws/monitor") {
+    const grant = acceptMonitorToken(token);
+    if (!grant) return reject(socket, "401 Unauthorized");
+    // Place réservée seulement une fois la connexion établie (une poignée de main ratée ne bloque rien).
+    return wssMonitor.handleUpgrade(req, socket, head, (ws) => {
+      if (!reserveMonitor(grant.organizationId)) return ws.close(1013, "Trop de connexions");
+      onMonitor(ws, grant, sessions);
+    });
   }
 
   if (url.pathname === "/ws/telephony") {
@@ -469,6 +484,7 @@ for (const sig of ["SIGINT", "SIGTERM"] as const) {
     setTimeout(() => process.exit(0), 15_000).unref();
     void Promise.allSettled(Array.from(sessions).map((s) => s.end("completed"))).then(() => {
       wssTelephony.clients.forEach((c) => c.close());
+      wssMonitor.clients.forEach((c) => c.close());
       wssWeb.clients.forEach((c) => c.close());
       process.exit(0);
     });

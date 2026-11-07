@@ -51,6 +51,7 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
           phoneNumber: n.phoneNumber,
           friendlyName: n.friendlyName,
           voice: n.voice,
+          linked: n.linked,
           imported: Boolean(k && k.organizationId === ctx.session.org.id && k.connectionId === ctx.creds.connectionId),
           usedElsewhere: Boolean(k && k.organizationId !== ctx.session.org.id),
         };

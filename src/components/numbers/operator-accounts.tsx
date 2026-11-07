@@ -15,6 +15,8 @@ interface TwilioNumberRow {
   phoneNumber: string;
   friendlyName: string;
   voice: boolean;
+  /** Appels entrants dirigés vers Callpme chez Twilio. */
+  linked: boolean;
   imported: boolean;
   usedElsewhere: boolean;
 }
@@ -218,7 +220,7 @@ function ImportNumbers({ connectionId, onImported }: { connectionId: string; onI
     const data = await res.json().catch(() => ({}));
     setBusy(null);
     if (!res.ok) return setError(data.error ?? "Import impossible.");
-    setRows((list) => list?.map((x) => (x.sid === r.sid ? { ...x, imported: true } : x)) ?? null);
+    setRows((list) => list?.map((x) => (x.sid === r.sid ? { ...x, imported: true, linked: true } : x)) ?? null);
     onImported({
       id: data.number.id,
       number: data.number.number,
@@ -247,8 +249,13 @@ function ImportNumbers({ connectionId, onImported }: { connectionId: string; onI
             <li key={r.sid} className="flex flex-wrap items-center gap-3 rounded-lg border border-border px-3 py-2 text-sm">
               <span className="mono font-medium">{r.phoneNumber}</span>
               <span className="min-w-0 flex-1 truncate text-muted-foreground">{r.friendlyName}</span>
-              {r.imported ? (
+              {r.imported && r.linked ? (
                 <Badge variant="success">Importé</Badge>
+              ) : r.imported ? (
+                <Button size="sm" variant="brand" disabled={busy === r.sid} onClick={() => importOne(r)} title="Les appels de ce numéro ne vont plus vers Callpme chez Twilio">
+                  {busy === r.sid && <Loader2 className="size-4 animate-spin" aria-hidden="true" />}
+                  Reconfigurer
+                </Button>
               ) : r.usedElsewhere ? (
                 <Badge variant="muted">Déjà utilisé</Badge>
               ) : !r.voice ? (

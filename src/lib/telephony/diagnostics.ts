@@ -171,7 +171,7 @@ export async function diagnoseNumber(organizationId: string, numberId: string): 
           : !tw
             ? { id: "routing", label: "Numéro configuré vers Callpme chez Twilio", status: "error", detail: "Ce numéro n'est plus sur votre compte Twilio.", fix: "Vérifiez dans la console Twilio qu'il n'a pas été libéré ou déplacé." }
             : !tw.linked
-              ? { id: "routing", label: "Numéro configuré vers Callpme chez Twilio", status: "error", detail: "Les appels entrants de ce numéro vont ailleurs (autre service ou réglage modifié).", fix: "Dans « Mon compte opérateur », cliquez sur « Importer mes numéros » puis « Ajouter à Callpme » : la configuration est refaite automatiquement." }
+              ? { id: "routing", label: "Numéro configuré vers Callpme chez Twilio", status: "error", detail: "Les appels entrants de ce numéro vont ailleurs (autre service ou réglage modifié).", fix: "Dans « Mon compte opérateur », cliquez sur « Importer mes numéros » puis « Reconfigurer » à côté du numéro : la configuration est refaite automatiquement." }
               : { id: "routing", label: "Numéro configuré vers Callpme chez Twilio", status: "ok", detail: "Les appels entrants arrivent sur Callpme." },
       );
     }

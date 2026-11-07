@@ -74,7 +74,10 @@ const VOICE_STYLE =
   "déjà donnée (numéro, date, motif) : reprends-la, ne la redemande pas.\n" +
   "Les lettres épelées arrivent parfois déformées par la transcription (« l'i », « deux S », « S A L O N ») : " +
   "reconstitue le nom le plus probable et relis-le une seule fois. Après deux essais, n'insiste plus : garde " +
-  "l'orthographe la plus probable et continue.\n\n" +
+  "l'orthographe la plus probable et continue.\n" +
+  "La transcription coupe parfois un nom en plusieurs mots (« Lisa, non » pour « Lissanon », « Dos sous » pour " +
+  "« Dossou ») : si l'appelant répète que ce n'est pas le bon nom, propose la version collée. Ne prends jamais " +
+  "« non » à la fin d'un nom pour un refus si l'appelant est en train de dire son nom.\n\n" +
   "## Rythme\nUne ou deux phrases par réponse, puis laisse parler. N'épelle une référence ou un numéro " +
   "que si on te le demande.";
 
@@ -239,6 +242,20 @@ ${CALLBACK_CONTEXT}` : CALLBACK_CONTEXT;
     // Répondeur détecté par l'opérateur (après le bip) : message, puis raccroché.
     if (this.ctx.metadata?.voicemail === "1") return this.leaveVoicemail();
 
+    // Noms des clients attendus (rendez-vous à venir) : la transcription les reconnaît mieux
+    // quand l'appelant les prononce (annulation, déplacement, rappel).
+    const upcomingNames = (agent.config.tools ?? []).some((t) => t === "cancelAppointment" || t === "bookAppointment")
+      ? await prisma.appointment
+          .findMany({
+            where: { organizationId: agent.organizationId, status: "booked", isTest: false, source: { not: "block" }, startsAt: { gte: new Date() } },
+            orderBy: { startsAt: "asc" },
+            take: 15,
+            select: { customerName: true },
+          })
+          .then((rows) => rows.map((r) => r.customerName))
+          .catch(() => [] as string[])
+      : [];
+
     // Fournisseur de transcription choisi selon la langue de l'agent (français : Deepgram).
     this.stt = openStt(
       language,
@@ -256,6 +273,7 @@ ${CALLBACK_CONTEXT}` : CALLBACK_CONTEXT;
           agent.name,
           ...(studio?.pronunciations ?? []).map((p) => p.word),
           this.vars?.nom,
+          ...upcomingNames,
         ],
       },
     );

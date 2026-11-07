@@ -8,6 +8,7 @@ const db = vi.hoisted(() => {
     Object.entries(w).every(([k, v]) => {
       if (k === "OR") return (v as Record<string, unknown>[]).length > 0 && (v as Record<string, unknown>[]).some((x) => match(r, x));
       if (v && typeof v === "object" && !(v instanceof Date)) {
+        if ("not" in (v as object)) return r[k] !== (v as { not: unknown }).not;
         const o = v as { gte?: Date; lt?: Date };
         const t = (r[k] as Date).getTime();
         return (!o.gte || t >= o.gte.getTime()) && (!o.lt || t < o.lt.getTime());
@@ -109,5 +110,35 @@ describe("pas de rendez-vous en double", () => {
     await bookAppointment(agent, { name: "Gildas", date: "2026-11-09", time: "15:30" }, { callerNumber: CALLER, callRef: "call1", now });
     const other = await bookAppointment(agent, { name: "Awa", date: "2026-11-09", time: "16:00" }, { callerNumber: "+22901000000", callRef: "call9", now });
     expect(other.ok).toBe(true);
+  });
+});
+
+import { cancelAppointment, sameName } from "@/lib/agenda/service";
+
+describe("noms découpés par la transcription", () => {
+  it("« Lisa non » est bien « Lissanon », mais « Lisa » seul ne l'est pas", () => {
+    expect(sameName("Lisa non", "Lissanon")).toBe(true);
+    expect(sameName("Lissanon", "Lissanon")).toBe(true);
+    expect(sameName("Dos sous", "Dossou")).toBe(true);
+    expect(sameName("Lisa", "Lissanon")).toBe(false);
+    expect(sameName("Awa", "Lissanon")).toBe(false);
+    expect(sameName("Gildas Lissanon", "Lissanon")).toBe(true);
+  });
+
+  it("numéro masqué : annulation par le nom et le jour du rendez-vous", async () => {
+    db.rows.length = 0;
+    await bookAppointment(agent, { name: "Lissanon", date: "2026-11-09", time: "10:30" }, { callRef: "c1", now });
+    const noDay = await cancelAppointment("o1", { name: "Lisa non" }, { now });
+    expect(noDay.ok).toBe(false);
+    expect(noDay.message).toContain("masqué");
+    db.prisma.appointment.updateMany = async ({ where, data }: { where: Record<string, unknown>; data: Record<string, unknown> }) => {
+      const r = db.rows.find((x) => x.id === where.id && x.status === where.status);
+      if (!r) return { count: 0 };
+      Object.assign(r, data);
+      return { count: 1 };
+    };
+    const ok = await cancelAppointment("o1", { name: "Lisa non", date: "2026-11-09" }, { now });
+    expect(ok.ok).toBe(true);
+    expect(db.rows[0].status).toBe("cancelled");
   });
 });

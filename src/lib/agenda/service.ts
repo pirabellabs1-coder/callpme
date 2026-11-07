@@ -312,12 +312,37 @@ export async function bookAppointment(
 
 const cancelAttempts = new Map<string, number>();
 
-function sameName(a: string, b: string): boolean {
+/** Distance d'édition (Levenshtein) entre deux chaînes courtes. */
+function editDistance(a: string, b: string): number {
+  const row = Array.from({ length: b.length + 1 }, (_, j) => j);
+  for (let i = 1; i <= a.length; i++) {
+    let prev = row[0];
+    row[0] = i;
+    for (let j = 1; j <= b.length; j++) {
+      const tmp = row[j];
+      row[j] = Math.min(row[j] + 1, row[j - 1] + 1, prev + (a[i - 1] === b[j - 1] ? 0 : 1));
+      prev = tmp;
+    }
+  }
+  return row[b.length];
+}
+
+/**
+ * Même personne ? Un mot en commun, ou le nom « collé » quasi identique : la
+ * transcription coupe souvent un nom en mots (« Lisa non » pour « Lissanon »).
+ */
+export function sameName(a: string, b: string): boolean {
   const norm = (s: string) =>
     s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z]/g, " ").split(/\s+/).filter(Boolean);
   const x = norm(a);
-  const y = new Set(norm(b));
-  return x.length > 0 && x.some((w) => w.length > 1 && y.has(w));
+  const yWords = norm(b);
+  if (x.length === 0 || yWords.length === 0) return false;
+  const y = new Set(yWords);
+  if (x.some((w) => w.length > 2 && y.has(w))) return true;
+  const glue = (ws: string[]) => ws.join("");
+  const candidates = [glue(yWords), ...yWords];
+  const said = glue(x);
+  return candidates.some((c) => c.length >= 5 && editDistance(said, c) <= Math.max(1, Math.floor(c.length / 5)));
 }
 
 /**
@@ -327,7 +352,7 @@ function sameName(a: string, b: string): boolean {
  */
 export async function cancelAppointment(
   orgId: string,
-  input: { reference?: unknown; phone?: unknown; name?: unknown },
+  input: { reference?: unknown; phone?: unknown; name?: unknown; date?: unknown },
   ctx: { callerNumber?: string; test?: boolean; now?: Date; callRef?: string; trusted?: boolean },
 ): Promise<{ ok: boolean; message: string; reference?: string }> {
   const now = ctx.now ?? new Date();
@@ -342,7 +367,7 @@ export async function cancelAppointment(
   }
 
   // Par référence, sinon par numéro de l'appelant (son prochain rendez-vous).
-  const appt = ref
+  let appt = ref
     ? await prisma.appointment.findFirst({ where: { organizationId: orgId, reference: ref, status: "booked", source: { not: "block" }, isTest: Boolean(ctx.test) } })
     : phone
       ? await prisma.appointment.findFirst({
@@ -350,11 +375,38 @@ export async function cancelAppointment(
           orderBy: { startsAt: "asc" },
         })
       : null;
-  if (!appt) {
-    return { ok: false, message: "Aucun rendez-vous à venir trouvé. Demandez la référence (RDV-…) donnée à la réservation." };
+  // Numéro masqué ou inconnu : le nom ET le jour du rendez-vous l'identifient (un seul candidat).
+  let byNameAndDay = false;
+  if (!appt && !ref && typeof input.name === "string" && input.name.trim() && isYmd(input.date)) {
+    const day = await prisma.appointment.findMany({
+      where: {
+        organizationId: orgId,
+        status: "booked",
+        source: { not: "block" },
+        isTest: Boolean(ctx.test),
+        startsAt: { gte: new Date(`${input.date}T00:00:00Z`), lt: new Date(new Date(`${input.date}T00:00:00Z`).getTime() + 36 * 3600_000) },
+      },
+      take: 50,
+    });
+    const matches = day.filter((a) => sameName(input.name as string, a.customerName));
+    if (matches.length > 1) {
+      return { ok: false, message: "Plusieurs rendez-vous correspondent : demande l'heure exacte ou la référence (RDV-…)." };
+    }
+    if (matches.length === 1) {
+      appt = matches[0];
+      byNameAndDay = true;
+    }
   }
-  // Sans référence, le rendez-vous doit appartenir au numéro de l'appelant.
-  if (!ref && appt.customerPhone !== phone) return { ok: false, message: "Rendez-vous introuvable pour ce numéro." };
+  if (!appt) {
+    return {
+      ok: false,
+      message: phone
+        ? "Aucun rendez-vous à venir trouvé pour ce numéro. Demande la référence (RDV-…) ou le nom et le jour du rendez-vous."
+        : "Numéro de l'appelant masqué : demande le nom ET le jour du rendez-vous (ou la référence RDV-…), puis réessaie.",
+    };
+  }
+  // Sans référence, le rendez-vous doit appartenir au numéro de l'appelant (ou au nom + jour vérifiés).
+  if (!ref && !byNameAndDay && appt.customerPhone !== phone) return { ok: false, message: "Rendez-vous introuvable pour ce numéro." };
   // Avec une référence : il faut aussi le numéro du titulaire ou son nom.
   if (ref && !ctx.trusted) {
     const owner = (phone && appt.customerPhone === phone) || (typeof input.name === "string" && sameName(input.name, appt.customerName));

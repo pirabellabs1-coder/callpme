@@ -136,7 +136,7 @@ const HANDLERS: Record<string, Handler> = {
   cancelAppointment: async (args, ctx) => {
     const r = await cancelAppointment(
       ctx.organizationId,
-      { reference: args.reference, name: args.name },
+      { reference: args.reference, name: args.name, date: args.date },
       { callerNumber: callerPhone(ctx), test: ctx.test, callRef: ctx.callId },
     );
     return { ok: r.ok, message: r.message, data: { reference: r.reference } };

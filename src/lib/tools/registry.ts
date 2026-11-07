@@ -149,14 +149,15 @@ const TOOLS: AgentToolDef[] = [
     name: "cancelAppointment",
     label: "Annuler un rendez-vous",
     description:
-      "Annule un rendez-vous à venir, par sa référence (RDV-…) ou à défaut le prochain rendez-vous du numéro appelant. Pour déplacer : annuler puis réserver.",
+      "Annule un rendez-vous à venir : par sa référence (RDV-…), sinon le prochain rendez-vous du numéro appelant, sinon (numéro masqué) par le nom ET le jour du rendez-vous. Pour déplacer : annuler puis réserver.",
     category: "agenda",
     icon: "CalendarX",
     parameters: {
       type: "object",
       properties: {
         reference: { type: "string", description: "Référence du rendez-vous (RDV-XXXXX)." },
-        name: { type: "string", description: "Nom sous lequel le rendez-vous a été pris (demande-le si tu as une référence)." },
+        name: { type: "string", description: "Nom sous lequel le rendez-vous a été pris." },
+        date: { type: "string", description: "Jour du rendez-vous (AAAA-MM-JJ), utile si le numéro est masqué." },
       },
       required: [],
     },

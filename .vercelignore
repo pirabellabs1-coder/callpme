@@ -10,3 +10,4 @@ node_modules
 tsconfig.tsbuildinfo
 voice-clone-server
 infra
+.vercel.bikecareers.bak/

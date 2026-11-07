@@ -7,8 +7,10 @@
  * qu'à la galerie (filtre + affichage).
  */
 import type { AgentRole } from "../shared/types";
+import { WEST_AFRICA_TEMPLATES, type TemplatePreset } from "./templates-west-africa";
 
 export type TemplateCategory =
+  | "Afrique de l'Ouest"
   | "Santé"
   | "Beauté & bien-être"
   | "Juridique & conseil"
@@ -23,6 +25,7 @@ export type TemplateCategory =
   | "Tous secteurs";
 
 export const TEMPLATE_CATEGORIES: TemplateCategory[] = [
+  "Afrique de l'Ouest",
   "Santé",
   "Beauté & bien-être",
   "Juridique & conseil",
@@ -50,9 +53,14 @@ export interface AgentTemplate {
   description: string;
   firstMessage: string;
   persona: string;
+  /** Modèle clé en main : consignes, garde-fous, outils, champs, rappel des bips. */
+  preset?: TemplatePreset;
 }
 
 export const AGENT_TEMPLATES: AgentTemplate[] = [
+  // Clé en main pour l'Afrique de l'Ouest, en tête de la galerie.
+  ...WEST_AFRICA_TEMPLATES,
+
   /* ------------------------------- Santé ---------------------------------- */
   {
     id: "clinic",

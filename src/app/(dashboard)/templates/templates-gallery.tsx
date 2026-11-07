@@ -249,6 +249,12 @@ export function TemplatesGallery({
                     </span>
                     <span className="text-[0.7rem] text-muted-foreground">{t.industry}</span>
                   </div>
+                  {t.preset && (
+                    <p className="mt-2 text-[0.7rem] font-medium text-brand-700">
+                      Clé en main : consignes, garde-fous, outils, {t.preset.fields.length} champs à relever
+                      {t.preset.callback?.enabled ? ", rappel des bips" : ""}
+                    </p>
+                  )}
                   <p className="mt-2 flex-1 text-sm text-muted-foreground text-pretty">
                     {t.description}
                   </p>

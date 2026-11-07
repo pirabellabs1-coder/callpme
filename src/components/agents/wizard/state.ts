@@ -18,6 +18,7 @@ import { ROLE_META } from "@/lib/agents/roles";
 import { callbackSettings, DEFAULT_CALLBACK } from "@/lib/callbacks/settings";
 import type { ExtractField } from "@/lib/analysis/fields";
 import type { AgentTemplate } from "@/lib/agents/templates";
+import { presetPersona } from "@/lib/agents/templates-west-africa";
 import type { PromptParams } from "@/lib/agents/role-templates";
 
 export const STEPS = [
@@ -120,6 +121,7 @@ export function initialState(
       knowledgeBaseId: agent.knowledgeBaseId ?? "",
     };
   }
+  const preset = template?.preset;
   return {
     name: template?.name ?? "",
     role: template?.role ?? null,
@@ -138,17 +140,17 @@ export function initialState(
     firstMessage: template?.firstMessage ?? "",
     firstSpeaker: "agent",
     maxDurationMin: 0,
-    guardrails: [],
-    persona: template?.persona ?? "",
-    tools: template ? ROLE_META[template.role].defaultTools : [],
+    guardrails: preset?.guardrails ?? [],
+    persona: template ? presetPersona(template) : "",
+    tools: preset?.tools ?? (template ? ROLE_META[template.role].defaultTools : []),
     phoneNumber: null,
     transferNumber: "",
     booking: null,
     voicemailAction: "message",
     voicemailMessage: "",
-    callback: { ...DEFAULT_CALLBACK },
-    analysisFields: [],
-    successCriteria: "",
+    callback: callbackSettings(preset?.callback ?? DEFAULT_CALLBACK),
+    analysisFields: preset?.fields.map((f) => ({ ...f })) ?? [],
+    successCriteria: preset?.successCriteria ?? "",
     knowledgeBaseId: "",
   };
 }

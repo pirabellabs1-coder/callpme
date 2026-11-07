@@ -41,10 +41,13 @@ const brain = vi.hoisted(() => ({
   stream: null as string[] | null,
   /** Appelé au milieu du flux (ex. interruption par l'appelant). */
   midStream: null as null | (() => void),
+  /** Consignes supplémentaires reçues par le cerveau à chaque réponse. */
+  extras: [] as string[],
 }));
 vi.mock("@/lib/voice-engine/brain", () => ({
-  agentReply: async (ctx: { onText?: (d: string) => void }, history: unknown[]) => {
+  agentReply: async (ctx: { onText?: (d: string) => void; extraInstructions?: string }, history: unknown[]) => {
     brain.histories.push([...history]);
+    brain.extras.push(ctx.extraInstructions ?? "");
     if (brain.stream && ctx.onText) {
       for (let i = 0; i < brain.stream.length; i++) {
         const d = brain.stream[i];
@@ -100,7 +103,7 @@ vi.mock("@/lib/db/client", () => ({
 }));
 const quota = vi.hoisted(() => ({ minutes: 500 }));
 vi.mock("@/lib/billing/limits", () => ({ remainingMinutes: async () => quota.minutes }));
-const outbound = vi.hoisted(() => ({ ok: true, holdCents: 1000, rateCents: 100, settled: [] as number[] }));
+const outbound = vi.hoisted(() => ({ ok: true, holdCents: 1000, rateCents: 100, settled: [] as number[], charged: [] as number[], refunded: [] as number[] }));
 vi.mock("@/lib/billing/credit", () => ({
   TRANSFER_PREPAID_SEC: 600,
   getHold: async () => (outbound.ok ? { id: "h1", holdCents: outbound.holdCents, rateCents: outbound.rateCents } : null),
@@ -111,7 +114,13 @@ vi.mock("@/lib/billing/credit", () => ({
     return 0;
   },
   extendHold: async () => true,
-  chargeNow: async () => true,
+  chargeNow: async (_o: string, cents: number) => {
+    outbound.charged.push(cents);
+    return true;
+  },
+  refundCharge: async (_o: string, cents: number) => {
+    outbound.refunded.push(cents);
+  },
 }));
 
 import { CallSession, type VoiceTransport } from "@/lib/voice-engine/session";
@@ -159,6 +168,9 @@ beforeEach(() => {
   brain.reply = "Bien sûr, jeudi à 16 h vous convient ?";
   brain.toolCalls = [];
   brain.histories = [];
+  brain.extras = [];
+  outbound.charged = [];
+  outbound.refunded = [];
   brain.stream = null;
   brain.midStream = null;
   persisted.calls = [];
@@ -408,4 +420,80 @@ describe("appels sortants payés d'avance", () => {
     }
   });
 });
+});
+
+describe("supervision en direct", () => {
+  it("un observateur reçoit les tours, l'audio des deux côtés, puis la fin une seule fois", async () => {
+    const { transport } = makeTransport();
+    const s = new CallSession(ctx, transport);
+    const seen = { turns: 0, caller: 0, agent: 0, ended: 0 };
+    s.observe({
+      turn: () => seen.turns++,
+      audio: (from) => seen[from]++,
+      ended: () => seen.ended++,
+    });
+    expect(s.liveInfo()).toBeNull(); // agent pas encore chargé
+    await s.start();
+    expect(s.liveInfo()).toMatchObject({ organizationId: "org_1", party: "+33600000000" });
+    s.onAudio(Buffer.alloc(160));
+    stt.events!.onTranscript!("Bonjour", true);
+    await stt.events!.onUtteranceEnd!();
+    await new Promise((r) => setTimeout(r, 50));
+    await s.end("completed");
+    await s.end("completed");
+    expect(seen.turns).toBeGreaterThanOrEqual(2);
+    expect(seen.caller).toBe(1);
+    expect(seen.agent).toBeGreaterThan(0);
+    expect(seen.ended).toBe(1);
+    expect(s.liveInfo()).toBeNull();
+  });
+
+  it("une consigne soufflée arrive dans les instructions de la réponse suivante", async () => {
+    const { transport } = makeTransport();
+    const s = new CallSession(ctx, transport);
+    await s.start();
+    s.whisper("Propose le créneau de 10 h", "Awa");
+    stt.events!.onTranscript!("Je voudrais un rendez-vous", true);
+    await stt.events!.onUtteranceEnd!();
+    expect(brain.extras.at(-1)).toContain("Consignes du superviseur");
+    expect(brain.extras.at(-1)).toContain("Propose le créneau de 10 h");
+  });
+
+  it("deux reprises simultanées : un seul transfert, un seul prélèvement", async () => {
+    const { t, transport } = makeTransport();
+    const s = new CallSession(ctx, transport);
+    s.setProviderCallId("CA123");
+    await s.start();
+    const [a, b] = await Promise.all([s.supervisorTakeover("Awa", "+22997111111"), s.supervisorTakeover("Kofi", "+22997111111")]);
+    expect([a, b].filter(Boolean)).toHaveLength(1);
+    expect(t.transfers).toEqual(["+22997111111"]);
+    expect(outbound.charged).toHaveLength(1);
+    expect((persisted.calls[0] as { status: string }).status).toBe("transferred");
+  });
+
+  it("reprise refusée (destination) : l'agent n'est pas coupé et rien n'est prélevé", async () => {
+    const { t, transport } = makeTransport();
+    const s = new CallSession(ctx, transport);
+    s.setProviderCallId("CA123");
+    await s.start();
+    const clears = t.clears;
+    expect(await s.supervisorTakeover("Awa", "+19005550100")).toBe(false);
+    expect(t.clears).toBe(clears);
+    expect(t.transfers).toHaveLength(0);
+    expect(outbound.charged).toHaveLength(0);
+  });
+
+  it("transfert refusé par l'opérateur : prélèvement rendu et l'appelant est prévenu", async () => {
+    const { t, transport } = makeTransport();
+    transport.transfer = async (n) => {
+      t.transfers.push(n);
+      return false;
+    };
+    const s = new CallSession(ctx, transport);
+    s.setProviderCallId("CA123");
+    await s.start();
+    expect(await s.supervisorTakeover("Awa", "+22997111111")).toBe(false);
+    expect(outbound.refunded).toEqual(outbound.charged);
+    expect(tts.spoken.at(-1)).toContain("conseiller vous recontactera");
+  });
 });

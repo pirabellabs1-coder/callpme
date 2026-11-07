@@ -31,9 +31,11 @@ import { QualityTracker } from "./quality";
 import { defaultPlatformVoice } from "../voices/platform";
 import { loadStudioExtras } from "../voices/studio";
 import { CostMeter } from "../costs/meter";
-import { chargeNow, extendHold, getHold, recordSessionSeconds, settleHold, talkSecondsForHold, TRANSFER_PREPAID_SEC } from "../billing/credit";
+import { chargeNow, refundCharge, extendHold, getHold, recordSessionSeconds, settleHold, talkSecondsForHold, TRANSFER_PREPAID_SEC } from "../billing/credit";
 import { outboundDestinationOpen, outboundRateCents } from "../billing/outbound-rates";
 import { runWithUsage } from "../llm/usage";
+import { randomBytes } from "crypto";
+import { supervisorInstructions, WHISPER_KEEP, type LiveCallInfo } from "../live/protocol";
 
 /** Ce que le transport doit savoir faire. */
 export interface VoiceTransport {
@@ -47,6 +49,16 @@ export interface VoiceTransport {
   sendEvent?(event: { type: string; [k: string]: unknown }): void;
   /** Transfère l'appel vers un numéro (téléphone uniquement). */
   transfer?(toNumber: string): Promise<boolean>;
+}
+
+/** Ce qu'un superviseur (page « En direct ») reçoit d'un appel en cours. */
+export interface SessionObserver {
+  turn?(turn: TranscriptTurn): void;
+  /** Audio µ-law 8 kHz : « caller » = appelant, « agent » = voix de l'agent. */
+  audio?(from: "caller" | "agent", mulaw: Buffer): void;
+  /** L'audio de l'agent pas encore joué est abandonné (interruption, reprise). */
+  clear?(): void;
+  ended?(): void;
 }
 
 const VOICE_STYLE =
@@ -108,6 +120,12 @@ export class CallSession {
   private dtmfTimer: NodeJS.Timeout | null = null;
   /** Qualité technique : temps de réponse, interruptions, pannes. */
   private readonly quality = new QualityTracker();
+  /** Supervision en direct : identifiant public, observateurs, consignes soufflées. */
+  readonly liveId = randomBytes(9).toString("base64url");
+  private readonly observers = new Set<SessionObserver>();
+  private supervisorNotes: string[] = [];
+  /** Passage à un humain engagé (outil de l'agent ou superviseur) : un seul à la fois. */
+  private handoff = false;
 
   constructor(
     private readonly ctx: VoiceTokenPayload,
@@ -325,7 +343,77 @@ ${CALLBACK_CONTEXT}` : CALLBACK_CONTEXT;
 
   /** Audio de l'appelant (µ-law 8 kHz). */
   onAudio(mulaw: Buffer) {
-    if (!this.ended) this.stt?.send(mulaw);
+    if (this.ended) return;
+    this.stt?.send(mulaw);
+    if (this.observers.size) this.emit((o) => o.audio?.("caller", mulaw));
+  }
+
+  /* --------------------------- Supervision --------------------------- */
+
+  /** Abonne un superviseur ; renvoie la fonction de désabonnement. */
+  observe(o: SessionObserver): () => void {
+    this.observers.add(o);
+    return () => this.observers.delete(o);
+  }
+
+  private emit(fn: (o: SessionObserver) => void) {
+    this.observers.forEach((o) => {
+      try {
+        fn(o);
+      } catch {
+        /* un superviseur défaillant ne gêne jamais l'appel */
+      }
+    });
+  }
+
+  /** Résumé public de l'appel en cours (null tant que l'agent n'est pas chargé). */
+  liveInfo(): LiveCallInfo | null {
+    if (!this.agent || this.ended) return null;
+    return {
+      liveId: this.liveId,
+      organizationId: this.agent.organizationId,
+      agentId: this.agent.id,
+      agentName: this.agent.name,
+      direction: this.ctx.direction,
+      party: this.ctx.direction === "outbound" ? this.ctx.to : this.ctx.from,
+      startedAt: this.startedAt,
+      canTakeOver: Boolean(this.transport.transfer && this.providerCallId),
+      transferNumber: this.agent.config.transferNumber ?? null,
+    };
+  }
+
+  liveTranscript(): TranscriptTurn[] {
+    return [...this.transcript];
+  }
+
+  /** Consigne soufflée par un superviseur : prise en compte dès la prochaine réponse. */
+  whisper(text: string, by: string) {
+    if (this.ended) return;
+    this.supervisorNotes = [...this.supervisorNotes, text].slice(-WHISPER_KEEP);
+    this.addTurn("system", `Consigne du superviseur${by ? ` (${by})` : ""} : ${text}`);
+  }
+
+  /** Un superviseur prend la main : l'agent se tait et l'appel est transféré. */
+  async supervisorTakeover(by: string, to?: string): Promise<boolean> {
+    if (this.ended || this.transferring || this.handoff) return false;
+    const number = to || this.agent.config.transferNumber;
+    // Vérifications AVANT de couper l'agent : une destination refusée ne doit pas l'interrompre.
+    if (!number || !checkDestination(number).ok || !this.transport.transfer || !this.providerCallId) return false;
+    // L'agent s'arrête net (phrase en cours et réponses en attente abandonnées).
+    this.speechGen++;
+    this.speaking?.abort();
+    this.transport.clearAudio();
+    this.emit((o) => o.clear?.());
+    this.addTurn("system", `Reprise par un superviseur${by ? ` (${by})` : ""} : transfert vers ${number}`);
+    const ok = await this.transferToHuman(number);
+    if (!ok && !this.ended) {
+      this.addTurn("system", "Reprise impossible : transfert refusé ou indisponible.");
+      // L'appelant ne reste pas dans le silence.
+      this.addTurn("agent", TRANSFER_UNAVAILABLE);
+      this.history.push({ role: "assistant", content: TRANSFER_UNAVAILABLE });
+      await this.speak(TRANSFER_UNAVAILABLE);
+    }
+    return ok;
   }
 
   /** Le transport s'est fermé (raccroché côté appelant). */
@@ -354,6 +442,7 @@ ${CALLBACK_CONTEXT}` : CALLBACK_CONTEXT;
       this.history[this.history.length - 1] = { ...last, content: `${last.content} ${INTERRUPTED_MARK}` };
     }
     this.quality.interrupted();
+    this.emit((o) => o.clear?.());
     this.speechGen++;
     this.speaking?.abort();
     this.speaking = null;
@@ -377,7 +466,7 @@ ${CALLBACK_CONTEXT}` : CALLBACK_CONTEXT;
   }
 
   private async onUtteranceEnd() {
-    if (this.ended) return;
+    if (this.ended || this.handoff) return;
     if (this.busy) {
       // L'appelant a fini une phrase pendant la réflexion : on la traitera ensuite.
       this.pendingTurn = true;
@@ -414,7 +503,7 @@ ${CALLBACK_CONTEXT}` : CALLBACK_CONTEXT;
     // l'annonce dépend de la réussite réelle du transfert (voir plus bas).
     let muted = false;
     const say = (sentence: string) => {
-      if (muted || this.ended || gen !== this.speechGen) return;
+      if (muted || this.ended || this.handoff || gen !== this.speechGen) return;
       const clean = sanitizeSpoken(sentence, vars);
       if (!clean) return;
       said.push(clean);
@@ -430,7 +519,7 @@ ${CALLBACK_CONTEXT}` : CALLBACK_CONTEXT;
           organizationId: this.agent.organizationId,
           callId: this.ctx.callId,
           callerNumber: this.ctx.direction === "outbound" ? this.ctx.to : this.ctx.from,
-          extraInstructions: this.contactInfo ? `${VOICE_STYLE}\n\n${this.contactInfo}` : VOICE_STYLE,
+          extraInstructions: [VOICE_STYLE, this.contactInfo, supervisorInstructions(this.supervisorNotes)].filter(Boolean).join("\n\n"),
           // Test navigateur : outils sans effet. Widget sur un site : vraie conversation.
           test: this.ctx.direction === "web" && this.ctx.metadata?.channel !== "widget",
           // L'agent commence à parler dès sa première phrase.
@@ -486,8 +575,21 @@ ${CALLBACK_CONTEXT}` : CALLBACK_CONTEXT;
   }
 
   /** Transfère vers un humain ; renvoie false si le transfert n'a pas pu partir. */
-  private async transferToHuman(): Promise<boolean> {
-    const number = this.agent.config.transferNumber;
+  private async transferToHuman(target?: string): Promise<boolean> {
+    // Verrou posé avant tout « await » : deux demandes simultanées ne paient pas deux transferts.
+    if (this.handoff || this.ended) return false;
+    this.handoff = true;
+    let ok = false;
+    try {
+      ok = await this.transferLocked(target);
+      return ok;
+    } finally {
+      if (!ok) this.handoff = false;
+    }
+  }
+
+  private async transferLocked(target?: string): Promise<boolean> {
+    const number = target || this.agent.config.transferNumber;
     if (!number || !this.transport.transfer || !this.providerCallId) return false;
     // Défense en profondeur : jamais de transfert vers une destination non autorisée.
     if (!checkDestination(number).ok) return false;
@@ -502,20 +604,25 @@ ${CALLBACK_CONTEXT}` : CALLBACK_CONTEXT;
     if (legCents < 0) return false;
     if (outbound && this.holdId && !(await extendHold(this.holdId, orgId, minutes * outboundRateCents(this.ctx.to)))) return false;
     if (legCents > 0 && !(await chargeNow(orgId, legCents))) return false;
+    const refund = () => (legCents > 0 ? refundCharge(orgId, legCents).catch(() => {}) : Promise.resolve());
     // Annonce courte, puis transfert une fois la phrase jouée.
     await this.speak("Je vous mets en relation avec un conseiller, ne quittez pas.");
     const wait = Math.max(0, this.playbackUntil - Date.now()) + 300;
     await new Promise((r) => setTimeout(r, wait));
-    // Raccroché pendant l'annonce : rien d'autre à dire.
-    if (this.ended) return true;
+    // Raccroché pendant l'annonce : rien d'autre à dire, la jambe prépayée est rendue.
+    if (this.ended) {
+      await refund();
+      return true;
+    }
     this.transferring = true;
-    const ok = await this.transport.transfer(number);
-    if (ok) {
+    const done = await this.transport.transfer(number).catch(() => false);
+    if (done) {
       this.status = "transferred";
       await this.end("transferred", { keepLine: true });
       return true;
     }
     this.transferring = false;
+    await refund();
     return false;
   }
 
@@ -547,6 +654,7 @@ ${CALLBACK_CONTEXT}` : CALLBACK_CONTEXT;
         if (ctrl.signal.aborted || this.ended) break;
         this.quality.firstAudio();
         this.transport.sendAudio(chunk);
+        if (this.observers.size) this.emit((o) => o.audio?.("agent", chunk));
         // 8 000 octets µ-law = 1 seconde d'audio.
         this.playbackUntil = Math.max(this.playbackUntil, Date.now()) + (chunk.length / 8000) * 1000;
       }
@@ -573,6 +681,7 @@ ${CALLBACK_CONTEXT}` : CALLBACK_CONTEXT;
       ...(toolName ? { toolName } : {}),
     };
     this.transcript.push(turn);
+    if (this.observers.size) this.emit((o) => o.turn?.(turn));
     if (speaker !== "caller") this.transport.sendEvent?.({ type: "turn", turn });
   }
 
@@ -583,6 +692,8 @@ ${CALLBACK_CONTEXT}` : CALLBACK_CONTEXT;
   async end(status: CallStatus, opts: { keepLine?: boolean } = {}) {
     if (this.ended) return;
     this.ended = true;
+    this.emit((o) => o.ended?.());
+    this.observers.clear();
     this.speechGen++;
     this.speaking?.abort();
     this.timers.forEach((t) => clearTimeout(t));

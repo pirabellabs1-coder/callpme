@@ -35,6 +35,11 @@ async function takeCredit(organizationId: string, cents: number): Promise<boolea
   return n === 1;
 }
 
+/** Rend un prélèvement immédiat (ex. transfert payé d'avance qui n'a pas eu lieu). */
+export async function refundCharge(organizationId: string, cents: number) {
+  await giveBack(organizationId, cents);
+}
+
 async function giveBack(organizationId: string, cents: number) {
   if (cents <= 0) return;
   await prisma.organization.update({ where: { id: organizationId }, data: { callCreditCents: { increment: cents } } });

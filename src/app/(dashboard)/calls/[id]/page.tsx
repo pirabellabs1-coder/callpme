@@ -114,6 +114,10 @@ export default async function CallTranscriptPage({
   const audioGender = (catalogVoice?.gender ?? null) as "feminine" | "masculine" | "neutral" | null;
   const audioLang = voice?.language || "fr-FR";
 
+  // Enregistrement téléphonique (Twilio) : relu par Callpme pour l'organisation de l'appel.
+  const phoneRecording = Boolean(call.audioUrl?.startsWith("twilio-recording:"));
+  const audioSrc = phoneRecording ? `/api/calls/${call.id}/audio` : (call.audioUrl ?? undefined);
+
   return (
     <div className="space-y-6">
       <Link
@@ -170,13 +174,13 @@ export default async function CallTranscriptPage({
                 id={AUDIO_ID}
                 controls
                 preload="metadata"
-                src={call.audioUrl}
+                src={audioSrc}
                 className="mt-3 w-full"
                 aria-label="Enregistrement de l'appel"
               />
               <a
-                href={call.audioUrl}
-                download={`appel-${call.id}.webm`}
+                href={audioSrc}
+                download={`appel-${call.id}.${phoneRecording ? "mp3" : "webm"}`}
                 className="mt-3 inline-flex items-center gap-1.5 rounded text-sm font-medium text-brand-700 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
               >
                 <Download className="size-4" aria-hidden="true" />

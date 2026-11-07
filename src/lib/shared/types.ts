@@ -149,6 +149,8 @@ export interface ToolContext {
  * comportement de l'agent indépendamment de son identité (id, nom…).
  */
 export interface AgentConfig {
+  /** Enregistrer le son des appels téléphoniques (activé par défaut ; à annoncer aux appelants). */
+  recordCalls?: boolean;
   voice: VoiceConfig;
   model: ModelConfig;
   /** Généré depuis le rôle puis personnalisable. */

@@ -149,6 +149,39 @@ export async function fetchTwilioCall(c: TwilioCreds, callSid: string): Promise<
   }
 }
 
+/** Préfixe de Call.audioUrl pour un enregistrement Twilio (lu via /api/calls/:id/audio). */
+export const TWILIO_RECORDING_PREFIX = "twilio-recording:";
+
+/**
+ * Démarre l'enregistrement d'un appel en cours chez Twilio : deux canaux
+ * (appelant et agent), conservé sur le compte qui porte l'appel.
+ */
+export async function startTwilioRecording(c: TwilioCreds, callSid: string): Promise<string | null> {
+  if (!/^CA[0-9a-fA-F]{32}$/.test(callSid)) return null;
+  try {
+    const res = await fetch(`${API}/Accounts/${encodeURIComponent(c.sid)}/Calls/${callSid}/Recordings.json`, {
+      method: "POST",
+      headers: { Authorization: twilioAuthHeader(c), "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({ RecordingChannels: "dual", RecordingTrack: "both" }),
+      signal: AbortSignal.timeout(8000),
+    });
+    if (!res.ok) return null;
+    const d = (await res.json().catch(() => ({}))) as { sid?: string };
+    return d.sid && /^RE[0-9a-fA-F]{32}$/.test(d.sid) ? d.sid : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Fichier MP3 d'un enregistrement (404 tant que Twilio le prépare). */
+export async function fetchTwilioRecording(c: TwilioCreds, recordingSid: string): Promise<Response | null> {
+  if (!/^RE[0-9a-fA-F]{32}$/.test(recordingSid)) return null;
+  return fetch(`${API}/Accounts/${encodeURIComponent(c.sid)}/Recordings/${recordingSid}.mp3`, {
+    headers: { Authorization: twilioAuthHeader(c) },
+    signal: AbortSignal.timeout(20000),
+  });
+}
+
 /* --------------------------- API Twilio du client -------------------------- */
 
 export class TwilioAccountError extends Error {}

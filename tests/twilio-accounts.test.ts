@@ -17,7 +17,7 @@ vi.mock("@/lib/db/client", () => ({
   },
 }));
 
-import { accountKey, checkTwilioCredentials, connectionCreds, fetchTwilioCall, signerOwnsNumber, verifyTwilioWebhook } from "@/lib/telephony/twilio-accounts";
+import { accountKey, checkTwilioCredentials, connectionCreds, fetchTwilioCall, signerOwnsNumber, startTwilioRecording, verifyTwilioWebhook } from "@/lib/telephony/twilio-accounts";
 
 const SID = "AC" + "a".repeat(32);
 const TOKEN = "b".repeat(32);
@@ -92,5 +92,16 @@ describe("comptes Twilio des clients", () => {
       vi.fn(async () => new Response(JSON.stringify({ status: "completed", duration: "47", direction: "outbound-api", to: "+229", from: "+33" }), { status: 200 })),
     );
     expect(await fetchTwilioCall(creds, "CA" + "1".repeat(32))).toMatchObject({ status: "completed", duration: 47 });
+  });
+
+  it("démarre l'enregistrement deux canaux d'un appel Twilio", async () => {
+    const creds = { sid: SID, token: TOKEN };
+    expect(await startTwilioRecording(creds, "pas-un-callsid")).toBeNull();
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({ sid: "RE" + "2".repeat(32) }), { status: 201 }));
+    vi.stubGlobal("fetch", fetchMock);
+    expect(await startTwilioRecording(creds, "CA" + "1".repeat(32))).toBe("RE" + "2".repeat(32));
+    const [url, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
+    expect(url).toContain(`/Calls/CA${"1".repeat(32)}/Recordings.json`);
+    expect(String(init.body)).toContain("RecordingChannels=dual");
   });
 });

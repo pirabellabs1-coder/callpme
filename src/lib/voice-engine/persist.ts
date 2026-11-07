@@ -36,6 +36,8 @@ export interface FinishCallInput {
   voicemail?: boolean;
   /** Session arrêtée par une panne (pas de voix, quota, crédit…) : jamais de rappel automatique. */
   technicalFailure?: boolean;
+  /** Enregistrement du son (ex. « twilio-recording:RE… »). */
+  audioUrl?: string | null;
 }
 
 export async function finishCall(input: FinishCallInput) {
@@ -61,6 +63,7 @@ export async function finishCall(input: FinishCallInput) {
       outcome,
       extracted: extracted ? JSON.stringify(extracted) : null,
       providerCallId: input.providerCallId ?? null,
+      audioUrl: input.audioUrl ?? null,
       variant: input.variant ?? null,
       quality: input.quality ? JSON.stringify(input.quality) : null,
       clientId: input.agent.clientId ?? null,

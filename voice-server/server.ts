@@ -24,6 +24,7 @@ import { WebSocketServer, type WebSocket, type RawData } from "ws";
 import { consumeVoiceToken, verifyVoiceToken, type VoiceTokenPayload } from "../src/lib/voice-engine/token";
 import { CallSession, type VoiceTransport } from "../src/lib/voice-engine/session";
 import { transferCall } from "../src/lib/telephony/provider";
+import { TWILIO_RECORDING_PREFIX, connectionCreds, platformTwilio, startTwilioRecording } from "../src/lib/telephony/twilio-accounts";
 import { frames } from "../src/lib/voice-engine/audio";
 import { tickCampaigns } from "../src/lib/campaigns/engine";
 import { tickCallbacks } from "../src/lib/callbacks/engine";
@@ -203,6 +204,16 @@ function onTelephony(ws: WebSocket, preAuth: VoiceTokenPayload | null, leavePend
       // Appel non lié à l'émission du jeton (sortant) : on vérifie ses numéros.
       const expected = payload.providerCallId ? undefined : { from: payload.from, to: payload.to };
       return transferCall(providerCallId, to, expected, payload.twilioConnection, payload.organizationId);
+    },
+    startRecording: async () => {
+      // Twilio seulement (CallSid « CA… ») : compte du client qui porte l'appel, sinon la plateforme.
+      if (!providerCallId?.startsWith("CA") || !payload) return null;
+      const creds = payload.twilioConnection
+        ? await connectionCreds(payload.twilioConnection, payload.organizationId)
+        : platformTwilio();
+      if (!creds) return null;
+      const sid = await startTwilioRecording(creds, providerCallId);
+      return sid ? `${TWILIO_RECORDING_PREFIX}${sid}` : null;
     },
   };
 

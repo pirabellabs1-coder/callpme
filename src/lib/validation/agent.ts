@@ -59,6 +59,7 @@ export const bookingSchema = z.object({
 });
 
 export const configSchema = z.object({
+  recordCalls: z.boolean().optional(),
   voice: voiceSchema,
   model: modelSchema,
   systemPrompt: z.string().max(20000),

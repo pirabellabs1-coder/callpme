@@ -51,6 +51,8 @@ export interface VoiceTransport {
   sendEvent?(event: { type: string; [k: string]: unknown }): void;
   /** Transfère l'appel vers un numéro (téléphone uniquement). */
   transfer?(toNumber: string): Promise<boolean>;
+  /** Démarre l'enregistrement du son chez l'opérateur ; renvoie la valeur à stocker dans Call.audioUrl. */
+  startRecording?(): Promise<string | null>;
 }
 
 /** Ce qu'un superviseur (page « En direct ») reçoit d'un appel en cours. */
@@ -130,6 +132,8 @@ export class CallSession {
     private readonly transport: VoiceTransport,
   ) {}
 
+  private recordingRef: string | null = null;
+
   setProviderCallId(id: string | null | undefined) {
     if (id) this.providerCallId = id;
   }
@@ -194,6 +198,16 @@ export class CallSession {
       return this.end("failed");
     }
     this.costs.setProviders(sttProvider, this.voice.provider);
+
+    // Enregistrement réel de l'appel (sauf si l'agent l'a désactivé) : jamais bloquant.
+    if (agent.config.recordCalls !== false && this.transport.startRecording) {
+      void this.transport
+        .startRecording()
+        .then((ref) => {
+          if (ref) this.recordingRef = ref;
+        })
+        .catch(() => {});
+    }
 
     // Contact de campagne : nom et colonnes importées, pour personnaliser l'appel.
     if (this.ctx.metadata?.contactId) await this.loadContact(this.ctx.metadata.contactId, agent.organizationId);
@@ -772,6 +786,7 @@ ${CALLBACK_CONTEXT}` : CALLBACK_CONTEXT;
         variant: this.variant ?? undefined,
         providerCallId: this.providerCallId,
         quality: this.quality.summary(),
+        audioUrl: this.recordingRef,
       }));
       // Coût réel (analyse de fin d'appel comprise), enregistré à part : jamais bloquant.
       const costs = this.costs.summary({

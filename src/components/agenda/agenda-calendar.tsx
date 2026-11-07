@@ -1,7 +1,10 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { CalendarCheck2, ChevronLeft, ChevronRight, Phone, X } from "lucide-react";
+import { CancelAppointmentButton } from "./cancel-appointment-button";
+import { RemoveBlockButton } from "./remove-block-button";
 import { utcToZoned } from "@/lib/agenda/time";
 import { addDays, mondayOf } from "@/lib/agenda/calendar-dates";
 import type { TimeRange } from "@/lib/shared/types";
@@ -19,6 +22,9 @@ export interface CalendarEvent {
   synced: boolean;
   block: boolean;
   timezone: string;
+  /** Appel qui a pris le rendez-vous et son résumé. */
+  callId: string | null;
+  summary: string | null;
 }
 
 const DAY_NAMES = ["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"];
@@ -26,7 +32,7 @@ const MONTHS = ["janvier", "février", "mars", "avril", "mai", "juin", "juillet"
 /** Heures affichées dans la vue semaine. */
 const FIRST_HOUR = 7;
 const LAST_HOUR = 21;
-const HOUR_PX = 48;
+const HOUR_PX = 64;
 
 function minutesOf(hm: string): number {
   const [h, m] = hm.split(":").map(Number);
@@ -49,6 +55,7 @@ export function AgendaCalendar({
   today,
   events,
   openHours,
+  canEdit,
 }: {
   mode: "semaine" | "mois";
   /** Date affichée (AAAA-MM-JJ). */
@@ -57,7 +64,10 @@ export function AgendaCalendar({
   events: CalendarEvent[];
   /** Horaires d'ouverture (0 = dimanche … 6 = samedi) pour griser les heures fermées. */
   openHours: Partial<Record<string, TimeRange[]>> | null;
+  canEdit: boolean;
 }) {
+  const [selected, setSelected] = useState<CalendarEvent | null>(null);
+  const details = selected ? <EventDetails event={selected} canEdit={canEdit} onClose={() => setSelected(null)} /> : null;
   const href = (date: string, m: "semaine" | "mois" = mode) => `/appointments?mode=${m}&date=${date}`;
   const byDay = new Map<string, (CalendarEvent & { start: number; hm: string })[]>();
   for (const e of events) {
@@ -88,42 +98,46 @@ export function AgendaCalendar({
               const list = (byDay.get(d) ?? []).sort((a, b) => a.start - b.start);
               const outside = d.slice(0, 7) !== anchor.slice(0, 7);
               return (
-                <Link
+                <div
                   key={d}
-                  href={href(d, "semaine")}
                   className={cn(
-                    "min-h-[6.5rem] border-b border-r border-border p-1.5 transition-colors hover:bg-secondary/40",
+                    "min-h-[6.5rem] border-b border-r border-border p-1.5",
                     outside && "bg-background/60 text-muted-foreground",
                   )}
-                  aria-label={`${dayNum(d)} ${MONTHS[Number(d.slice(5, 7)) - 1]} : ${list.length} élément(s)`}
                 >
-                  <span
+                  <Link
+                    href={href(d, "semaine")}
+                    aria-label={`Voir la semaine du ${dayNum(d)} ${MONTHS[Number(d.slice(5, 7)) - 1]} (${list.length} élément(s))`}
                     className={cn(
-                      "mb-1 inline-flex size-6 items-center justify-center rounded-full text-xs",
-                      d === today && "bg-brand font-semibold text-brand-foreground",
+                      "mb-1 inline-flex size-6 items-center justify-center rounded-full text-xs hover:bg-secondary",
+                      d === today && "bg-brand font-semibold text-brand-foreground hover:bg-brand",
                     )}
                   >
                     {dayNum(d)}
-                  </span>
+                  </Link>
                   <ul className="space-y-0.5">
                     {list.slice(0, 3).map((e) => (
-                      <li
-                        key={e.id}
-                        className={cn(
-                          "truncate rounded px-1 py-0.5 text-[0.7rem]",
-                          e.block ? "bg-secondary text-muted-foreground" : "bg-brand-100 text-foreground",
-                        )}
-                      >
-                        <span className="tabular-nums">{e.hm}</span> {e.title}
+                      <li key={e.id}>
+                        <button
+                          type="button"
+                          onClick={() => setSelected(e)}
+                          className={cn(
+                            "block w-full truncate rounded px-1 py-0.5 text-left text-[0.72rem] hover:ring-1 hover:ring-brand/40",
+                            e.block ? "bg-secondary text-muted-foreground" : "bg-brand-100 text-foreground",
+                          )}
+                        >
+                          <span className="tabular-nums">{e.hm}</span> {e.title}
+                        </button>
                       </li>
                     ))}
                     {list.length > 3 && <li className="px-1 text-[0.7rem] text-muted-foreground">+ {list.length - 3} autres</li>}
                   </ul>
-                </Link>
+                </div>
               );
             })}
           </div>
         </div>
+        {details}
       </div>
     );
   }
@@ -182,22 +196,34 @@ export function AgendaCalendar({
                   if (!box) return null;
                   const top = box.top;
                   const height = Math.max(20, box.height - 2);
+                  const compact = height < 52;
                   return (
-                    <div
+                    <button
+                      type="button"
                       key={e.id}
-                      title={[`${e.hm} · ${e.title}`, e.reference, e.agentName, e.phone, e.notes].filter(Boolean).join("\n")}
+                      onClick={() => setSelected(e)}
+                      aria-label={`${e.hm}, ${e.title} : voir le détail`}
                       className={cn(
-                        "absolute inset-x-1 overflow-hidden rounded-md px-1.5 py-1 text-[0.72rem] leading-tight shadow-sm",
+                        "absolute inset-x-1 overflow-hidden rounded-md px-1.5 text-left text-[0.75rem] leading-tight shadow-sm transition hover:ring-2 hover:ring-brand/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand",
+                        compact ? "flex items-center gap-1 py-0" : "py-1",
                         e.block
                           ? "border border-dashed border-border bg-secondary text-muted-foreground"
                           : "border-l-[3px] border-brand bg-brand-100 text-foreground",
                       )}
                       style={{ top, height }}
                     >
-                      <span className="block font-medium tabular-nums">{e.hm}</span>
-                      <span className="block truncate">{e.title}</span>
-                      {!e.block && e.notes && height > 44 && <span className="block truncate text-muted-foreground">{e.notes}</span>}
-                    </div>
+                      {compact ? (
+                        <span className="truncate">
+                          <span className="font-semibold tabular-nums">{e.hm}</span> · {e.title}
+                        </span>
+                      ) : (
+                        <>
+                          <span className="block font-semibold tabular-nums">{e.hm}</span>
+                          <span className="block truncate">{e.title}</span>
+                          {!e.block && e.notes && height > 70 && <span className="block truncate text-muted-foreground">{e.notes}</span>}
+                        </>
+                      )}
+                    </button>
                   );
                 })}
               </div>
@@ -206,8 +232,109 @@ export function AgendaCalendar({
         </div>
       </div>
       <p className="text-xs text-muted-foreground">
-        Fond clair : heures d&apos;ouverture de l&apos;agent. Bordure en pointillés : indisponibilité. Survolez un rendez-vous pour ses détails.
+        Fond clair : heures d&apos;ouverture de l&apos;agent. Bordure en pointillés : indisponibilité. Cliquez sur un rendez-vous pour voir sa fiche.
       </p>
+      {details}
+    </div>
+  );
+}
+
+/** Fiche d'un rendez-vous : détails, résumé de l'appel, lien vers l'appel, annulation. */
+function EventDetails({ event: e, canEdit, onClose }: { event: CalendarEvent; canEdit: boolean; onClose: () => void }) {
+  useEffect(() => {
+    const onKey = (ev: KeyboardEvent) => ev.key === "Escape" && onClose();
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+  const start = new Date(e.startsAt);
+  const end = new Date(start.getTime() + e.durationMin * 60_000);
+  const fmt = (d: Date, o: Intl.DateTimeFormatOptions) => new Intl.DateTimeFormat("fr-FR", { timeZone: e.timezone, ...o }).format(d);
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 p-4 sm:items-center"
+      role="presentation"
+      onClick={onClose}
+    >
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="evt-title"
+        className="max-h-[85vh] w-full max-w-lg overflow-y-auto rounded-2xl border border-border bg-card p-5 shadow-xl"
+        onClick={(ev) => ev.stopPropagation()}
+      >
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              {e.block ? "Indisponibilité" : "Rendez-vous"}
+            </p>
+            <h2 id="evt-title" className="text-lg font-semibold tracking-tight">
+              {e.title}
+            </h2>
+          </div>
+          <button type="button" onClick={onClose} aria-label="Fermer" className="inline-flex size-8 items-center justify-center rounded-lg hover:bg-secondary">
+            <X className="size-4" aria-hidden="true" />
+          </button>
+        </div>
+        <dl className="mt-4 grid grid-cols-[7rem_1fr] gap-x-3 gap-y-2 text-sm">
+          <dt className="text-muted-foreground">Quand</dt>
+          <dd className="capitalize">
+            {fmt(start, { weekday: "long", day: "numeric", month: "long" })}, {fmt(start, { hour: "2-digit", minute: "2-digit" })} –{" "}
+            {fmt(end, { hour: "2-digit", minute: "2-digit" })}
+          </dd>
+          {e.agentName && (
+            <>
+              <dt className="text-muted-foreground">Agent</dt>
+              <dd>{e.agentName}</dd>
+            </>
+          )}
+          {e.phone && (
+            <>
+              <dt className="text-muted-foreground">Téléphone</dt>
+              <dd>
+                <a href={`tel:${e.phone}`} className="inline-flex items-center gap-1.5 text-brand-400 hover:underline">
+                  <Phone className="size-3.5" aria-hidden="true" /> {e.phone}
+                </a>
+              </dd>
+            </>
+          )}
+          {e.notes && (
+            <>
+              <dt className="text-muted-foreground">{e.block ? "Motif" : "Motif du RDV"}</dt>
+              <dd className="whitespace-pre-line">{e.notes}</dd>
+            </>
+          )}
+          {!e.block && (
+            <>
+              <dt className="text-muted-foreground">Référence</dt>
+              <dd className="font-mono">{e.reference}</dd>
+            </>
+          )}
+          {e.synced && (
+            <>
+              <dt className="text-muted-foreground">Google Agenda</dt>
+              <dd className="inline-flex items-center gap-1.5">
+                <CalendarCheck2 className="size-3.5 text-emerald-400" aria-hidden="true" /> Synchronisé
+              </dd>
+            </>
+          )}
+        </dl>
+        {!e.block && (
+          <div className="mt-4 rounded-xl border border-border bg-secondary/30 p-3">
+            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Résumé de l&apos;appel</p>
+            <p className="mt-1 text-sm">{e.summary || "Pris sans appel associé (ou résumé indisponible)."}</p>
+            {e.callId && (
+              <Link href={`/calls/${e.callId}`} className="mt-2 inline-block text-sm font-medium text-brand-400 hover:underline">
+                Écouter l&apos;appel et lire la transcription →
+              </Link>
+            )}
+          </div>
+        )}
+        {canEdit && (
+          <div className="mt-4 flex justify-end">
+            {e.block ? <RemoveBlockButton id={e.id} /> : <CancelAppointmentButton id={e.id} label={`${e.title}, ${e.reference}`} />}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

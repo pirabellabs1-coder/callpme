@@ -6,6 +6,7 @@
  * connexion Google), PUBLIC_URL. Redirection autorisée à déclarer dans la
  * console Google : ${PUBLIC_URL}/api/integrations/google/callback
  */
+import { callInternal } from "./internal-bridge";
 import { createHmac, randomBytes, timingSafeEqual } from "crypto";
 import { getAuthSecret } from "../auth/secret";
 import { integrationCredentials } from "./credentials";
@@ -105,7 +106,23 @@ async function accessToken(orgId: string): Promise<{ token: string; calendarId: 
 /* ------------------------------ Agenda ------------------------------ */
 
 /** Créneaux occupés dans Google Agenda (vide si non connecté ou en erreur). */
+/**
+ * Sans identifiants OAuth sur ce serveur (serveur vocal), les opérations Google
+ * passent par l'application web via la liaison interne signée.
+ */
+function viaBridge(): boolean {
+  return !googleCalendarAvailable() && Boolean(process.env.PUBLIC_URL);
+}
+
 export async function googleBusy(orgId: string, from: Date, to: Date): Promise<BusyInterval[]> {
+  if (viaBridge()) {
+    const r = await callInternal<{ busy: { start: string; end: string }[] }>(
+      "/api/internal/google",
+      { op: "busy", orgId, from: from.toISOString(), to: to.toISOString() },
+      6000,
+    );
+    return (r?.busy ?? []).map((b) => ({ start: new Date(b.start), end: new Date(b.end) }));
+  }
   const auth = await accessToken(orgId).catch(() => null);
   if (!auth) return [];
   try {
@@ -129,6 +146,14 @@ export async function createGoogleEvent(
   orgId: string,
   ev: { summary: string; description: string; start: Date; end: Date; timezone: string },
 ): Promise<string | null> {
+  if (viaBridge()) {
+    const r = await callInternal<{ id: string | null }>("/api/internal/google", {
+      op: "create",
+      orgId,
+      ev: { ...ev, start: ev.start.toISOString(), end: ev.end.toISOString() },
+    });
+    return r?.id ?? null;
+  }
   if (!googleCalendarAvailable()) {
     console.error("[google-agenda] GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET absents : rendez-vous non envoyé à Google.");
     return null;
@@ -160,6 +185,10 @@ export async function createGoogleEvent(
 }
 
 export async function deleteGoogleEvent(orgId: string, eventId: string): Promise<void> {
+  if (viaBridge()) {
+    await callInternal("/api/internal/google", { op: "delete", orgId, eventId });
+    return;
+  }
   const auth = await accessToken(orgId).catch(() => null);
   if (!auth) return;
   await fetch(

@@ -123,6 +123,21 @@ export default async function LeadsPage({ searchParams }: { searchParams: { kind
                       <p className="font-medium text-foreground">Rappeler le {dateLabel(l.callbackAt, l.timezone)}</p>
                     )}
                     <p className="line-clamp-3 whitespace-pre-line">{l.notes || "—"}</p>
+                    {(l.callSummary || l.callId) && (
+                      <details className="group mt-2">
+                        <summary className="cursor-pointer select-none text-sm font-medium text-brand-400 hover:underline">
+                          Résumé de l&apos;appel
+                        </summary>
+                        <div className="mt-1.5 space-y-1.5 rounded-lg border border-border bg-secondary/30 p-3 text-foreground/90">
+                          <p className="whitespace-pre-line">{l.callSummary || "Résumé indisponible pour cet appel."}</p>
+                          {l.callId && (
+                            <Link href={`/calls/${l.callId}`} className="inline-block text-sm font-medium text-brand-400 hover:underline">
+                              Écouter l&apos;appel et lire la transcription →
+                            </Link>
+                          )}
+                        </div>
+                      </details>
+                    )}
                   </td>
                   <td className="whitespace-nowrap px-4 py-3 text-muted-foreground">
                     {dateLabel(l.createdAt, l.timezone)}

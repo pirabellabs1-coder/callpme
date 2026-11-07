@@ -86,6 +86,8 @@ export default async function AppointmentsPage({
     synced: r.synced,
     block: r.source === "block",
     timezone: r.timezone,
+    callId: r.callId ?? null,
+    summary: r.callSummary ?? null,
   }));
   const blocks = blockRows.map((b) => {
     let tz = displayCfg.timezone;
@@ -174,7 +176,7 @@ export default async function AppointmentsPage({
       </nav>
 
       {(mode === "semaine" || mode === "mois") && (
-        <AgendaCalendar mode={mode} anchor={anchor} today={today} events={events} openHours={displayCfg.hours} />
+        <AgendaCalendar mode={mode} anchor={anchor} today={today} events={events} openHours={displayCfg.hours} canEdit={isOrgAdmin(session)} />
       )}
 
       {mode === "horaires" && <AgendaSettings agents={bookingAgents} blocks={blocks} canEdit={isOrgAdmin(session)} />}

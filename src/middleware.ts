@@ -28,6 +28,7 @@ const PUBLIC_API_PREFIXES = [
   "/api/widget/", // widget site web : domaines autorisés (Origin) + limites
   "/api/whatsapp/webhook/", // Meta : signature X-Hub-Signature-256 vérifiée
   "/api/inhouse-training/", // serveur d'entraînement GPU : secret CALLPME_TRAINING_SECRET
+  "/api/internal/", // serveur vocal : liaison interne signée HMAC (voir lib/integrations/internal-bridge)
 ];
 
 /** Pages applicatives réservées aux utilisateurs connectés. */

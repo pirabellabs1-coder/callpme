@@ -10,6 +10,14 @@ function agentTimezone(config: string | null | undefined): string {
   }
 }
 
+/** Résumé et issue des appels liés (callRef = identifiant de l'appel enregistré). */
+export async function callSummaries(callRefs: (string | null)[]): Promise<Map<string, { summary: string | null; outcome: string | null }>> {
+  const ids = Array.from(new Set(callRefs.filter((x): x is string => Boolean(x))));
+  if (ids.length === 0) return new Map();
+  const calls = await prisma.call.findMany({ where: { id: { in: ids } }, select: { id: true, summary: true, outcome: true } });
+  return new Map(calls.map((c) => [c.id, { summary: c.summary, outcome: c.outcome }]));
+}
+
 export interface AppointmentRow {
   id: string;
   reference: string;
@@ -27,6 +35,9 @@ export interface AppointmentRow {
   synced: boolean;
   /** Fuseau de l'agenda de l'agent (affichage à l'heure locale du rendez-vous). */
   timezone: string;
+  /** Appel qui a pris le rendez-vous (page /calls/:id) et son résumé. */
+  callId?: string | null;
+  callSummary?: string | null;
 }
 
 export async function listAppointments(
@@ -45,6 +56,7 @@ export async function listAppointments(
     take: Math.min(opts.limit ?? 200, 500),
     include: { agent: { select: { name: true, config: true } } },
   });
+  const sums = await callSummaries(rows.map((r) => r.callRef));
   return rows.map((r) => ({
     id: r.id,
     reference: r.reference,
@@ -61,6 +73,8 @@ export async function listAppointments(
     agentName: r.agent?.name ?? null,
     synced: Boolean(r.googleEventId),
     timezone: agentTimezone(r.agent?.config),
+    callId: r.callRef && sums.has(r.callRef) ? r.callRef : null,
+    callSummary: r.callRef ? (sums.get(r.callRef)?.summary ?? null) : null,
   }));
 }
 
@@ -80,6 +94,9 @@ export interface LeadRow {
   createdAt: string;
   crm: string[];
   timezone: string;
+  /** Appel d'origine (page /calls/:id) et son résumé. */
+  callId: string | null;
+  callSummary: string | null;
 }
 
 export const LEAD_STATUSES = ["new", "contacted", "qualified", "won", "lost"] as const;
@@ -100,6 +117,7 @@ export async function listLeads(
     take: Math.min(opts.limit ?? 300, 1000),
     include: { agent: { select: { name: true, config: true } } },
   });
+  const sums = await callSummaries(rows.map((r) => r.callRef));
   return rows.map((r) => {
     let crm: string[] = [];
     try {
@@ -123,6 +141,8 @@ export async function listLeads(
       createdAt: r.createdAt.toISOString(),
       crm,
       timezone: agentTimezone(r.agent?.config),
+      callId: r.callRef && sums.has(r.callRef) ? r.callRef : null,
+      callSummary: r.callRef ? (sums.get(r.callRef)?.summary ?? null) : null,
     };
   });
 }
@@ -144,6 +164,7 @@ export async function listAppointmentsBetween(orgId: string, from: Date, to: Dat
     take: 1000,
     include: { agent: { select: { name: true, config: true } } },
   });
+  const sums = await callSummaries(rows.map((r) => r.callRef));
   return rows.map((r) => ({
     id: r.id,
     reference: r.reference,
@@ -160,5 +181,7 @@ export async function listAppointmentsBetween(orgId: string, from: Date, to: Dat
     agentName: r.agent?.name ?? null,
     synced: Boolean(r.googleEventId),
     timezone: agentTimezone(r.agent?.config),
+    callId: r.callRef && sums.has(r.callRef) ? r.callRef : null,
+    callSummary: r.callRef ? (sums.get(r.callRef)?.summary ?? null) : null,
   }));
 }

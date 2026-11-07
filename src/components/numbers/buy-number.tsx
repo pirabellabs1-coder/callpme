@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2, Search, ShoppingCart, PhoneCall } from "lucide-react";
-import { NUMBER_COUNTRIES } from "@/lib/telephony/numbers";
+import { NUMBER_COUNTRIES } from "@/lib/telephony/number-countries";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";

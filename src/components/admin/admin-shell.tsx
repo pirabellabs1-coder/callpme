@@ -23,6 +23,7 @@ import {
   Hash,
   Calculator,
   FileText,
+  Store,
 } from "lucide-react";
 import { cn, initials } from "@/lib/utils";
 import { logout } from "@/app/actions/auth";
@@ -37,6 +38,7 @@ const NAV = [
   { href: "/admin/agents", label: "Agents", icon: Bot },
   { href: "/admin/calls", label: "Appels", icon: PhoneCall },
   { href: "/admin/numbers", label: "Numéros à vérifier", icon: Hash },
+  { href: "/admin/marketplace-numeros", label: "Marketplace numéros", icon: Store },
   { href: "/admin/voices", label: "Voix", icon: AudioLines },
   { href: "/admin/voix-maison", label: "Voix maison", icon: AudioWaveform },
   { href: "/admin/promos", label: "Codes promo", icon: Ticket },

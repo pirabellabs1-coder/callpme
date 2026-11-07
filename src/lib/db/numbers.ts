@@ -92,7 +92,14 @@ export async function deletePhoneNumber(orgId: string, id: string) {
   }
   // Agent relié : il perd ce numéro.
   await prisma.agent.updateMany({ where: { organizationId: orgId, phoneNumber: row.number }, data: { phoneNumber: null } });
-  await prisma.phoneNumber.delete({ where: { id } });
+  // Numéro venu de la marketplace : il retourne dans le stock (en pause), dans la même transaction.
+  await prisma.$transaction([
+    prisma.phoneNumber.delete({ where: { id } }),
+    prisma.numberStock.updateMany({
+      where: { number: row.number, organizationId: orgId, status: "assigned" },
+      data: { status: "disabled", organizationId: null, requestId: null, note: `Rendu le ${new Date().toLocaleDateString("fr-FR")}` },
+    }),
+  ]);
   return true;
 }
 

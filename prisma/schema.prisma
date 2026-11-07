@@ -66,6 +66,7 @@ model Organization {
   integrations   Integration[]
   payments       Payment[]
   agencyRequests AgencyRequest[]
+  numberRequests NumberRequest[]
   appointments   Appointment[]
   leads          Lead[]
   callbacks      Callback[]
@@ -264,6 +265,61 @@ model PhoneNumber {
   createdAt      DateTime     @default(now())
 
   @@index([organizationId])
+}
+
+// ----- Marketplace des numéros (numéros fournis par les opérateurs partenaires) -----
+
+// Numéro en stock, mis à disposition par un opérateur partenaire (MTN, Moov…).
+model NumberStock {
+  id              String   @id @default(cuid())
+  number          String   @unique // E.164
+  country         String // ISO 3166-1 alpha-2 (BJ, CI…)
+  network         String // mtn | moov | celtiis | orange…
+  kind            String   @default("mobile") // mobile | fixe
+  monthlyPriceXof Int // prix mensuel facturé au client (FCFA)
+  setupPriceXof   Int      @default(0) // frais de mise en service (FCFA)
+  status          String   @default("available") // available | reserved | assigned | disabled
+  /// Demande qui réserve ce numéro (status reserved).
+  requestId       String?
+  /// Organisation à qui le numéro est attribué (status assigned).
+  organizationId  String?
+  note            String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([country, network, status])
+  @@index([organizationId])
+}
+
+// Demande d'achat de numéro d'un client : un numéro du stock, ou une demande
+// libre (pays, réseau, préfixe) quand rien n'est disponible.
+model NumberRequest {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  userId         String
+  country        String
+  network        String?
+  desiredPrefix  String?
+  /// Numéro du stock choisi par le client (null : demande libre).
+  stockId        String?
+  companyName    String
+  contactName    String
+  contactPhone   String
+  contactEmail   String
+  businessId     String? // RCCM ou équivalent
+  taxId          String? // IFU ou équivalent
+  address        String
+  usage          String?
+  status         String       @default("pending") // pending | approved | rejected | cancelled
+  adminNote      String?
+  /// Numéro attribué (texte E.164) une fois la demande validée.
+  assignedNumber String?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@index([organizationId])
+  @@index([status])
 }
 
 // Connexion à un opérateur téléphonique (identifiants API).

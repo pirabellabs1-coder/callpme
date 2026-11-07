@@ -125,9 +125,9 @@ export default async function AgentLaunchPage({ params }: { params: { id: string
           <Card className="space-y-2 p-4">
             <ShoppingCart className="size-5 text-brand" aria-hidden />
             <p className="font-medium">Un nouveau numéro</p>
-            <p className="text-sm text-muted-foreground">Achetez-le chez votre opérateur (Twilio, Telnyx…), puis ajoutez-le et reliez-le à l&apos;agent.</p>
-            <Link href="/numbers" className={buttonVariants({ variant: "link", size: "sm", className: "px-0" })}>
-              Ajouter un numéro
+            <p className="text-sm text-muted-foreground">Choisissez un numéro local (MTN, Moov…) dans notre catalogue, ou ajoutez celui de votre opérateur.</p>
+            <Link href="/numbers/acheter" className={buttonVariants({ variant: "link", size: "sm", className: "px-0" })}>
+              Acheter un numéro
             </Link>
           </Card>
           <Card className="space-y-2 p-4">

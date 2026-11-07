@@ -261,6 +261,7 @@ export async function purgeDemoData(): Promise<AdminResult> {
     // Ordre : enfants/refs d'abord, parents ensuite.
     await prisma.call.deleteMany({ where: { agentId: { in: agentIds } } }); // évaluations en cascade
     await prisma.phoneNumber.deleteMany({ where: { organizationId: orgId } });
+    await (await import("@/lib/numbers/market-db")).returnAllToStock(orgId);
     await prisma.providerConnection.deleteMany({ where: { organizationId: orgId } });
     await prisma.agent.deleteMany({ where: { organizationId: orgId } });
     await prisma.campaign.deleteMany({ where: { organizationId: orgId } }); // contacts en cascade
@@ -382,6 +383,9 @@ export async function reviewPhoneNumber(id: string, action: "activate" | "reject
   const row = await prisma.phoneNumber.findUnique({ where: { id }, select: { status: true, purchased: true, number: true, organizationId: true } });
   if (!row || row.status !== "pending" || row.purchased) return { error: "Numéro introuvable ou déjà traité." };
   if (action === "activate") {
+    if ((await prisma.numberStock.count({ where: { number: row.number } })) > 0) {
+      return { error: "Ce numéro appartient au catalogue de la marketplace : il s'attribue depuis « Marketplace numéros »." };
+    }
     await prisma.phoneNumber.update({ where: { id }, data: { status: "active" } });
   } else {
     await prisma.agent.updateMany({ where: { organizationId: row.organizationId, phoneNumber: row.number }, data: { phoneNumber: null } });

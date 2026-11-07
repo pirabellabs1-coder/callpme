@@ -284,3 +284,21 @@ export function demoAccessEmail(o: { name: string; endsAt: Date; minutes: number
   });
   return { subject: "Votre accès démo Callpme est ouvert", html, text: toText(html) };
 }
+
+/* ------------------------- Marketplace des numéros ------------------------ */
+
+export function numberRequestEmail(o: { approved: boolean; number?: string; note?: string | null }): EmailContent {
+  const note = o.note ? `<p style="margin:0 0 12px;">Message de l'équipe : ${escapeHtml(o.note)}</p>` : "";
+  const html = emailLayout({
+    preheader: o.approved ? "Votre numéro est prêt." : "Votre demande de numéro n'a pas pu aboutir.",
+    heading: o.approved ? "Votre numéro est prêt" : "Demande de numéro refusée",
+    bodyHtml: o.approved
+      ? `<p style="margin:0 0 12px;">Bonne nouvelle : le numéro <strong>${escapeHtml(o.number ?? "")}</strong> est attribué à votre organisation.</p>
+         <p style="margin:0 0 12px;">Reliez-le à un agent dans « Numéros » pour qu'il réponde aux appels.</p>${note}`
+      : `<p style="margin:0 0 12px;">Votre demande de numéro n'a pas pu être acceptée.</p>${note}
+         <p style="margin:0;">Vous pouvez faire une nouvelle demande depuis votre espace.</p>`,
+    ctaLabel: "Voir mes numéros",
+    ctaUrl: `${baseUrl()}/numbers`,
+  });
+  return { subject: o.approved ? "Votre numéro Callpme est prêt" : "Votre demande de numéro", html, text: toText(html) };
+}

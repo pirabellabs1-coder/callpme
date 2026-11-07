@@ -52,6 +52,9 @@ export async function POST(req: NextRequest) {
       where: { number: { in: [e164, parsed.data.number] } },
     });
     if (existing) return badRequest("Ce numéro est déjà enregistré.");
+    if ((await prisma.numberStock.count({ where: { number: e164 } })) > 0) {
+      return badRequest("Ce numéro fait partie de notre catalogue : demandez-le depuis « Acheter un numéro ».");
+    }
 
     const number = await createPhoneNumber(session.org.id, parsed.data);
     return created({ number });

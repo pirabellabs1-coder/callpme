@@ -151,8 +151,8 @@ export function NumbersManager({
           Comment relier un numéro à un agent
         </h2>
         <Step n={1} icon={Phone} title="Numéro">
-          Déclarez le numéro acheté chez votre opérateur (Twilio, Telnyx…) ou celui que vous
-          avez déjà : il passe « En attente » le temps que l&apos;équipe Callpme vérifie son
+          Achetez un numéro dans notre catalogue, ou déclarez celui de votre opérateur : un
+          numéro déclaré passe « En attente » le temps que l&apos;équipe Callpme vérifie son
           raccordement, puis « Actif ».
         </Step>
         <Step n={2} icon={Plug} title="Agent">

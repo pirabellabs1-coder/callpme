@@ -7,6 +7,7 @@ import type {
   Agent,
   AgentConfig,
   BookingConfig,
+  CallbackConfig,
   AgentRole,
   AgentStatus,
   FirstSpeaker,
@@ -14,6 +15,7 @@ import type {
   VoiceProvider,
 } from "@/lib/shared/types";
 import { ROLE_META } from "@/lib/agents/roles";
+import { callbackSettings, DEFAULT_CALLBACK } from "@/lib/callbacks/settings";
 import type { ExtractField } from "@/lib/analysis/fields";
 import type { AgentTemplate } from "@/lib/agents/templates";
 import type { PromptParams } from "@/lib/agents/role-templates";
@@ -52,6 +54,8 @@ export interface WizardState {
   /** Répondeur sur appel sortant. */
   voicemailAction: "message" | "hangup" | "off";
   voicemailMessage: string;
+  /** Rappel automatique des bips et appels manqués. */
+  callback: CallbackConfig;
   /** Analyse de fin d'appel. */
   analysisFields: ExtractField[];
   successCriteria: string;
@@ -110,6 +114,7 @@ export function initialState(
       booking: agent.config.booking ?? null,
       voicemailAction: agent.config.voicemail?.action ?? "message",
       voicemailMessage: agent.config.voicemail?.message ?? "",
+      callback: callbackSettings(agent.config.callback),
       analysisFields: agent.config.analysis?.fields ?? [],
       successCriteria: agent.config.analysis?.successCriteria ?? "",
       knowledgeBaseId: agent.knowledgeBaseId ?? "",
@@ -141,6 +146,7 @@ export function initialState(
     booking: null,
     voicemailAction: "message",
     voicemailMessage: "",
+    callback: { ...DEFAULT_CALLBACK },
     analysisFields: [],
     successCriteria: "",
     knowledgeBaseId: "",
@@ -274,6 +280,7 @@ export function buildPayload(
       action: s.voicemailAction,
       ...(s.voicemailMessage.trim() ? { message: s.voicemailMessage.trim().slice(0, 600) } : {}),
     },
+    callback: callbackSettings(s.callback),
   };
   return {
     name: s.name.trim() || "Agent sans nom",

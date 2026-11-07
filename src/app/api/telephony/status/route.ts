@@ -2,6 +2,9 @@ import { NextRequest } from "next/server";
 import { recordContactOutcome } from "@/lib/campaigns/engine";
 import { readSignedWebhook } from "@/lib/telephony/provider";
 import { settleHold } from "@/lib/billing/credit";
+import { recordCallbackOutcome, requestCallback } from "@/lib/callbacks/engine";
+import { agentForNumber } from "@/lib/telephony/routing";
+import { toE164 } from "@/lib/telephony/e164";
 
 export const dynamic = "force-dynamic";
 
@@ -33,13 +36,30 @@ export async function POST(req: NextRequest) {
       console.error("[crédit] règlement opérateur impossible :", callId, e instanceof Error ? e.message : e),
     );
   }
-  const outcome = NOT_CONNECTED[(params.CallStatus ?? params.call_status ?? "").toLowerCase()];
-  if (callId && outcome) {
-    await recordContactOutcome(
-      { providerCallId: callId },
-      outcome,
-      outcome === "no_answer" ? "Pas de réponse" : "Appel en échec",
-    );
+  const callStatus = (params.CallStatus ?? params.call_status ?? "").toLowerCase();
+  const outcome = NOT_CONNECTED[callStatus];
+  const inbound = (params.Direction ?? params.direction ?? "").toLowerCase().startsWith("inbound");
+  const duration = Number(params.CallDuration ?? params.call_duration ?? 0) || 0;
+  if (callId && outcome && !inbound) {
+    const label = outcome === "no_answer" ? "Pas de réponse" : "Appel en échec";
+    await recordContactOutcome({ providerCallId: callId }, outcome, label);
+    await recordCallbackOutcome({ providerCallId: callId }, outcome, { outcome: label }).catch(() => {});
+  }
+  // Rappel décroché mais clos sans session (répondeur raccroché, fax) ou avant la fin de session :
+  // il ne reste pas « en cours ». La session, si elle existe, rattache ensuite son appel enregistré.
+  if (callId && !inbound && callStatus === "completed") {
+    await recordCallbackOutcome({ providerCallId: callId }, "completed", { outcome: "Appel décroché" }).catch(() => {});
+  }
+  // Appel ENTRANT raccroché avant que la ligne soit reliée à l'agent (bip très court) :
+  // aucune session ne s'est ouverte, c'est ce rappel qui déclenche le rappel automatique.
+  if (inbound && (outcome || callStatus === "completed") && duration === 0) {
+    const to = toE164(params.To ?? params.to ?? "");
+    const agent = to ? await agentForNumber(to).catch(() => null) : null;
+    // Mode « bip » : « occupé » = l'appel que nous avons nous-mêmes refusé, déjà mis en file.
+    const ownReject = agent?.config.callback?.mode === "flash" && callStatus === "busy";
+    if (agent?.config.callback?.enabled && !ownReject) {
+      await requestCallback({ agent, from: params.From ?? params.from ?? "", reason: "missed" }).catch(() => {});
+    }
   }
   return new Response(null, { status: 204 });
 }

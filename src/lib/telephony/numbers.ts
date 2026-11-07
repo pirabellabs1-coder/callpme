@@ -144,6 +144,9 @@ export async function buyNumber(phoneNumber: string): Promise<{ providerRef: str
         PhoneNumber: phoneNumber,
         VoiceUrl: inbound,
         VoiceMethod: "POST",
+        // Fin d'appel : un bip raccroché avant le décroché déclenche le rappel automatique.
+        StatusCallback: `${publicUrl()}/api/telephony/status`,
+        StatusCallbackMethod: "POST",
         ...(process.env.TWILIO_ADDRESS_SID ? { AddressSid: process.env.TWILIO_ADDRESS_SID } : {}),
         ...(process.env.TWILIO_BUNDLE_SID ? { BundleSid: process.env.TWILIO_BUNDLE_SID } : {}),
       }),

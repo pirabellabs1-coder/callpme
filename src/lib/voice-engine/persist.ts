@@ -6,6 +6,7 @@
 import type { CallQuality } from "./quality";
 import { prisma } from "../db/client";
 import { recordContactOutcome } from "../campaigns/engine";
+import { recordCallbackOutcome, requestCallback } from "../callbacks/engine";
 import { dispatchEvent } from "../webhooks/dispatch";
 import { analyzeCall } from "../analysis/analyze";
 import { consumeExtraMinutes } from "../billing/limits";
@@ -33,6 +34,8 @@ export interface FinishCallInput {
   outcome?: string;
   /** Message laissé sur un répondeur (contact de campagne : « messagerie », relançable). */
   voicemail?: boolean;
+  /** Session arrêtée par une panne (pas de voix, quota, crédit…) : jamais de rappel automatique. */
+  technicalFailure?: boolean;
 }
 
 export async function finishCall(input: FinishCallInput) {
@@ -100,6 +103,24 @@ export async function finishCall(input: FinishCallInput) {
             : "failed";
     // Relance planifiée selon les réglages de la campagne (non-réponse, répondeur…).
     await recordContactOutcome({ contactId, organizationId: input.organizationId }, status, outcome).catch(() => {});
+  }
+
+  // Rappel automatique : issue de la conversation de rappel.
+  const callbackId = input.metadata?.callbackId;
+  if (callbackId && input.direction === "outbound") {
+    const reached = input.status === "completed" || input.status === "transferred";
+    await recordCallbackOutcome(
+      { callbackId, organizationId: input.organizationId },
+      reached ? "completed" : input.technicalFailure ? "failed" : "no_answer",
+      // Message laissé sur un répondeur : pas de relance.
+      { outcome, callId: call.id, retry: !input.voicemail },
+    ).catch(() => {});
+  }
+  // Appel entrant raccroché avant que l'appelant parle (bip, coupure) : rappel automatique si activé.
+  if (input.direction === "inbound" && input.status === "missed" && !input.technicalFailure) {
+    await requestCallback({ agent: input.agent, from: input.from, reason: "missed" }).catch((e) =>
+      console.error("[rappel] mise en file impossible :", e instanceof Error ? e.message : e),
+    );
   }
 
   // Appel sortant : réglé sur le crédit prépayé (voir billing/credit), pas sur les minutes de l'offre.

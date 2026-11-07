@@ -173,6 +173,9 @@ le serveur vocal. En sortant (campagnes, rappels), l'application pilote Asterisk
 via ARI ; la détection de répondeur et les non-réponses remontent par
 `/api/telephony/sip/event`. Transfert vers un humain : géré par le plan de
 numérotation. Les SMS ne passent pas par la passerelle SIP.
+Rappel automatique en mode « bip » : l'application répond `CALLBACK` et le plan de
+numérotation raccroche en « occupé » sans décrocher (`Hangup(17)`), puis l'agent
+rappelle. Reprenez ce bloc d'`extensions.conf.example` si votre plan est plus ancien.
 **À valider sur une vraie liaison opérateur avant la mise en production.**
 
 ## 4. Build

@@ -15,7 +15,8 @@ export type InboundRoute =
   | { ok: true; agent: Agent }
   | { ok: false; reason: "unassigned" | "quota" };
 
-export async function routeInbound(to: string): Promise<InboundRoute> {
+/** Agent actif rattaché à un numéro de la plateforme (sans vérifier le quota). */
+export async function agentForNumber(to: string): Promise<Agent | null> {
   const owned = await prisma.phoneNumber.findUnique({
     where: { number: to },
     select: { organizationId: true, status: true },
@@ -27,7 +28,11 @@ export async function routeInbound(to: string): Promise<InboundRoute> {
           select: { id: true },
         })
       : null;
-  const agent = match ? await getAgentById(match.id) : null;
+  return match ? await getAgentById(match.id) : null;
+}
+
+export async function routeInbound(to: string): Promise<InboundRoute> {
+  const agent = await agentForNumber(to);
   if (!agent) return { ok: false, reason: "unassigned" };
   const org = await prisma.organization.findUnique({ where: { id: agent.organizationId }, select: { plan: true } });
   const quota = await canUseMinutes(agent.organizationId, org?.plan ?? "starter");

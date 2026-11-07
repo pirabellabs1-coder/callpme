@@ -25,6 +25,7 @@ import { CallSession, type VoiceTransport } from "../src/lib/voice-engine/sessio
 import { transferCall } from "../src/lib/telephony/provider";
 import { frames } from "../src/lib/voice-engine/audio";
 import { tickCampaigns } from "../src/lib/campaigns/engine";
+import { tickCallbacks } from "../src/lib/callbacks/engine";
 import { consumeSipSession } from "../src/lib/telephony/sip";
 import {
   AS_AUDIO,
@@ -301,6 +302,19 @@ const campaignTimer =
           .finally(() => (ticking = false));
       }, 30_000);
 
+// Rappels automatiques des bips et appels manqués : toutes les 10 s (l'appelant attend).
+let callingBack = false;
+const callbackTimer =
+  process.env.VOICE_CAMPAIGN_TICK === "0"
+    ? null
+    : setInterval(() => {
+        if (callingBack) return;
+        callingBack = true;
+        tickCallbacks()
+          .catch((e) => console.error("[voice] rappels :", e instanceof Error ? e.message : e))
+          .finally(() => (callingBack = false));
+      }, 10_000);
+
 /* --------------------- Passerelle SIP (Asterisk AudioSocket) --------------------- */
 
 // Asterisk ouvre une connexion TCP par appel et envoie d'abord l'identifiant de
@@ -435,6 +449,7 @@ for (const sig of ["SIGINT", "SIGTERM"] as const) {
     server.close();
     audioSocketServer?.close();
     if (campaignTimer) clearInterval(campaignTimer);
+    if (callbackTimer) clearInterval(callbackTimer);
     // Filet de sécurité si un enregistrement reste bloqué.
     setTimeout(() => process.exit(0), 15_000).unref();
     void Promise.allSettled(Array.from(sessions).map((s) => s.end("completed"))).then(() => {

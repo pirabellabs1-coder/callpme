@@ -1,3 +1,4 @@
+import { recordCallbackOutcome } from "@/lib/callbacks/engine";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getAgentById } from "@/lib/db/agents";
@@ -49,6 +50,9 @@ export async function GET(req: NextRequest) {
     if (action === "off") return text("CONNECT");
     if (action === "hangup" || !agent) {
       if (metadata.contactId) await recordContactOutcome({ contactId: metadata.contactId, organizationId: session.organizationId }, "voicemail", "Répondeur");
+      if (metadata.callbackId) {
+        await recordCallbackOutcome({ callbackId: metadata.callbackId, organizationId: session.organizationId }, "no_answer", { outcome: "Répondeur", retry: false }).catch(() => {});
+      }
       return text("HANGUP");
     }
     // Message sur répondeur : la session vocale le lira puis raccrochera.
@@ -64,6 +68,11 @@ export async function GET(req: NextRequest) {
         outcome,
         outcome === "no_answer" ? "Pas de réponse" : "Appel en échec",
       );
+    }
+    if (outcome && metadata.callbackId) {
+      await recordCallbackOutcome({ callbackId: metadata.callbackId, organizationId: session.organizationId }, outcome, {
+        outcome: outcome === "no_answer" ? "Pas de réponse" : "Appel en échec",
+      }).catch(() => {});
     }
     return text("OK");
   }

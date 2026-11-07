@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { timingSafeEqual } from "crypto";
 import { tickCampaigns } from "@/lib/campaigns/engine";
+import { tickCallbacks } from "@/lib/callbacks/engine";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -21,5 +22,6 @@ function authorized(req: NextRequest): boolean {
 export async function GET(req: NextRequest) {
   if (!authorized(req)) return Response.json({ error: "Non autorisé" }, { status: 401 });
   const reports = await tickCampaigns();
-  return Response.json({ ok: true, campaigns: reports.length, placed: reports.reduce((n, r) => n + r.placed, 0) });
+  const callbacks = await tickCallbacks();
+  return Response.json({ ok: true, campaigns: reports.length, placed: reports.reduce((n, r) => n + r.placed, 0), callbacks });
 }

@@ -166,6 +166,8 @@ export interface AgentConfig {
   booking?: BookingConfig;
   /** Appels sortants tombant sur un répondeur. */
   voicemail?: VoicemailConfig;
+  /** Rappel automatique des bips et des appels manqués. */
+  callback?: CallbackConfig;
   /** Analyse de fin d'appel : données à relever et critère de réussite. */
   analysis?: AnalysisConfig;
   /** Parcours de conversation dessiné dans le constructeur visuel. */
@@ -223,6 +225,21 @@ export interface ConversationFlow {
   enabled: boolean;
   start: string;
   nodes: FlowNode[];
+}
+
+export interface CallbackConfig {
+  enabled: boolean;
+  /**
+   * « missed » : l'agent décroche ; il rappelle quand l'appelant raccroche avant d'avoir parlé.
+   * « flash » : l'agent ne décroche pas (l'appelant ne paie rien) et rappelle aussitôt.
+   */
+  mode: "missed" | "flash";
+  /** Délai avant le rappel, en secondes. */
+  delaySec: number;
+  /** Rappels au maximum par numéro sur 24 h. */
+  maxPerDay: number;
+  /** Première phrase du rappel (variables : {agent}, {organisation}). Vide = phrase par défaut. */
+  message?: string;
 }
 
 export interface VoicemailConfig {

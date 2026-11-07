@@ -68,6 +68,7 @@ model Organization {
   agencyRequests AgencyRequest[]
   appointments   Appointment[]
   leads          Lead[]
+  callbacks      Callback[]
   createdAt      DateTime             @default(now())
 }
 
@@ -179,6 +180,7 @@ model Agent {
   appointments    Appointment[]
   leads           Lead[]
   testScenarios   TestScenario[]
+  callbacks       Callback[]
   createdAt       DateTime       @default(now())
   updatedAt       DateTime       @updatedAt
 
@@ -761,4 +763,29 @@ model PlatformSetting {
   key       String   @id
   value     String
   updatedAt DateTime @updatedAt
+}
+
+// ----- Rappel automatique des bips et des appels manqués (voir src/lib/callbacks) -----
+model Callback {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  agentId        String
+  agent          Agent        @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  /// Numéro à rappeler (E.164).
+  phone          String
+  /// flash = bip (appel non décroché exprès) ; missed = appelant raccroché avant de parler.
+  reason         String
+  status         String       @default("pending") // pending | calling | completed | no_answer | failed | expired
+  dueAt          DateTime
+  attempts       Int          @default(0)
+  providerCallId String?      @unique
+  outcome        String?
+  /// Appel enregistré de la conversation de rappel.
+  callId         String?
+  createdAt      DateTime     @default(now())
+
+  @@index([status, dueAt])
+  @@index([organizationId, phone, createdAt])
+  @@index([agentId])
 }

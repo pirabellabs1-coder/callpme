@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { createSipSession, gatewayAuthorized } from "@/lib/telephony/sip";
 import { routeInbound } from "@/lib/telephony/routing";
+import { requestCallback } from "@/lib/callbacks/engine";
 import { telephonyConfigured } from "@/lib/telephony/provider";
 import { toE164 } from "@/lib/telephony/e164";
 
@@ -12,6 +13,7 @@ const text = (body: string, status = 200) => new Response(body, { status, header
  * GET /api/telephony/sip/inbound?to=…&from=…&channel=… — appelé par le
  * plan de numérotation Asterisk à l'arrivée d'un appel (fonction CURL).
  * Réponse en texte brut : l'identifiant de session à passer à AudioSocket,
+ * « CALLBACK » (mode bip : raccrocher sans décrocher, l'agent rappelle),
  * ou « REJECT » (numéro non attribué, quota atteint, service indisponible).
  */
 export async function GET(req: NextRequest) {
@@ -26,6 +28,13 @@ export async function GET(req: NextRequest) {
 
   const route = await routeInbound(to);
   if (!route.ok) return text("REJECT");
+  // Mode « bip » : Asterisk raccroche sans décrocher, l'agent rappelle.
+  const cbCfg = route.agent.config.callback;
+  if (cbCfg?.enabled && cbCfg.mode === "flash") {
+    const cb = await requestCallback({ agent: route.agent, from, reason: "flash" }).catch(() => null);
+    // « CALLBACK » : le plan de numérotation raccroche en « occupé », sans décrocher.
+    if (cb?.ok) return text("CALLBACK");
+  }
   const id = await createSipSession({
     organizationId: route.agent.organizationId,
     agentId: route.agent.id,

@@ -23,6 +23,7 @@ import { applyBehavior, pickVariant } from "../agents/versions";
 import { openDeepgram, type SttStream } from "./stt";
 import { resolveVoice, streamSpeech, type TtsVoice } from "./tts";
 import { finishCall } from "./persist";
+import { CALLBACK_CONTEXT, callbackGreeting, callbackSettings } from "../callbacks/settings";
 import { checkDestination } from "../telephony/destinations";
 import { remainingMinutes } from "../billing/limits";
 import type { VoiceTokenPayload } from "./token";
@@ -174,6 +175,11 @@ export class CallSession {
         /* variables illisibles : ignorées */
       }
     }
+    // Rappel d'un bip ou d'un appel manqué : l'agent sait pourquoi il appelle.
+    const isCallback = this.ctx.direction === "outbound" && Boolean(this.ctx.metadata?.callbackId);
+    if (isCallback) this.contactInfo = this.contactInfo ? `${this.contactInfo}
+
+${CALLBACK_CONTEXT}` : CALLBACK_CONTEXT;
     if (this.ended) return;
 
     // Répondeur détecté par l'opérateur (après le bip) : message, puis raccroché.
@@ -199,9 +205,12 @@ export class CallSession {
       }, 5000),
     );
 
-    if ((agent.config.firstSpeaker ?? "agent") === "agent") {
+    if (isCallback || (agent.config.firstSpeaker ?? "agent") === "agent") {
+      const opening = isCallback
+        ? callbackGreeting(callbackSettings(agent.config.callback), agent.name, this.organizationName)
+        : this.fillVars(agent.config.firstMessage);
       const greeting =
-        sanitizeSpoken(this.fillVars(agent.config.firstMessage), { agentName: agent.name, organizationName: this.organizationName }) ||
+        sanitizeSpoken(opening, { agentName: agent.name, organizationName: this.organizationName }) ||
         "Bonjour, comment puis-je vous aider ?";
       this.history.push({ role: "assistant", content: greeting });
       this.addTurn("agent", greeting);
@@ -609,6 +618,7 @@ export class CallSession {
         startedAt: this.startedAt,
         transcript: [...this.transcript],
         status: this.hasCallerSpoken() || status === "transferred" ? status : "missed",
+        technicalFailure: status === "failed",
         ...(this.voicemailLeft ? { outcome: "Message laissé sur répondeur", voicemail: true } : {}),
         metadata: this.ctx.metadata,
         variant: this.variant ?? undefined,

@@ -105,15 +105,19 @@ export async function placeOutboundCall(opts: {
   agent: Agent;
   toNumber: string;
   metadata?: Record<string, string>;
+  /** Plafond de durée propre à cet appel (ex. rappel automatique), en plus de celui de l'agent. */
+  maxDurationSec?: number;
 }): Promise<PlaceCallResult> {
   if (!telephonyProvider() || !telephonyConfigured()) return { ok: false, error: "Téléphonie non configurée." };
   const to = toE164(opts.toNumber);
   if (!to) return { ok: false, error: "Numéro invalide (format attendu : +33…)." };
   void sweepStaleHolds().catch(() => {});
-  const cap = opts.agent.config.maxDurationSec ?? 0;
+  const caps = [opts.agent.config.maxDurationSec ?? 0, opts.maxDurationSec ?? 0].filter((c) => c > 0);
+  const cap = caps.length ? Math.min(...caps) : 0;
   const hold = await reserveOutbound(opts.agent.organizationId, to, cap > 0 ? cap : undefined);
   if (!hold.ok || !hold.holdId) return { ok: false, error: hold.error, code: hold.code };
-  const result = await dialOutbound({ ...opts, toNumber: to, metadata: { ...(opts.metadata ?? {}), holdId: hold.holdId } }).catch(
+  const { maxDurationSec: _cap, ...dialOpts } = opts;
+  const result = await dialOutbound({ ...dialOpts, toNumber: to, metadata: { ...(opts.metadata ?? {}), holdId: hold.holdId } }).catch(
     (e): PlaceCallResult => ({ ok: false, error: e instanceof Error ? e.message : "Appel impossible." }),
   );
   if (!result.ok) await releaseHold(hold.holdId).catch(() => {});

@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { createVoiceToken } from "@/lib/voice-engine/token";
-import { routeInbound } from "@/lib/telephony/routing";
+import { agentForNumber, routeInbound } from "@/lib/telephony/routing";
+import { requestCallback } from "@/lib/callbacks/engine";
 import {
   sayAndHangup,
   streamInstructions,
@@ -11,6 +12,9 @@ import {
 } from "@/lib/telephony/provider";
 
 export const dynamic = "force-dynamic";
+
+/** Refus sans décrocher : l'appel n'est pas facturé à l'appelant. */
+const REJECT = `<?xml version="1.0" encoding="UTF-8"?><Response><Reject reason="busy"/></Response>`;
 
 function xml(body: string, status = 200) {
   return new Response(body, { status, headers: { "Content-Type": "text/xml; charset=utf-8" } });
@@ -39,6 +43,15 @@ export async function POST(req: NextRequest) {
   const to = toE164(params.To ?? params.to ?? "");
   const from = toE164(params.From ?? params.from ?? "") ?? "inconnu";
   if (!to) return xml(sayAndHangup("Numéro inconnu."));
+
+  // Mode « bip » : on ne décroche pas (l'appelant ne paie rien) et l'agent rappelle, payé sur le
+  // crédit d'appels sortants (donc avant la vérification des minutes de l'offre). Si le rappel est
+  // impossible (crédit, plafond, numéro masqué, moteur arrêté…), l'agent décroche normalement.
+  const flashAgent = await agentForNumber(to).catch(() => null);
+  if (flashAgent?.config.callback?.enabled && flashAgent.config.callback.mode === "flash") {
+    const cb = await requestCallback({ agent: flashAgent, from, reason: "flash" }).catch(() => null);
+    if (cb?.ok) return xml(REJECT);
+  }
 
   // Numéro actif d'une organisation, agent de cette organisation, quota de l'offre.
   const route = await routeInbound(to);

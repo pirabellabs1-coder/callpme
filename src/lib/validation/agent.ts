@@ -102,6 +102,15 @@ export const configSchema = z.object({
       message: z.string().trim().max(600).optional(),
     })
     .optional(),
+  callback: z
+    .object({
+      enabled: z.boolean(),
+      mode: z.enum(["missed", "flash"]),
+      delaySec: z.number().int().min(10).max(900),
+      maxPerDay: z.number().int().min(1).max(5),
+      message: z.string().trim().max(400).optional(),
+    })
+    .optional(),
   flow: flowSchema.optional(),
   widget: widgetSchema.optional(),
 });

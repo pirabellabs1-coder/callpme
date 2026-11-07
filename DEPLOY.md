@@ -116,6 +116,15 @@ données de l'application.
   30 s (plages horaires, appels simultanés, relances, liste d'opposition).
   Relais facultatif : un cron sur `GET /api/cron/campaigns` avec l'en-tête
   `Authorization: Bearer <CRON_SECRET>` (16 caractères minimum).
+- **Résumé quotidien au gérant** : le serveur vocal fait le tour toutes les
+  5 min et envoie à chaque organisation son résumé à son heure locale (défaut
+  19 h, Réglages › Alertes), une fois par jour. Le cron horaire n'est pas dans
+  `vercel.json` car l'offre Vercel Hobby refuse les crons plus fréquents
+  qu'une fois par jour ; avec Vercel Pro ou un service externe, appelez
+  `GET /api/cron/digest` toutes les heures (même en-tête `CRON_SECRET`).
+  WhatsApp : créez chez Meta un modèle de message (catégorie « Utilitaire »)
+  dont le corps contient un seul paramètre `{{1}}`, puis saisissez son nom
+  dans les réglages ; sinon le résumé part par e-mail.
 - **Touches du clavier** (« tapez 1 ») : transmises à l'agent pendant l'appel.
 - **Fin d'appel** : les appels sortants déclarent `${PUBLIC_URL}/api/telephony/status`
   comme rappel de statut (non-réponse, occupé, échec) ; rien à configurer.

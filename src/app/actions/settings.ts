@@ -118,7 +118,13 @@ export async function saveAlertSettings(input: unknown): Promise<SettingsResult>
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Réglages invalides." };
   await prisma.organization.update({
     where: { id: session.org.id },
-    data: { alerts: JSON.stringify({ ...parsed.data, recipients: Array.from(new Set(parsed.data.recipients)) }) },
+    data: {
+      alerts: JSON.stringify({
+        ...parsed.data,
+        recipients: Array.from(new Set(parsed.data.recipients)),
+        digest: { ...parsed.data.digest, whatsappTo: Array.from(new Set(parsed.data.digest.whatsappTo)) },
+      }),
+    },
   });
   revalidatePath("/settings");
   return { ok: true };

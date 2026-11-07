@@ -38,6 +38,38 @@ export async function sendWhatsAppText(phoneNumberId: string, token: string, to:
   return Boolean(res?.ok);
 }
 
+/**
+ * Message à l'initiative de l'entreprise (hors fenêtre de 24 h) : Meta
+ * n'accepte qu'un modèle approuvé. Les paramètres remplissent {{1}}, {{2}}…
+ * du corps du modèle.
+ */
+export async function sendWhatsAppTemplate(
+  phoneNumberId: string,
+  token: string,
+  to: string,
+  template: { name: string; language: string; params: string[] },
+): Promise<boolean> {
+  const res = await fetch(`${GRAPH}/${encodeURIComponent(phoneNumberId)}/messages`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      messaging_product: "whatsapp",
+      recipient_type: "individual",
+      to: to.replace(/^\+/, ""),
+      type: "template",
+      template: {
+        name: template.name,
+        language: { code: template.language },
+        components: template.params.length
+          ? [{ type: "body", parameters: template.params.map((text) => ({ type: "text", text })) }]
+          : [],
+      },
+    }),
+    signal: AbortSignal.timeout(10_000),
+  }).catch(() => null);
+  return Boolean(res?.ok);
+}
+
 /** Marque le message reçu comme lu (double coche bleue) : l'utilisateur voit qu'on l'a pris en compte. */
 export async function markWhatsAppRead(phoneNumberId: string, token: string, messageId: string): Promise<void> {
   await fetch(`${GRAPH}/${encodeURIComponent(phoneNumberId)}/messages`, {

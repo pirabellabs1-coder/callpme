@@ -41,10 +41,24 @@ export default async function ChannelsPage() {
           <Globe className="mt-0.5 size-5 text-brand" aria-hidden />
           <div>
             <p className="font-medium">Site web</p>
-            <p className="text-sm text-muted-foreground">Bouton vocal, réglé dans l&apos;onglet « Site web » de chaque agent.</p>
-            <Link href="/agents" className="text-sm font-medium text-brand hover:underline">
-              Choisir un agent
-            </Link>
+            <p className="text-sm text-muted-foreground">
+              Bouton « Parler à notre assistant » sur votre site : choisissez l&apos;agent qui répondra.
+            </p>
+            {agents.length === 0 ? (
+              <Link href="/agents/new" className="text-sm font-medium text-brand hover:underline">
+                Créer un agent
+              </Link>
+            ) : (
+              <ul className="mt-1 space-y-1">
+                {agents.map((a) => (
+                  <li key={a.id}>
+                    <Link href={`/agents/${a.id}/widget`} className="text-sm font-medium text-brand hover:underline">
+                      Régler le bouton de « {a.name} » →
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
         </Card>
       </div>

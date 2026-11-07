@@ -203,7 +203,7 @@ function onTelephony(ws: WebSocket, preAuth: VoiceTokenPayload | null, leavePend
       if (!providerCallId || !payload) return Promise.resolve(false);
       // Appel non lié à l'émission du jeton (sortant) : on vérifie ses numéros.
       const expected = payload.providerCallId ? undefined : { from: payload.from, to: payload.to };
-      return transferCall(providerCallId, to, expected, payload.twilioConnection, payload.organizationId);
+      return transferCall(providerCallId, to, expected, payload.twilioConnection, payload.organizationId, payload.from);
     },
     startRecording: async () => {
       // Twilio seulement (CallSid « CA… ») : compte du client qui porte l'appel, sinon la plateforme.

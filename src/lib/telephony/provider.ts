@@ -280,6 +280,8 @@ export async function transferCall(
   /** Compte Twilio du client qui porte l'appel (jeton signé). */
   twilioConnection?: string,
   organizationId?: string,
+  /** Numéro Callpme de l'appel (affiché au conseiller sur un appel sortant transféré). */
+  callerNumber?: string,
 ): Promise<boolean> {
   const own = twilioConnection ? await connectionCreds(twilioConnection, organizationId).catch(() => null) : null;
   if (twilioConnection && !own) return false;
@@ -302,8 +304,10 @@ export async function transferCall(
         const same = (a?: string, b?: string) => Boolean(a && b && toE164(a) === toE164(b));
         if (!check.ok || !same(call.to, expected.to) || !same(call.from, expected.from)) return false;
       }
-      // Numéro affiché : celui de l'appel (compte client) ou le numéro de la plateforme.
-      const callerId = own ? (expected?.to ?? null) : fromNumber();
+      // Numéro affiché au conseiller. Compte client : sur un appel reçu, le numéro de l'appelant
+      // (Twilio le garde par défaut, le conseiller sait qui appelle) ; sur un appel sortant, le
+      // numéro Callpme du client (jamais celui de la personne appelée). Plateforme : son numéro.
+      const callerId = own ? (expected ? (callerNumber ?? null) : null) : fromNumber();
       const twiml =
         `<?xml version="1.0" encoding="UTF-8"?><Response>` +
         `<Dial timeLimit="${TRANSFER_TIME_LIMIT_SEC}"${callerId ? ` callerId="${escapeXml(callerId)}"` : ""}>${escapeXml(to)}</Dial>` +

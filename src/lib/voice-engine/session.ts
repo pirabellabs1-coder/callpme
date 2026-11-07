@@ -67,7 +67,11 @@ export interface SessionObserver {
 
 const VOICE_STYLE =
   "## Style oral\nTu parles au téléphone : phrases courtes, une idée à la fois, pas de listes, " +
-  "pas de markdown, pas d'émojis. Annonce que tu es un assistant IA si on te le demande.";
+  "pas de markdown, pas d'émojis. Annonce que tu es un assistant IA si on te le demande.\n\n" +
+  "## Mémoire de l'appel\nDès que l'appelant donne son nom, répète-le une fois pour le confirmer " +
+  "(« C'est bien monsieur Dossou ? ») ; s'il est rare ou mal compris, demande-lui de l'épeler. " +
+  "Ensuite, appelle-le par ce nom et ne le lui redemande jamais. Fais de même pour toute information " +
+  "déjà donnée (numéro, date, motif) : reprends-la, ne la redemande pas.";
 
 const SILENCE_HANGUP_MS = 30_000;
 /** Délai après la dernière touche avant de transmettre la saisie à l'agent. */

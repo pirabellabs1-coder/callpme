@@ -24,6 +24,7 @@ import {
   connectionCreds,
   platformTwilio,
   twilioAuthHeader,
+  twilioErrorFr,
   twilioSignatureValid,
   verifyTwilioWebhook,
   type TwilioCreds,
@@ -230,8 +231,8 @@ async function dialOutbound(opts: {
         }),
         signal: AbortSignal.timeout(15000),
       });
-      const data = (await res.json().catch(() => ({}))) as { sid?: string; status?: string; message?: string };
-      if (!res.ok) return { ok: false, error: data.message || `Twilio a refusé l'appel (HTTP ${res.status}).` };
+      const data = (await res.json().catch(() => ({}))) as { sid?: string; status?: string; message?: string; code?: number };
+      if (!res.ok) return { ok: false, error: twilioErrorFr(data.code, data.message || `HTTP ${res.status}`) };
       return { ok: true, callId: data.sid, status: data.status };
     }
 

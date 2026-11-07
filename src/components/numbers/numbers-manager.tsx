@@ -28,6 +28,7 @@ import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { EmptyState } from "@/components/ui/empty-state";
 import { OperatorAccounts } from "./operator-accounts";
+import { NumberDiagnosticButton } from "./number-diagnostic";
 
 export function NumbersManager({
   initialNumbers,
@@ -302,6 +303,7 @@ export function NumbersManager({
                     </span>
                   )}
                 </div>
+                <NumberDiagnosticButton numberId={n.id} />
                 <button
                   type="button"
                   onClick={() => removeNumber(n)}

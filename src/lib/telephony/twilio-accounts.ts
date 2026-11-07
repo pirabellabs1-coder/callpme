@@ -257,3 +257,35 @@ export async function linkTwilioNumber(c: TwilioCreds, numberSid: string): Promi
     throw new TwilioAccountError(data.message || `Twilio a refusé la configuration du numéro (HTTP ${res.status}).`);
   }
 }
+
+/**
+ * Refus de Twilio en français clair (colonne « Issue » des campagnes, tests).
+ * Le message d'origine est gardé quand il n'est pas reconnu.
+ */
+export function twilioErrorFr(code: number | undefined, message: string | undefined): string {
+  const m = (message ?? "").toLowerCase();
+  if (m.includes("compliance profile") || m.includes("customer profile")) {
+    return "Twilio refuse l'appel : le profil de conformité de votre compte n'est pas encore approuvé (console Twilio > Trust Hub).";
+  }
+  switch (code) {
+    case 21215:
+    case 21216:
+      return "Twilio refuse l'appel : ce pays n'est pas autorisé sur votre compte (console Twilio > Voice > Geo permissions).";
+    case 21210:
+    case 21212:
+      return "Twilio refuse le numéro d'appel affiché : il n'appartient pas à ce compte ou n'est pas vérifié.";
+    case 21219:
+    case 21608:
+      return "Compte Twilio d'essai : il ne peut appeler que des numéros vérifiés. Passez le compte en mode payant.";
+    case 21211:
+    case 21217:
+      return "Numéro de destination invalide.";
+    case 20003:
+      return "Twilio refuse les identifiants du compte : reconnectez votre compte Twilio dans « Numéros ».";
+    case 20005:
+    case 21606:
+      return "Le compte Twilio est suspendu ou n'a plus de solde.";
+  }
+  if (m.includes("insufficient") || m.includes("balance")) return "Solde Twilio insuffisant : rechargez votre compte Twilio.";
+  return message ? `Twilio a refusé l'appel : ${message}` : "Twilio a refusé l'appel.";
+}

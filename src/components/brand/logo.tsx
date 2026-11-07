@@ -1,6 +1,9 @@
 import { cn } from "@/lib/utils";
 
-/** Marque seule : tuile orange + onde vocale (équaliseur). */
+/**
+ * Icône d'application : tuile orange, « C » blanc ouvert sur une onde vocale.
+ * Pour les petits emplacements isolés (aperçus, avatars, favicon).
+ */
 export function LogoMark({
   className,
   size = 28,
@@ -12,32 +15,60 @@ export function LogoMark({
     <svg
       width={size}
       height={size}
-      viewBox="0 0 32 32"
+      viewBox="0 0 64 64"
       fill="none"
       className={cn("shrink-0", className)}
       aria-hidden
     >
-      <rect width="32" height="32" rx="9" fill="hsl(var(--brand))" />
-      <rect width="32" height="32" rx="9" fill="url(#cpm-sheen)" />
-      {/* Onde vocale — 5 barres symétriques */}
+      <rect width="64" height="64" rx="18" fill="hsl(var(--brand))" />
+      <path
+        d="M42 21 A15 15 0 1 0 42 43"
+        stroke="#fff"
+        strokeWidth="7"
+        strokeLinecap="round"
+      />
       <g fill="#fff">
-        <rect x="4.5" y="12" width="3" height="8" rx="1.5" opacity="0.78" />
-        <rect x="9.5" y="9" width="3" height="14" rx="1.5" opacity="0.9" />
-        <rect x="14.5" y="6" width="3" height="20" rx="1.5" />
-        <rect x="19.5" y="9" width="3" height="14" rx="1.5" opacity="0.9" />
-        <rect x="24.5" y="12" width="3" height="8" rx="1.5" opacity="0.78" />
+        <rect x="29" y="27" width="4.5" height="10" rx="2.25" />
+        <rect x="37" y="23" width="4.5" height="18" rx="2.25" />
+        <rect x="45" y="28" width="4.5" height="8" rx="2.25" />
       </g>
-      <defs>
-        <linearGradient id="cpm-sheen" x1="0" y1="0" x2="0" y2="32" gradientUnits="userSpaceOnUse">
-          <stop stopColor="#fff" stopOpacity="0.16" />
-          <stop offset="1" stopColor="#fff" stopOpacity="0" />
-        </linearGradient>
-      </defs>
     </svg>
   );
 }
 
-/** Logo complet : marque + wordmark. */
+/** Symbole seul : « C » orange + onde vocale (couleur du texte courant). */
+export function LogoSymbol({
+  className,
+  size = 28,
+}: {
+  className?: string;
+  size?: number;
+}) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 64 64"
+      fill="none"
+      className={cn("shrink-0", className)}
+      aria-hidden
+    >
+      <path
+        d="M46.1 17.9 A20 20 0 1 0 46.1 46.1"
+        stroke="hsl(var(--brand))"
+        strokeWidth="9"
+        strokeLinecap="round"
+      />
+      <g fill="currentColor">
+        <rect x="27" y="26" width="5" height="12" rx="2.5" />
+        <rect x="36" y="21" width="5" height="22" rx="2.5" />
+        <rect x="45" y="27" width="5" height="10" rx="2.5" />
+      </g>
+    </svg>
+  );
+}
+
+/** Logo complet : symbole + nom en minuscules. */
 export function Logo({
   className,
   markSize = 28,
@@ -48,11 +79,15 @@ export function Logo({
   showWordmark?: boolean;
 }) {
   return (
-    <span className={cn("inline-flex items-center gap-2.5", className)}>
-      <LogoMark size={markSize} />
+    <span
+      className={cn("inline-flex items-center gap-2 text-foreground", className)}
+      aria-label="Callpme"
+      role="img"
+    >
+      <LogoSymbol size={markSize} />
       {showWordmark && (
-        <span className="text-[1.15rem] font-semibold tracking-[-0.03em] text-foreground">
-          Callpme
+        <span className="text-[1.2rem] font-semibold leading-none tracking-[-0.045em]" aria-hidden>
+          callpme
         </span>
       )}
     </span>

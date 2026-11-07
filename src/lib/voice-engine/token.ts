@@ -23,6 +23,8 @@ export interface VoiceTokenPayload {
    * l'émission (appel entrant) : le flux qui présente le jeton doit l'annoncer.
    */
   providerCallId?: string;
+  /** Compte Twilio du client qui porte l'appel (ProviderConnection) : transferts faits avec ses identifiants. */
+  twilioConnection?: string;
   /** Identifiant unique : le serveur vocal n'accepte chaque jeton qu'une fois. */
   jti: string;
   /** Expiration (ms depuis l'epoch). */

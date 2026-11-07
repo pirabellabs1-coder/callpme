@@ -38,9 +38,9 @@ async function handle(req: NextRequest) {
     // Nouveau jeton (usage unique) : la session vocale laisse le message puis raccroche.
     const { exp: _exp, jti: _jti, ...rest } = payload;
     const vm = createVoiceToken({ ...rest, metadata: { ...(payload.metadata ?? {}), voicemail: "1" } }, 5 * 60_000);
-    return xml(streamInstructions(vm));
+    return xml(streamInstructions(vm, payload.twilioConnection ? "twilio" : undefined));
   }
-  return xml(streamInstructions(token));
+  return xml(streamInstructions(token, payload.twilioConnection ? "twilio" : undefined));
 }
 
 export const GET = handle;

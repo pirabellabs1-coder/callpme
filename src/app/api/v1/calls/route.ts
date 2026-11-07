@@ -5,7 +5,7 @@ import { listCalls } from "@/lib/db/calls";
 import { ok, unauthorized, badRequest, forbidden, notFound, serverError } from "@/lib/api/respond";
 import { z } from "zod";
 import { getAgentById } from "@/lib/db/agents";
-import { placeOutboundCall, telephonyConfigured } from "@/lib/telephony/provider";
+import { placeOutboundCall, outboundReady } from "@/lib/telephony/provider";
 import { checkDestination } from "@/lib/telephony/destinations";
 import { canCallOut } from "@/lib/billing/limits";
 import { isOptedOut } from "@/lib/campaigns/engine";
@@ -87,7 +87,7 @@ export async function POST(req: NextRequest) {
     const agent = await getAgentById(agentId);
     if (!agent || agent.organizationId !== org.id) return notFound("Agent introuvable");
     if (agent.status !== "active") return badRequest("L'agent doit être « En ligne » pour passer des appels.");
-    if (!telephonyConfigured()) return forbidden("Les appels sortants ne sont pas encore activés sur la plateforme.");
+    if (!(await outboundReady(agent))) return forbidden("Les appels sortants ne sont pas disponibles : reliez à l'agent un numéro de votre compte opérateur.");
 
     const to = toE164(parsed.data.to, await orgCountry(org.id));
     if (!to) return badRequest("Numéro invalide (format international attendu, ex. +22901970000).");

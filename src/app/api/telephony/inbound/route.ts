@@ -3,12 +3,12 @@ import { NextRequest } from "next/server";
 import { createVoiceToken } from "@/lib/voice-engine/token";
 import { agentForNumber, routeInbound } from "@/lib/telephony/routing";
 import { requestCallback } from "@/lib/callbacks/engine";
+import { signerOwnsNumber } from "@/lib/telephony/twilio-accounts";
 import {
   sayAndHangup,
   streamInstructions,
-  telephonyConfigured,
-  telephonyProvider,
-  readSignedWebhook,
+  voiceEngineReady,
+  readSignedWebhookWithAccount,
   toE164,
 } from "@/lib/telephony/provider";
 
@@ -31,19 +31,24 @@ function xml(body: string, status = 200) {
  * 3. Vérifie le quota de l'offre, puis relie l'appel au serveur vocal.
  */
 export async function POST(req: NextRequest) {
-  const provider = telephonyProvider();
-  if (!provider) return xml(sayAndHangup("Ce service n'est pas disponible."), 503);
+  // Signature du compte Twilio du client, de la plateforme, ou de Telnyx (plateforme).
+  const signed = await readSignedWebhookWithAccount(req, "/api/telephony/inbound");
+  if (!signed) return xml(sayAndHangup("Requête refusée."), 403);
+  const { params } = signed;
 
-  const params = await readSignedWebhook(req, "/api/telephony/inbound");
-  if (!params) return xml(sayAndHangup("Requête refusée."), 403);
-
-  if (!telephonyConfigured()) {
+  if (!voiceEngineReady()) {
     return xml(sayAndHangup("Le service vocal est momentanément indisponible. Merci de rappeler plus tard."));
   }
 
   const to = toE164(params.To ?? params.to ?? "");
   const from = toE164(params.From ?? params.from ?? "") ?? "inconnu";
   if (!to) return xml(sayAndHangup("Numéro inconnu."));
+
+  // Le compte qui signe doit être celui qui porte le numéro appelé (compte du client, ou
+  // plateforme pour ses propres numéros) : un client ne peut pas ouvrir d'appel vers l'agent d'un autre.
+  if (signed.mode === "twilio" && !(await signerOwnsNumber(to, signed.twilioConnection).catch(() => false))) {
+    return xml(sayAndHangup("Requête refusée."), 403);
+  }
 
   // Mode « bip » : on ne décroche pas (l'appelant ne paie rien) et l'agent rappelle, payé sur le
   // crédit d'appels sortants (donc avant la vérification des minutes de l'offre). Si le rappel est
@@ -80,6 +85,7 @@ export async function POST(req: NextRequest) {
     from,
     to,
     providerCallId,
+    ...(signed.twilioConnection ? { twilioConnection: signed.twilioConnection } : {}),
   });
-  return xml(streamInstructions(token));
+  return xml(streamInstructions(token, signed.mode));
 }

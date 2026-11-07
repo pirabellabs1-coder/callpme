@@ -16,7 +16,7 @@ import { canCallOut } from "../billing/limits";
 import { outboundDestinationOpen } from "../billing/outbound-rates";
 import { checkDestination } from "../telephony/destinations";
 import { toE164 } from "../telephony/e164";
-import { placeOutboundCall, telephonyConfigured } from "../telephony/provider";
+import { placeOutboundCall, voiceEngineReady } from "../telephony/provider";
 import { isOptedOut } from "../campaigns/engine";
 import type { Agent } from "../shared/types";
 import {
@@ -153,7 +153,7 @@ export interface CallbackTickReport {
 /** Un tour : clôt les rappels périmés et compose ceux arrivés à échéance. */
 export async function tickCallbacks(now = new Date()): Promise<CallbackTickReport> {
   const report: CallbackTickReport = { placed: 0, expired: 0, failed: 0 };
-  if (!telephonyConfigured()) return report;
+  if (!voiceEngineReady()) return report;
   await prisma.platformSetting
     .upsert({ where: { key: HEARTBEAT_KEY }, create: { key: HEARTBEAT_KEY, value: String(now.getTime()) }, update: { value: String(now.getTime()) } })
     .catch(() => {});

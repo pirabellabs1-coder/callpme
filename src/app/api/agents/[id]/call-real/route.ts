@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import { z } from "zod";
 import { getSession } from "@/lib/auth/session";
 import { getAgentById } from "@/lib/db/agents";
-import { placeOutboundCall, telephonyConfigured } from "@/lib/telephony/provider";
+import { placeOutboundCall, outboundReady } from "@/lib/telephony/provider";
 import { checkDestination } from "@/lib/telephony/destinations";
 import { canCallOut } from "@/lib/billing/limits";
 import {
@@ -26,12 +26,12 @@ export async function POST(
   try {
     const session = await getSession();
     if (!session) return unauthorized();
-    if (!telephonyConfigured()) {
-      return forbidden("La téléphonie réelle n'est pas encore connectée.");
-    }
     const agent = await getAgentById(params.id);
     if (!agent || agent.organizationId !== session.org.id) {
       return notFound("Agent introuvable");
+    }
+    if (!(await outboundReady(agent))) {
+      return forbidden("La téléphonie réelle n'est pas encore connectée : reliez à l'agent un numéro de votre compte opérateur.");
     }
     const body = await req.json().catch(() => null);
     const parsed = schema.safeParse(body);

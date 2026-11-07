@@ -9,7 +9,6 @@ import {
   Check,
   Loader2,
   Plug,
-  KeyRound,
   X,
   AlertCircle,
   PhoneForwarded,
@@ -27,8 +26,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
-import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
+import { OperatorAccounts } from "./operator-accounts";
 
 export function NumbersManager({
   initialNumbers,
@@ -42,8 +41,6 @@ export function NumbersManager({
   const [numbers, setNumbers] = useState(initialNumbers);
   const [providers, setProviders] = useState(initialProviders);
   const [showNumber, setShowNumber] = useState(false);
-  const [showProvider, setShowProvider] = useState(false);
-  const [provError, setProvError] = useState<string | null>(null);
   const [numError, setNumError] = useState<string | null>(null);
   const [removing, setRemoving] = useState<string | null>(null);
 
@@ -56,15 +53,6 @@ export function NumbersManager({
   });
   const [addingNum, setAddingNum] = useState(false);
 
-  // Provider form
-  const [prov, setProv] = useState<{
-    provider: TelephonyProvider;
-    label: string;
-    creds: Record<string, string>;
-  }>({ provider: "twilio", label: "", creds: {} });
-  const [addingProv, setAddingProv] = useState(false);
-
-  const providerInfo = TELEPHONY_PROVIDERS.find((p) => p.id === prov.provider);
   const unlimited = maxNumbers >= UNLIMITED;
   const limitReached = !unlimited && numbers.length >= maxNumbers;
 
@@ -93,30 +81,6 @@ export function NumbersManager({
     setAddingNum(false);
   }
 
-  async function connectProvider(e: React.FormEvent) {
-    e.preventDefault();
-    setAddingProv(true);
-    setProvError(null);
-    const res = await fetch("/api/providers", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        provider: prov.provider,
-        label: prov.label.trim() || providerLabel(prov.provider),
-        ...prov.creds,
-      }),
-    });
-    const data = await res.json().catch(() => ({}));
-    if (res.ok) {
-      setProviders((p) => [...p, data.provider]);
-      setProv({ provider: "twilio", label: "", creds: {} });
-      setShowProvider(false);
-    } else {
-      setProvError(data.error ?? "Enregistrement impossible.");
-    }
-    setAddingProv(false);
-  }
-
   async function removeNumber(n: PhoneNumberRecord) {
     const msg = n.assignedAgentName
       ? `Supprimer le numéro ${n.number} ? Il est relié à l'agent « ${n.assignedAgentName} ».`
@@ -127,16 +91,6 @@ export function NumbersManager({
     const res = await fetch(`/api/numbers/${n.id}`, { method: "DELETE" });
     if (res.ok) setNumbers((list) => list.filter((x) => x.id !== n.id));
     else setNumError("Suppression impossible. Réessayez.");
-    setRemoving(null);
-  }
-
-  async function removeProvider(p: ProviderConnectionRecord) {
-    if (!window.confirm(`Retirer l'opérateur « ${p.label} » et ses identifiants ?`)) return;
-    setProvError(null);
-    setRemoving(p.id);
-    const res = await fetch(`/api/providers/${p.id}`, { method: "DELETE" });
-    if (res.ok) setProviders((list) => list.filter((x) => x.id !== p.id));
-    else setProvError("Suppression impossible. Réessayez.");
     setRemoving(null);
   }
 
@@ -151,9 +105,8 @@ export function NumbersManager({
           Comment relier un numéro à un agent
         </h2>
         <Step n={1} icon={Phone} title="Numéro">
-          Achetez un numéro dans notre catalogue, ou déclarez celui de votre opérateur : un
-          numéro déclaré passe « En attente » le temps que l&apos;équipe Callpme vérifie son
-          raccordement, puis « Actif ».
+          Achetez un numéro dans notre catalogue, ou connectez votre compte Twilio ci-dessous et
+          importez vos numéros : ils sont configurés automatiquement et actifs tout de suite.
         </Step>
         <Step n={2} icon={Plug} title="Agent">
           Reliez le numéro à un agent à l&apos;étape « Téléphonie » de sa configuration : les
@@ -165,6 +118,12 @@ export function NumbersManager({
           occupé / sans réponse).
         </Step>
       </section>
+
+      <OperatorAccounts
+        providers={providers}
+        onProvidersChange={setProviders}
+        onImported={(n) => setNumbers((list) => [...list.filter((x) => x.number !== n.number), n])}
+      />
 
       {/* Numbers */}
       <Card>

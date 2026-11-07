@@ -202,7 +202,7 @@ function onTelephony(ws: WebSocket, preAuth: VoiceTokenPayload | null, leavePend
       if (!providerCallId || !payload) return Promise.resolve(false);
       // Appel non lié à l'émission du jeton (sortant) : on vérifie ses numéros.
       const expected = payload.providerCallId ? undefined : { from: payload.from, to: payload.to };
-      return transferCall(providerCallId, to, expected);
+      return transferCall(providerCallId, to, expected, payload.twilioConnection, payload.organizationId);
     },
   };
 

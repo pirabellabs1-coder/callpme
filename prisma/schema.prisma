@@ -262,6 +262,8 @@ model PhoneNumber {
   providerRef    String?
   /// Acheté via Callpme (true) ou ajouté à la main (à vérifier par l'équipe).
   purchased      Boolean      @default(false)
+  /// Compte opérateur du client (ProviderConnection) qui porte ce numéro : appels faits avec ses identifiants.
+  connectionId   String?
   createdAt      DateTime     @default(now())
 
   @@index([organizationId])
@@ -333,10 +335,13 @@ model ProviderConnection {
   authToken      String?
   apiKey         String?
   apiSecret      String?
+  /// Empreinte (SHA-256) de l'identifiant de compte : retrouve le compte d'un webhook signé.
+  accountKey     String?
   enabled        Boolean      @default(true)
   createdAt      DateTime     @default(now())
 
   @@index([organizationId])
+  @@unique([provider, accountKey])
 }
 
 // ----- Espace agence multi-clients (Track 3) -----

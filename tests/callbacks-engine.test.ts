@@ -56,7 +56,7 @@ vi.mock("@/lib/db/client", () => ({ prisma: db.prisma }));
 vi.mock("@/lib/geo/org-country", () => ({ orgCountry: async () => "BJ" }));
 vi.mock("@/lib/billing/limits", () => ({ canCallOut: async () => ({ ok: true }) }));
 vi.mock("@/lib/campaigns/engine", () => ({ isOptedOut: async (_o: string, p: string) => p === "+22997999999" }));
-vi.mock("@/lib/telephony/provider", () => ({ placeOutboundCall: place, telephonyConfigured: () => true }));
+vi.mock("@/lib/telephony/provider", () => ({ placeOutboundCall: place, telephonyConfigured: () => true, voiceEngineReady: () => true }));
 vi.mock("@/lib/db/agents", () => ({ getAgentById: async () => agent }));
 
 import { recordCallbackOutcome, requestCallback, tickCallbacks } from "@/lib/callbacks/engine";

@@ -12,7 +12,7 @@
  *  - Telnyx : TELNYX_API_KEY, TELNYX_TEXML_APP_ID, TELNYX_FROM_NUMBER, TELNYX_PUBLIC_KEY
  */
 import { attachProviderCall, releaseHold, reserveOutbound, sweepStaleHolds, type OutboundRefusal } from "../billing/credit";
-import { createHmac, createPublicKey, timingSafeEqual, verify as edVerify, randomBytes } from "crypto";
+import { createPublicKey, verify as edVerify, randomBytes } from "crypto";
 import type { Agent } from "../shared/types";
 import { createVoiceToken } from "../voice-engine/token";
 import { sttConfigured } from "../voice-engine/stt";
@@ -20,6 +20,15 @@ import { ttsConfigured } from "../voice-engine/tts";
 import { toE164 } from "./e164";
 import { checkDestination } from "./destinations";
 import { createSipSession, originateSipCall, setSipTransfer, sipConfigured } from "./sip";
+import {
+  connectionCreds,
+  platformTwilio,
+  twilioAuthHeader,
+  twilioSignatureValid,
+  verifyTwilioWebhook,
+  type TwilioCreds,
+} from "./twilio-accounts";
+import { prisma } from "../db/client";
 
 export type TelephonyProvider = "twilio" | "telnyx" | "sip";
 
@@ -48,6 +57,35 @@ export function telephonyConfigured(): boolean {
   return telephonyProvider() !== null && voiceEngineMissing().length === 0 && Boolean(fromNumber());
 }
 
+/**
+ * Compte Twilio du client pour les appels sortants d'un agent : le numéro de
+ * l'agent appartient à un compte Twilio connecté par le client.
+ */
+type CallingAgent = Pick<Agent, "phoneNumber" | "organizationId">;
+
+async function agentTwilio(agent: CallingAgent): Promise<{ creds: TwilioCreds; from: string } | null> {
+  if (!agent.phoneNumber) return null;
+  const row = await prisma.phoneNumber.findUnique({
+    where: { number: agent.phoneNumber },
+    select: { connectionId: true, organizationId: true, status: true },
+  });
+  if (!row?.connectionId || row.organizationId !== agent.organizationId || row.status !== "active") return null;
+  const creds = await connectionCreds(row.connectionId, agent.organizationId);
+  return creds ? { creds, from: agent.phoneNumber } : null;
+}
+
+/** L'agent peut-il passer un vrai appel (son compte Twilio, ou la téléphonie de la plateforme) ? */
+export async function outboundReady(agent: CallingAgent): Promise<boolean> {
+  if (voiceEngineMissing().length > 0) return false;
+  if (await agentTwilio(agent).catch(() => null)) return true;
+  return telephonyConfigured();
+}
+
+/** Moteur vocal prêt (serveur vocal, transcription, voix) : suffit pour décrocher un appel entrant. */
+export function voiceEngineReady(): boolean {
+  return voiceEngineMissing().length === 0;
+}
+
 function fromNumber(): string | null {
   const p = telephonyProvider();
   if (p === "twilio") return process.env.TWILIO_FROM_NUMBER || null;
@@ -65,9 +103,9 @@ function escapeXml(s: string): string {
 }
 
 /** Instructions (TwiML/TeXML) qui relient l'appel au serveur vocal. */
-export function streamInstructions(token: string): string {
+export function streamInstructions(token: string, mode?: "twilio" | "telnyx"): string {
   const base = (process.env.VOICE_SERVER_URL || "").replace(/\/$/, "");
-  const telnyxMode = telephonyProvider() === "telnyx";
+  const telnyxMode = (mode ?? telephonyProvider()) === "telnyx";
   // Telnyx : jeton dans l'URL (vérifié dès la connexion). Twilio n'accepte pas
   // de paramètres dans l'URL du flux : jeton transmis via <Parameter>.
   const url = telnyxMode ? `${base}/ws/telephony?t=${encodeURIComponent(token)}` : `${base}/ws/telephony`;
@@ -108,7 +146,7 @@ export async function placeOutboundCall(opts: {
   /** Plafond de durée propre à cet appel (ex. rappel automatique), en plus de celui de l'agent. */
   maxDurationSec?: number;
 }): Promise<PlaceCallResult> {
-  if (!telephonyProvider() || !telephonyConfigured()) return { ok: false, error: "Téléphonie non configurée." };
+  if (!(await outboundReady(opts.agent))) return { ok: false, error: "Téléphonie non configurée." };
   const to = toE164(opts.toNumber);
   if (!to) return { ok: false, error: "Numéro invalide (format attendu : +33…)." };
   void sweepStaleHolds().catch(() => {});
@@ -130,11 +168,14 @@ async function dialOutbound(opts: {
   toNumber: string;
   metadata?: Record<string, string>;
 }): Promise<PlaceCallResult> {
-  const provider = telephonyProvider();
-  if (!provider || !telephonyConfigured()) return { ok: false, error: "Téléphonie non configurée." };
+  // Numéro de l'agent porté par le compte Twilio du client : l'appel part de son compte.
+  const own = await agentTwilio(opts.agent).catch(() => null);
+  const provider = own ? "twilio" : telephonyProvider();
+  if (!provider || (!own && !telephonyConfigured())) return { ok: false, error: "Téléphonie non configurée." };
   const to = toE164(opts.toNumber);
   if (!to) return { ok: false, error: "Numéro invalide (format attendu : +33…)." };
-  const from = fromNumber()!;
+  const from = own ? own.from : fromNumber()!;
+  const twilio: TwilioCreds | null = own ? own.creds : platformTwilio();
 
   // Passerelle SIP : session préparée puis appel lancé par Asterisk (ARI).
   if (provider === "sip") {
@@ -163,15 +204,17 @@ async function dialOutbound(opts: {
     from,
     to,
     metadata: opts.metadata,
+    ...(own?.creds.connectionId ? { twilioConnection: own.creds.connectionId } : {}),
   });
 
   try {
     if (provider === "twilio") {
-      const sid = process.env.TWILIO_ACCOUNT_SID!;
+      if (!twilio) return { ok: false, error: "Téléphonie non configurée." };
+      const sid = twilio.sid;
       const res = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${sid}/Calls.json`, {
         method: "POST",
         headers: {
-          Authorization: `Basic ${Buffer.from(`${sid}:${process.env.TWILIO_AUTH_TOKEN}`).toString("base64")}`,
+          Authorization: twilioAuthHeader(twilio),
           "Content-Type": "application/x-www-form-urlencoded",
         },
         body: new URLSearchParams({
@@ -233,8 +276,13 @@ export async function transferCall(
   providerCallId: string,
   toNumber: string,
   expected?: { from: string; to: string },
+  /** Compte Twilio du client qui porte l'appel (jeton signé). */
+  twilioConnection?: string,
+  organizationId?: string,
 ): Promise<boolean> {
-  const provider = telephonyProvider();
+  const own = twilioConnection ? await connectionCreds(twilioConnection, organizationId).catch(() => null) : null;
+  if (twilioConnection && !own) return false;
+  const provider = own ? "twilio" : telephonyProvider();
   const to = toE164(toNumber);
   if (!provider || !to || !providerCallId) return false;
   if (!checkDestination(to).ok) return false;
@@ -242,8 +290,10 @@ export async function transferCall(
   if (provider === "sip") return setSipTransfer(providerCallId, to);
   try {
     if (provider === "twilio") {
-      const sid = process.env.TWILIO_ACCOUNT_SID!;
-      const auth = `Basic ${Buffer.from(`${sid}:${process.env.TWILIO_AUTH_TOKEN}`).toString("base64")}`;
+      const creds = own ?? platformTwilio();
+      if (!creds) return false;
+      const sid = creds.sid;
+      const auth = twilioAuthHeader(creds);
       const callUrl = `https://api.twilio.com/2010-04-01/Accounts/${sid}/Calls/${encodeURIComponent(providerCallId)}.json`;
       if (expected) {
         const check = await fetch(callUrl, { headers: { Authorization: auth }, signal: AbortSignal.timeout(8000) });
@@ -251,7 +301,8 @@ export async function transferCall(
         const same = (a?: string, b?: string) => Boolean(a && b && toE164(a) === toE164(b));
         if (!check.ok || !same(call.to, expected.to) || !same(call.from, expected.from)) return false;
       }
-      const callerId = fromNumber();
+      // Numéro affiché : celui de l'appel (compte client) ou le numéro de la plateforme.
+      const callerId = own ? (expected?.to ?? null) : fromNumber();
       const twiml =
         `<?xml version="1.0" encoding="UTF-8"?><Response>` +
         `<Dial timeLimit="${TRANSFER_TIME_LIMIT_SEC}"${callerId ? ` callerId="${escapeXml(callerId)}"` : ""}>${escapeXml(to)}</Dial>` +
@@ -284,12 +335,7 @@ export async function transferCall(
 
 /** Signature Twilio (X-Twilio-Signature) : HMAC-SHA1 de l'URL + paramètres triés. */
 export function verifyTwilioSignature(url: string, params: Record<string, string>, signature: string | null): boolean {
-  const token = process.env.TWILIO_AUTH_TOKEN;
-  if (!token || !signature) return false;
-  const data = url + Object.keys(params).sort().map((k) => k + params[k]).join("");
-  const expected = Buffer.from(createHmac("sha1", token).update(data).digest("base64"));
-  const given = Buffer.from(signature);
-  return expected.length === given.length && timingSafeEqual(expected, given);
+  return twilioSignatureValid(process.env.TWILIO_AUTH_TOKEN ?? "", url, params, signature);
 }
 
 /** Signature Telnyx (ed25519 sur « horodatage|corps brut »). */
@@ -320,15 +366,27 @@ export async function readSignedWebhook(
   req: Request,
   path: string,
 ): Promise<Record<string, string> | null> {
-  const provider = telephonyProvider();
-  if (!provider) return null;
+  return (await readSignedWebhookWithAccount(req, path))?.params ?? null;
+}
+
+/**
+ * Comme readSignedWebhook, et dit quel compte a signé : compte Twilio d'un
+ * client (connectionId), compte de la plateforme, ou Telnyx de la plateforme.
+ */
+export async function readSignedWebhookWithAccount(
+  req: Request,
+  path: string,
+): Promise<{ params: Record<string, string>; mode: "twilio" | "telnyx"; twilioConnection?: string } | null> {
   const raw = await req.text();
   const params = Object.fromEntries(new URLSearchParams(raw));
-  const valid =
-    provider === "twilio"
-      ? verifyTwilioSignature(`${publicUrl()}${path}`, params, req.headers.get("x-twilio-signature"))
-      : verifyTelnyxSignature(raw, req.headers.get("telnyx-signature-ed25519"), req.headers.get("telnyx-timestamp"));
-  return valid ? params : null;
+  const twilioSig = req.headers.get("x-twilio-signature");
+  if (twilioSig) {
+    const account = await verifyTwilioWebhook(`${publicUrl()}${path}`, params, twilioSig).catch(() => null);
+    return account ? { params, mode: "twilio", twilioConnection: account.connectionId } : null;
+  }
+  if (telephonyProvider() !== "telnyx") return null;
+  const valid = verifyTelnyxSignature(raw, req.headers.get("telnyx-signature-ed25519"), req.headers.get("telnyx-timestamp"));
+  return valid ? { params, mode: "telnyx" } : null;
 }
 
 /** Réponse de l'opérateur au décroché : humain, répondeur (après le bip) ou fax. */

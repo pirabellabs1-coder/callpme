@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { recordContactOutcome } from "@/lib/campaigns/engine";
-import { readSignedWebhook } from "@/lib/telephony/provider";
+import { readSignedWebhookWithAccount } from "@/lib/telephony/provider";
+import { connectionCreds, fetchTwilioCall, signerOwnsNumber } from "@/lib/telephony/twilio-accounts";
 import { settleHold } from "@/lib/billing/credit";
 import { recordCallbackOutcome, requestCallback } from "@/lib/callbacks/engine";
 import { agentForNumber } from "@/lib/telephony/routing";
@@ -24,8 +25,32 @@ const NOT_CONNECTED: Record<string, "no_answer" | "failed"> = {
  * Les appels aboutis sont enregistrés par le serveur vocal lui-même.
  */
 export async function POST(req: NextRequest) {
-  const params = await readSignedWebhook(req, "/api/telephony/status");
-  if (!params) return new Response("Requête refusée.", { status: 403 });
+  const signed = await readSignedWebhookWithAccount(req, "/api/telephony/status");
+  if (!signed) return new Response("Requête refusée.", { status: 403 });
+  let params = signed.params;
+  // Compte Twilio d'un client : il connaît le jeton qui signe, donc on ne croit pas le corps.
+  // L'appel est relu chez Twilio avec SES identifiants (preuve qu'il est à lui, durée facturée réelle).
+  if (signed.twilioConnection) {
+    const creds = await connectionCreds(signed.twilioConnection).catch(() => null);
+    const call = creds && params.CallSid ? await fetchTwilioCall(creds, params.CallSid) : null;
+    if (!call) return new Response("Requête refusée.", { status: 403 });
+    params = {
+      CallSid: params.CallSid,
+      CallStatus: call.status,
+      CallDuration: String(call.duration),
+      Direction: call.direction,
+      To: call.to,
+      From: call.from,
+    };
+  }
+  if (signed.mode === "twilio") {
+    // Le numéro Callpme de l'appel (appelé si entrant, appelant si sortant) doit être porté par le signataire.
+    const inboundCall = (params.Direction ?? "").toLowerCase().startsWith("inbound");
+    const own = toE164((inboundCall ? params.To : params.From) ?? "");
+    if (own && !(await signerOwnsNumber(own, signed.twilioConnection).catch(() => false))) {
+      return new Response("Requête refusée.", { status: 403 });
+    }
+  }
 
   const callId = params.CallSid ?? params.call_sid;
   // Règlement du crédit sur la durée FACTURÉE par l'opérateur (détection de répondeur

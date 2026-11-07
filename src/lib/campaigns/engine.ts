@@ -14,7 +14,7 @@ import { prisma } from "../db/client";
 import { getAgentById } from "../db/agents";
 import { canCallOut } from "../billing/limits";
 import { checkDestination } from "../telephony/destinations";
-import { placeOutboundCall, telephonyConfigured } from "../telephony/provider";
+import { placeOutboundCall, voiceEngineReady } from "../telephony/provider";
 import { toE164 } from "../telephony/e164";
 import { afterAttempt, campaignSettings, inCallingWindow, RETRYABLE } from "./settings";
 
@@ -225,7 +225,7 @@ async function tickLocked(
 
 /** Un tour pour toutes les campagnes en cours. */
 export async function tickCampaigns(now = new Date()): Promise<TickReport[]> {
-  if (!telephonyConfigured()) return [];
+  if (!voiceEngineReady()) return [];
   const running = await prisma.campaign.findMany({ where: { status: "running" }, select: { id: true } });
   const reports: TickReport[] = [];
   const started = Date.now();

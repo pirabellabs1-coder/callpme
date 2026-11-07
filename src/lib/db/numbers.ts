@@ -133,6 +133,8 @@ export async function createProvider(
     authToken?: string;
     apiKey?: string;
     apiSecret?: string;
+    /** Empreinte de l'identifiant de compte (Twilio) pour authentifier ses webhooks. */
+    accountKey?: string;
   },
 ): Promise<ProviderConnectionRecord> {
   const row = await prisma.providerConnection.create({
@@ -140,6 +142,7 @@ export async function createProvider(
       organizationId: orgId,
       provider: data.provider,
       label: data.label,
+      accountKey: data.accountKey ?? null,
       accountSid: encryptSecret(data.accountSid),
       authToken: encryptSecret(data.authToken),
       apiKey: encryptSecret(data.apiKey),
@@ -161,6 +164,10 @@ export async function createProvider(
 export async function deleteProvider(orgId: string, id: string) {
   const row = await prisma.providerConnection.findUnique({ where: { id } });
   if (!row || row.organizationId !== orgId) return false;
-  await prisma.providerConnection.delete({ where: { id } });
+  // Ses numéros ne peuvent plus être appelés avec ce compte : ils repassent « en attente ».
+  await prisma.$transaction([
+    prisma.phoneNumber.updateMany({ where: { organizationId: orgId, connectionId: id }, data: { connectionId: null, status: "pending" } }),
+    prisma.providerConnection.delete({ where: { id } }),
+  ]);
   return true;
 }

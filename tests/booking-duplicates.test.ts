@@ -27,6 +27,12 @@ const db = vi.hoisted(() => {
         return row;
       },
       update: async () => ({}),
+      updateMany: async ({ where, data }: { where: Record<string, unknown>; data: Record<string, unknown> }) => {
+        const r = rows.find((x) => x.id === where.id && x.status === where.status);
+        if (!r) return { count: 0 };
+        Object.assign(r, data);
+        return { count: 1 };
+      },
     },
   };
   return { rows, prisma };
@@ -131,12 +137,6 @@ describe("noms découpés par la transcription", () => {
     const noDay = await cancelAppointment("o1", { name: "Lisa non" }, { now });
     expect(noDay.ok).toBe(false);
     expect(noDay.message).toContain("masqué");
-    db.prisma.appointment.updateMany = async ({ where, data }: { where: Record<string, unknown>; data: Record<string, unknown> }) => {
-      const r = db.rows.find((x) => x.id === where.id && x.status === where.status);
-      if (!r) return { count: 0 };
-      Object.assign(r, data);
-      return { count: 1 };
-    };
     const ok = await cancelAppointment("o1", { name: "Lisa non", date: "2026-11-09" }, { now });
     expect(ok.ok).toBe(true);
     expect(db.rows[0].status).toBe("cancelled");

@@ -11,6 +11,37 @@ import { checkDestination } from "./destinations";
 import { toE164 } from "./e164";
 import { telephonyProvider } from "./provider";
 import { takeDailyQuota } from "../security/daily-quota";
+import { prisma } from "../db/client";
+import { connectionCreds, twilioAuthHeader, twilioErrorFr, type TwilioCreds } from "./twilio-accounts";
+
+/** Expéditeur valide : numéro E.164, ou nom de 3 à 11 caractères avec au moins une lettre. */
+export function validSmsSender(v: string): boolean {
+  return /^\+[1-9]\d{6,14}$/.test(v) || (/^[A-Za-z0-9 ]{3,11}$/.test(v) && /[A-Za-z]/.test(v));
+}
+
+/**
+ * Compte Twilio du client pour les SMS : celui qui porte le numéro de l'agent,
+ * sinon le premier compte Twilio de l'organisation. Expéditeur : celui réglé
+ * sur le compte, sinon le numéro de l'agent.
+ */
+async function clientSmsRoute(organizationId: string, agentNumber?: string | null): Promise<{ creds: TwilioCreds; from: string } | null> {
+  let connectionId: string | null = null;
+  if (agentNumber) {
+    const n = await prisma.phoneNumber.findUnique({ where: { number: agentNumber }, select: { connectionId: true, organizationId: true } });
+    if (n?.organizationId === organizationId) connectionId = n.connectionId;
+  }
+  const conn = connectionId
+    ? await prisma.providerConnection.findFirst({ where: { id: connectionId, organizationId }, select: { id: true, smsSender: true } })
+    : await prisma.providerConnection.findFirst({
+        where: { organizationId, provider: "twilio", enabled: true },
+        orderBy: { createdAt: "asc" },
+        select: { id: true, smsSender: true },
+      });
+  if (!conn) return null;
+  const creds = await connectionCreds(conn.id, organizationId);
+  const from = conn.smsSender || agentNumber || null;
+  return creds && from ? { creds, from } : null;
+}
 
 const MAX_PER_CALL = 3;
 const sentPerCall = new Map<string, number>();
@@ -31,10 +62,11 @@ export interface SmsResult {
 export async function sendSms(
   rawTo: string,
   text: string,
-  opts: { callId?: string; organizationId?: string } = {},
+  opts: { callId?: string; organizationId?: string; agentNumber?: string | null } = {},
 ): Promise<SmsResult> {
-  const provider = telephonyProvider();
-  if (!provider || !smsConfigured()) return { ok: false, error: "SMS non configurés." };
+  const own = opts.organizationId ? await clientSmsRoute(opts.organizationId, opts.agentNumber).catch(() => null) : null;
+  const provider = own ? "twilio" : telephonyProvider();
+  if (!provider || (!own && !smsConfigured())) return { ok: false, error: "SMS non configurés." };
   const to = toE164(rawTo, opts.organizationId ? await orgCountry(opts.organizationId) : undefined);
   if (!to) return { ok: false, error: "Numéro invalide." };
   const dest = checkDestination(to);
@@ -52,21 +84,19 @@ export async function sendSms(
 
   try {
     if (provider === "twilio") {
-      const sid = process.env.TWILIO_ACCOUNT_SID!;
-      const res = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${sid}/Messages.json`, {
+      const creds: TwilioCreds = own?.creds ?? { sid: process.env.TWILIO_ACCOUNT_SID!, token: process.env.TWILIO_AUTH_TOKEN! };
+      const from = own?.from ?? (process.env.TWILIO_SMS_FROM || process.env.TWILIO_FROM_NUMBER)!;
+      const res = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${creds.sid}/Messages.json`, {
         method: "POST",
-        headers: {
-          Authorization: `Basic ${Buffer.from(`${sid}:${process.env.TWILIO_AUTH_TOKEN}`).toString("base64")}`,
-          "Content-Type": "application/x-www-form-urlencoded",
-        },
-        body: new URLSearchParams({
-          To: to,
-          From: (process.env.TWILIO_SMS_FROM || process.env.TWILIO_FROM_NUMBER)!,
-          Body: body,
-        }),
+        headers: { Authorization: twilioAuthHeader(creds), "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({ To: to, From: from, Body: body }),
         signal: AbortSignal.timeout(10000),
       });
-      return res.ok ? { ok: true } : { ok: false, error: `SMS refusé (HTTP ${res.status}).` };
+      if (res.ok) return { ok: true };
+      const data = (await res.json().catch(() => ({}))) as { code?: number; message?: string };
+      const error = twilioErrorFr(data.code, data.message || `HTTP ${res.status}`);
+      console.error(`[sms] refusé par Twilio (${from}) : ${error}`);
+      return { ok: false, error };
     }
     const res = await fetch("https://api.telnyx.com/v2/messages", {
       method: "POST",

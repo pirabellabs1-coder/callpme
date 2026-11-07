@@ -273,13 +273,13 @@ export async function bookAppointment(
         timezone: cfg.timezone,
       });
       if (eventId) await prisma.appointment.update({ where: { id: appt.id }, data: { googleEventId: eventId } }).catch(() => {});
-      // SMS seulement au numéro réellement appelant (jamais à un numéro dicté).
-      if (cfg.smsConfirmation && phone && caller && phone === caller) {
+      // SMS au numéro réellement appelant ; si le numéro est masqué, au numéro que la personne a donné.
+      if (cfg.smsConfirmation && phone && (caller ? phone === caller : true)) {
         const org = await prisma.organization.findUnique({ where: { id: agent.organizationId }, select: { name: true } });
         await sendSms(
           phone,
           `${org?.name ?? "Votre rendez-vous"} : rendez-vous confirmé le ${when}. Réf. ${appt.reference}. Pour annuler, rappelez-nous en indiquant cette référence.`,
-          { callId: ctx.callRef, organizationId: agent.organizationId },
+          { callId: ctx.callRef, organizationId: agent.organizationId, agentNumber: agent.phoneNumber },
         );
       }
       await createNotification(agent.organizationId, {

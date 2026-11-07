@@ -121,6 +121,7 @@ export async function listProviders(
       r.accountSid || r.authToken || r.apiKey || r.apiSecret,
     ),
     createdAt: r.createdAt.toISOString(),
+    smsSender: r.smsSender ?? null,
   }));
 }
 
@@ -158,6 +159,7 @@ export async function createProvider(
       row.accountSid || row.authToken || row.apiKey || row.apiSecret,
     ),
     createdAt: row.createdAt.toISOString(),
+    smsSender: row.smsSender ?? null,
   };
 }
 

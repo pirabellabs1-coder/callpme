@@ -408,6 +408,8 @@ export interface ProviderConnectionRecord {
   enabled: boolean;
   hasCredentials: boolean;
   createdAt: string;
+  /** Expéditeur des SMS (numéro SMS ou nom de 3 à 11 caractères). */
+  smsSender?: string | null;
 }
 
 /* ------------------------------------------------------------------ */

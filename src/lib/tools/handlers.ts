@@ -119,7 +119,7 @@ const HANDLERS: Record<string, Handler> = {
         organizationId: ctx.organizationId,
         agentId: ctx.agentId,
         name: str(args.name, 120),
-        phone: callerPhone(ctx),
+        phone: callerPhone(ctx) ?? str(args.phone, 40),
         email: str(args.email, 200),
         notes: `Rendez-vous ${r.reference}${str(args.notes) ? ` — ${str(args.notes)}` : ""}`,
         callRef: ctx.callId,

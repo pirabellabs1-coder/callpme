@@ -179,7 +179,10 @@ export function OperatorAccounts({
                 </button>
               </div>
               {SUPPORTED.includes(p.provider) ? (
-                <ImportNumbers connectionId={p.id} onImported={onImported} />
+                <>
+                  <ImportNumbers connectionId={p.id} onImported={onImported} />
+                  <SmsSender connectionId={p.id} initial={p.smsSender ?? ""} />
+                </>
               ) : (
                 <p className="mt-2 text-xs text-muted-foreground">
                   L&apos;import automatique n&apos;est pas encore disponible pour cet opérateur.
@@ -190,6 +193,57 @@ export function OperatorAccounts({
         </ul>
       )}
     </Card>
+  );
+}
+
+/** Expéditeur des SMS (confirmations de rendez-vous, références) envoyés avec ce compte. */
+function SmsSender({ connectionId, initial }: { connectionId: string; initial: string }) {
+  const [value, setValue] = useState(initial);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+
+  async function save(e: React.FormEvent) {
+    e.preventDefault();
+    setBusy(true);
+    setMsg(null);
+    const res = await fetch(`/api/providers/${connectionId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ smsSender: value.trim() }),
+    });
+    const data = await res.json().catch(() => ({}));
+    setBusy(false);
+    setMsg({ ok: res.ok, text: res.ok ? "Expéditeur enregistré." : (data.error ?? "Enregistrement impossible.") });
+  }
+
+  return (
+    <form onSubmit={save} className="mt-3 space-y-1.5 rounded-lg border border-border p-3">
+      <Label htmlFor={`sms-${connectionId}`}>Expéditeur des SMS (confirmations, références)</Label>
+      <div className="flex flex-wrap gap-2">
+        <Input
+          id={`sms-${connectionId}`}
+          value={value}
+          maxLength={16}
+          onChange={(e) => setValue(e.target.value)}
+          placeholder="ex. CABINET, ou +33 6 12 34 56 78"
+          className="max-w-xs"
+          aria-describedby={`sms-hint-${connectionId}`}
+        />
+        <Button type="submit" size="sm" variant="secondary" disabled={busy}>
+          {busy && <Loader2 className="size-4 animate-spin" aria-hidden="true" />}
+          Enregistrer
+        </Button>
+      </div>
+      <p id={`sms-hint-${connectionId}`} className="text-xs text-muted-foreground">
+        Un numéro mobile de votre compte Twilio, ou un nom de 3 à 11 caractères (sans accents). Vide : le numéro de l&apos;agent
+        (un numéro fixe ne peut pas envoyer de SMS).
+      </p>
+      {msg && (
+        <p role="status" className={`text-xs ${msg.ok ? "text-emerald-300" : "text-rose-300"}`}>
+          {msg.text}
+        </p>
+      )}
+    </form>
   );
 }
 

@@ -337,6 +337,8 @@ model ProviderConnection {
   apiSecret      String?
   /// Empreinte (SHA-256) de l'identifiant de compte : retrouve le compte d'un webhook signé.
   accountKey     String?
+  /// Expéditeur des SMS envoyés avec ce compte : numéro SMS (E.164) ou nom (3 à 11 caractères).
+  smsSender      String?
   enabled        Boolean      @default(true)
   createdAt      DateTime     @default(now())
 

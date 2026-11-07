@@ -362,6 +362,19 @@ ${CALLBACK_CONTEXT}` : CALLBACK_CONTEXT;
       `<contact>${JSON.stringify(vars)}</contact>`;
   }
 
+  /**
+   * Appel entrant au numéro masqué (non transmis par l'opérateur) : l'agent
+   * demande un numéro pour joindre la personne, et le passe aux outils.
+   */
+  private maskedCallerNote(): string {
+    if (this.ctx.direction !== "inbound" || /\d{6,}/.test(this.ctx.from)) return "";
+    return (
+      "## Numéro de l'appelant\nLe numéro de l'appelant est masqué. Avant de réserver un rendez-vous ou de prendre " +
+      "un message, demande-lui à quel numéro on peut le joindre, répète-le une fois pour le confirmer, et transmets-le " +
+      "dans le champ « phone » de l'outil."
+    );
+  }
+
   /** Phrases du moteur (repli, erreur, transfert, répondeur) dans la langue de l'agent. */
   private get phrases() {
     return systemPhrases(this.agent.config.voice.language);
@@ -593,7 +606,9 @@ ${CALLBACK_CONTEXT}` : CALLBACK_CONTEXT;
           organizationId: this.agent.organizationId,
           callId: this.ctx.callId,
           callerNumber: this.ctx.direction === "outbound" ? this.ctx.to : this.ctx.from,
-          extraInstructions: [VOICE_STYLE, this.contactInfo, supervisorInstructions(this.supervisorNotes)].filter(Boolean).join("\n\n"),
+          extraInstructions: [VOICE_STYLE, this.maskedCallerNote(), this.contactInfo, supervisorInstructions(this.supervisorNotes)]
+            .filter(Boolean)
+            .join("\n\n"),
           // Test navigateur : outils sans effet. Widget sur un site : vraie conversation.
           test: this.ctx.direction === "web" && this.ctx.metadata?.channel !== "widget",
           // L'agent commence à parler dès sa première phrase.

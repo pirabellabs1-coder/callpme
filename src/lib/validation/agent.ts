@@ -120,6 +120,7 @@ export const configSchema = z.object({
       message: z.string().trim().max(400).optional(),
     })
     .optional(),
+  whatsapp: z.object({ replyMode: z.enum(["voice", "text", "mirror"]) }).optional(),
   flow: flowSchema.optional(),
   widget: widgetSchema.optional(),
 });

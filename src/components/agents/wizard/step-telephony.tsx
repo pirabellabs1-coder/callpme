@@ -106,6 +106,44 @@ function CallbackFieldset({ s, set }: { s: WizardState; set: SetWizardState }) {
   );
 }
 
+/** Format des réponses sur WhatsApp. */
+function WhatsAppReplyFieldset({ s, set }: { s: WizardState; set: SetWizardState }) {
+  return (
+    <fieldset className="space-y-3 rounded-xl border border-border p-4">
+      <legend className="px-1 text-sm font-medium text-foreground">Réponses sur WhatsApp</legend>
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-3" role="radiogroup" aria-label="Format des réponses WhatsApp">
+        {(
+          [
+            ["mirror", "Comme la personne", "Note vocale pour une note vocale, texte pour un texte."],
+            ["voice", "Toujours en vocal", "L'agent répond en note vocale, avec sa voix."],
+            ["text", "Toujours par écrit", "Les notes vocales reçues sont transcrites, la réponse est écrite."],
+          ] as const
+        ).map(([value, title, note]) => (
+          <button
+            key={value}
+            type="button"
+            role="radio"
+            aria-checked={s.whatsappReplyMode === value}
+            onClick={() => set({ whatsappReplyMode: value })}
+            className={
+              "rounded-xl border p-3 text-left text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/30 " +
+              (s.whatsappReplyMode === value ? "border-brand/50 bg-brand/[0.06]" : "border-border hover:bg-foreground/[0.03]")
+            }
+          >
+            <span className="block font-medium text-foreground">{title}</span>
+            <span className="mt-0.5 block text-xs text-muted-foreground">{note}</span>
+          </button>
+        ))}
+      </div>
+      <p className="text-xs text-muted-foreground">
+        Notes vocales reçues : 3 minutes au maximum. Une réponse avec un lien, une adresse e-mail ou trop longue pour
+        être écoutée part par écrit. Les notes vocales utilisent la voix de l&apos;agent : avec une voix clonée, la
+        personne reçoit un fichier audio avec cette voix, qu&apos;elle peut conserver et partager.
+      </p>
+    </fieldset>
+  );
+}
+
 export function StepTelephony({
   s,
   set,
@@ -201,6 +239,8 @@ export function StepTelephony({
       </fieldset>
 
       <CallbackFieldset s={s} set={set} />
+
+      <WhatsAppReplyFieldset s={s} set={set} />
 
       <fieldset className="space-y-2">
         <legend className="mb-2 text-sm font-medium text-foreground">

@@ -106,7 +106,9 @@ export default async function ConversationsPage({ searchParams }: { searchParams
                       >
                         {m.kind === "voice" && (
                           <span className="mb-0.5 flex items-center gap-1 text-xs opacity-80">
-                            <Mic className="size-3" aria-hidden /> Note vocale (transcrite)
+                            <Mic className="size-3" aria-hidden />
+                            {m.role === "agent" ? "Réponse en note vocale" : "Note vocale (transcrite)"}
+                            {typeof m.durationSec === "number" && m.durationSec > 0 ? ` · ${m.durationSec} s` : ""}
                           </span>
                         )}
                         <p className="whitespace-pre-wrap">{m.text}</p>

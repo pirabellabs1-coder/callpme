@@ -174,6 +174,8 @@ export interface AgentConfig {
   voicemail?: VoicemailConfig;
   /** Rappel automatique des bips et des appels manqués. */
   callback?: CallbackConfig;
+  /** Canal WhatsApp : format des réponses. */
+  whatsapp?: WhatsAppConfig;
   /** Analyse de fin d'appel : données à relever et critère de réussite. */
   analysis?: AnalysisConfig;
   /** Parcours de conversation dessiné dans le constructeur visuel. */
@@ -231,6 +233,16 @@ export interface ConversationFlow {
   enabled: boolean;
   start: string;
   nodes: FlowNode[];
+}
+
+/**
+ * Réponses WhatsApp : « voice » toujours en note vocale, « text » toujours par
+ * écrit, « mirror » comme la personne (note vocale pour une note vocale).
+ */
+export type WhatsAppReplyMode = "voice" | "text" | "mirror";
+
+export interface WhatsAppConfig {
+  replyMode: WhatsAppReplyMode;
 }
 
 export interface CallbackConfig {

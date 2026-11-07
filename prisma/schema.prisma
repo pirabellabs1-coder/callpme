@@ -845,3 +845,109 @@ model PaymentRequest {
   @@index([organizationId, createdAt])
   @@index([callRef])
 }
+
+/// ses entraînements et les versions de modèle produites.
+model InhouseVoice {
+  id          String                @id @default(cuid())
+  name        String
+  description String?
+  gender      String? // feminine | masculine | neutral
+  accent      String?
+  language    String                @default("fr")
+  createdById String
+  consent     InhouseVoiceConsent?
+  clips       InhouseVoiceClip[]
+  jobs        InhouseTrainingJob[]
+  versions    InhouseVoiceVersion[]
+  createdAt   DateTime              @default(now())
+  updatedAt   DateTime              @updatedAt
+}
+
+/// Consentement signé du locuteur. Sans consentement valide (non révoqué) :
+/// aucun clip, aucun entraînement, aucune version publiée.
+model InhouseVoiceConsent {
+  id             String       @id @default(cuid())
+  voiceId        String       @unique
+  voice          InhouseVoice @relation(fields: [voiceId], references: [id], onDelete: Cascade)
+  speakerName    String
+  speakerContact String?
+  /// Version du modèle de formulaire de consentement signé (ex. "2026-11-v1").
+  formVersion    String
+  signedAt       DateTime
+  /// Formulaire signé (PDF ou photo), conservé comme preuve.
+  document       Bytes
+  documentMime   String
+  documentName   String
+  attestedById   String
+  attestedAt     DateTime     @default(now())
+  revokedAt      DateTime?
+  revokeReason   String?
+}
+
+/// Clip du jeu de données : un enregistrement court et sa transcription exacte.
+model InhouseVoiceClip {
+  id              String       @id @default(cuid())
+  voiceId         String
+  voice           InhouseVoice @relation(fields: [voiceId], references: [id], onDelete: Cascade)
+  transcript      String
+  audio           Bytes
+  mimeType        String
+  sizeBytes       Int
+  durationMs      Int?
+  source          String // upload | record
+  /// L'administrateur a attesté que ce clip est la voix du locuteur consentant.
+  consentAttested Boolean
+  uploadedById    String
+  createdAt       DateTime     @default(now())
+
+  @@index([voiceId, createdAt])
+}
+
+/// Entraînement (fine-tuning) lancé depuis l'espace admin et exécuté par le
+/// serveur d'entraînement GPU (CALLPME_TRAINING_URL).
+model InhouseTrainingJob {
+  id              String               @id @default(cuid())
+  voiceId         String
+  voice           InhouseVoice         @relation(fields: [voiceId], references: [id], onDelete: Cascade)
+  /// queued | submitted | running | succeeded | failed | canceled
+  status          String               @default("queued")
+  baseModel       String
+  clipCount       Int
+  totalDurationMs Int
+  progress        Int?
+  message         String?
+  externalJobId   String?
+  createdById     String
+  startedAt       DateTime?
+  finishedAt      DateTime?
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+  version         InhouseVoiceVersion?
+
+  @@index([voiceId, createdAt])
+  @@index([status])
+}
+
+/// Version de modèle produite par un entraînement, servie par le serveur
+/// d'inférence (CALLPME_TTS_URL). Publiée = présente au catalogue PlatformVoice.
+model InhouseVoiceVersion {
+  id              String              @id @default(cuid())
+  voiceId         String
+  voice           InhouseVoice        @relation(fields: [voiceId], references: [id], onDelete: Cascade)
+  jobId           String?             @unique
+  job             InhouseTrainingJob? @relation(fields: [jobId], references: [id], onDelete: SetNull)
+  number          Int
+  /// Référence du modèle chez le serveur d'inférence : `cpm_<jobId>`, attribuée
+  /// par Callpme au lancement de l'entraînement. Sert aussi d'identifiant de voix.
+  modelRef        String              @unique
+  /// draft | published | retired
+  status          String              @default("draft")
+  notes           String?
+  /// Échantillon WAV généré par le serveur d'inférence à la publication.
+  sampleAudio     Bytes?
+  platformVoiceId String?             @unique
+  publishedAt     DateTime?
+  createdAt       DateTime            @default(now())
+
+  @@unique([voiceId, number])
+}

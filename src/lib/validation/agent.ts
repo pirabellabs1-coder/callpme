@@ -17,7 +17,7 @@ export const languageField = z
   .refine((l) => !isRejectedLanguage(l), "Cette langue n'est pas encore disponible au téléphone.");
 
 export const voiceSchema = z.object({
-  provider: z.enum(["elevenlabs", "cartesia", "azure", "playht"]),
+  provider: z.enum(["elevenlabs", "cartesia", "azure", "playht", "callpme"]),
   voiceId: z.string().max(120),
   language: languageField,
   speed: z.number().min(0.5).max(2),

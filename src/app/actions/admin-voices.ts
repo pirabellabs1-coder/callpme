@@ -121,6 +121,13 @@ export async function updateCatalogVoice(id: string, input: z.input<typeof updat
   const parsed = updateSchema.safeParse(input);
   if (!parsed.success) return { error: "Nom de 2 à 60 caractères requis." };
   const d = parsed.data;
+  // Voix maison : réactivable seulement si sa version est publiée et le consentement valide.
+  if (d.active) {
+    const current = await prisma.platformVoice.findUnique({ where: { id }, select: { provider: true } });
+    if (current?.provider === "callpme" && !(await inhouseVersionPublished(id))) {
+      return { error: "Voix maison retirée ou consentement révoqué : republiez-la depuis « Voix maison »." };
+    }
+  }
   try {
     await prisma.platformVoice.update({
       where: { id },
@@ -131,6 +138,14 @@ export async function updateCatalogVoice(id: string, input: z.input<typeof updat
   }
   refresh();
   return { ok: true };
+}
+
+async function inhouseVersionPublished(platformVoiceId: string): Promise<boolean> {
+  const v = await prisma.inhouseVoiceVersion.findFirst({
+    where: { platformVoiceId, status: "published", voice: { consent: { is: { revokedAt: null } } } },
+    select: { id: true },
+  });
+  return Boolean(v);
 }
 
 /** Change l'ordre d'affichage (vers le haut ou vers le bas). */

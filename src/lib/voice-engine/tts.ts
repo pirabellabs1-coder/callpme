@@ -1,5 +1,6 @@
 /**
- * Synthèse vocale en streaming (TTS) — ElevenLabs, Cartesia ou Spitch.
+ * Synthèse vocale en streaming (TTS) — ElevenLabs, Cartesia, Spitch, ou nos voix
+ * maison (fournisseur « callpme », actif seulement si CALLPME_TTS_URL existe).
  *
  * Le fournisseur dépend de la langue de l'agent (voir ./languages) :
  * le français reste sur ElevenLabs Flash ou Cartesia ; le yoruba, le haoussa
@@ -11,6 +12,9 @@
  * Un AbortSignal coupe la synthèse quand l'appelant interrompt l'agent.
  */
 import type { Agent } from "../shared/types";
+import { callpmeSpeech, callpmeTtsConfigured, usesInhouseVoice } from "./callpme-tts";
+
+export { usesInhouseVoice };
 import { applyPronunciations, DEFAULT_TUNING, elevenLabsSettings, normalizeTuning, type Pronunciation, type VoiceTuning } from "../voices/tuning";
 import { encodeMulaw, pcm16FromBytes } from "./audio";
 import { effectiveBilingual, providerLanguageCode, ttsCandidates, voiceLanguage, type TtsProviderId } from "./languages";
@@ -18,7 +22,8 @@ import { effectiveBilingual, providerLanguageCode, ttsCandidates, voiceLanguage,
 export type StreamingTtsProvider = TtsProviderId;
 
 export interface TtsVoice {
-  provider: StreamingTtsProvider;
+  /** "callpme" : voix maison servie par notre serveur d'inférence. */
+  provider: StreamingTtsProvider | "callpme";
   voiceId: string;
   language: string;
   /** Modèle du fournisseur (ElevenLabs : Flash pour le français, v3 / v4 pour les langues locales). */
@@ -96,17 +101,29 @@ export function spitchVoice(language: string): string {
 
 /**
  * Voix utilisée pour un agent :
+ * - une voix maison publiée, si notre serveur d'inférence est configuré ;
  * - la vraie voix choisie (catalogue ou voix propre), chez le fournisseur du moteur ;
  * - sinon `fallbackVoiceId` (première voix du catalogue), puis VOICE_DEFAULT_FEMALE_ID.
  * Langue locale servie par Spitch : voix Spitch de la langue.
  */
-export function resolveVoice(agent: Agent, fallbackVoiceId?: string | null, studio?: StudioExtras | null): TtsVoice | null {
+export function resolveVoice(
+  agent: Agent,
+  fallbackVoiceId?: string | null,
+  studio?: StudioExtras | null,
+  /** Voix maison encore publiée au catalogue (vérifié en base par l'appelant). */
+  inhouseAvailable = false,
+): TtsVoice | null {
   const v = agent.config.voice;
   const language = v.language || "fr-FR";
   const bilingual = effectiveBilingual(language, v.bilingual);
+  const pronunciations = studio?.pronunciations?.length ? { pronunciations: studio.pronunciations } : {};
+  // Voix maison : servie par notre serveur si configuré ; sinon voix du fournisseur de la langue.
+  const inhouseId = studio?.voiceId || (v.kind === "provider" ? v.providerVoiceId : undefined);
+  if (usesInhouseVoice(agent) && inhouseId && inhouseAvailable && callpmeTtsConfigured()) {
+    return { provider: "callpme", voiceId: inhouseId, language, tuning: studio?.tuning ?? normalizeTuning({}, v.speed), ...pronunciations };
+  }
   const provider = ttsProviderFor(language, bilingual);
   if (!provider) return null;
-  const pronunciations = studio?.pronunciations?.length ? { pronunciations: studio.pronunciations } : {};
   // Spitch : voix propres à chaque langue, indépendantes du catalogue ElevenLabs.
   if (provider === "spitch") {
     return { provider, voiceId: spitchVoice(language), language, tuning: normalizeTuning({}, v.speed), ...pronunciations };
@@ -134,10 +151,12 @@ export function resolveVoice(agent: Agent, fallbackVoiceId?: string | null, stud
 export async function* streamSpeech(text: string, voice: TtsVoice, signal: AbortSignal): AsyncGenerator<Buffer> {
   const spoken = applyPronunciations(text, voice.pronunciations);
   const res =
-    voice.provider === "elevenlabs"
-      ? await elevenlabs(spoken, voice, signal)
-      : voice.provider === "spitch"
-        ? await spitch(spoken, voice, signal)
+    voice.provider === "callpme"
+      ? await callpmeSpeech({ text: spoken, modelRef: voice.voiceId, language: voice.language, speed: voice.tuning?.speed }, signal)
+      : voice.provider === "elevenlabs"
+        ? await elevenlabs(spoken, voice, signal)
+        : voice.provider === "spitch"
+          ? await spitch(spoken, voice, signal)
         : await cartesia(spoken, voice, signal);
   if (!res.ok || !res.body) {
     throw new Error(`Synthèse vocale refusée (${voice.provider}, HTTP ${res.status}).`);

@@ -27,6 +27,7 @@ const PUBLIC_API_PREFIXES = [
   "/api/payments/merchant/", // webhook marchand : signature HMAC + statut revérifié
   "/api/widget/", // widget site web : domaines autorisés (Origin) + limites
   "/api/whatsapp/webhook/", // Meta : signature X-Hub-Signature-256 vérifiée
+  "/api/inhouse-training/", // serveur d'entraînement GPU : secret CALLPME_TRAINING_SECRET
 ];
 
 /** Pages applicatives réservées aux utilisateurs connectés. */

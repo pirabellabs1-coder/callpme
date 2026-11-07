@@ -144,6 +144,16 @@ export async function requireAdmin(): Promise<SessionContext> {
   return s;
 }
 
+/**
+ * Variante de `requireAdmin` pour les Route Handlers : renvoie null au lieu
+ * de rediriger, pour que la route réponde 404 elle-même.
+ */
+export async function getAdminSession(): Promise<SessionContext | null> {
+  const s = await getSession();
+  if (!s || !s.user.isAdmin || !hasAdminUnlock(s.user.id)) return null;
+  return s;
+}
+
 /** Détruit la session courante (Server Action / Route Handler). */
 export async function destroySession() {
   const token = cookies().get(SESSION_COOKIE)?.value;

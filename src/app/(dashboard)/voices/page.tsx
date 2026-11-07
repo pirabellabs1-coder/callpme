@@ -25,7 +25,8 @@ export default async function VoicesPage() {
   const session = await requireSession();
   const canEdit = isOrgAdmin(session);
   const [all, own] = await Promise.all([listPlatformVoices(), listVoices(session.org.id)]);
-  const voices = all.filter((v) => v.active);
+  // Les voix maison se choisissent dans la configuration de l'agent (pas de réglage Studio).
+  const voices = all.filter((v) => v.active && v.provider !== "callpme");
   const baseName = (id?: string) => all.find((b) => b.id === id)?.name;
   const groupOf = (g: string | null) => (g === "feminine" || g === "masculine" ? g : "other");
   // Seules les vraies voix (réglées au Studio ou clonées) sont utilisables au téléphone.

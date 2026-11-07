@@ -35,7 +35,8 @@ export type FirstSpeaker = "agent" | "caller";
 /*  Configuration des providers                                        */
 /* ------------------------------------------------------------------ */
 
-export type VoiceProvider = "elevenlabs" | "azure" | "playht";
+/** "callpme" : voix maison (serveur d'inférence Callpme, voir docs/voix-maison.md). */
+export type VoiceProvider = "elevenlabs" | "azure" | "playht" | "callpme";
 export type ModelProvider = "openai" | "anthropic" | "mistral";
 
 export type SupportedLanguage =

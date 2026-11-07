@@ -23,13 +23,14 @@ import { applyBehavior, pickVariant } from "../agents/versions";
 import { openStt, sttProviderFor, type SttStream } from "./stt";
 import { effectiveBilingual, systemPhrases } from "./languages";
 import { resolveVoice, streamSpeech, type TtsVoice } from "./tts";
+import { callpmeTtsConfigured, usesInhouseVoice } from "./callpme-tts";
 import { finishCall } from "./persist";
 import { CALLBACK_CONTEXT, callbackGreeting, callbackSettings } from "../callbacks/settings";
 import { checkDestination } from "../telephony/destinations";
 import { remainingMinutes } from "../billing/limits";
 import type { VoiceTokenPayload } from "./token";
 import { QualityTracker } from "./quality";
-import { defaultPlatformVoice } from "../voices/platform";
+import { defaultPlatformVoice, inhouseVoiceAvailable } from "../voices/platform";
 import { loadStudioExtras } from "../voices/studio";
 import { CostMeter } from "../costs/meter";
 import { chargeNow, refundCharge, extendHold, getHold, recordSessionSeconds, settleHold, talkSecondsForHold, TRANSFER_PREPAID_SEC } from "../billing/credit";
@@ -172,8 +173,14 @@ export class CallSession {
     // Sans voix choisie (ou voix retirée), première voix active du catalogue.
     // Voix réglée au Studio : réglages et prononciations relus à jour à chaque appel.
     const studio = await loadStudioExtras(agent.organizationId, agent.config.voice.voiceId).catch(() => null);
-    const fallback = agent.config.voice.providerVoiceId || studio?.voiceId ? null : await defaultPlatformVoice().catch(() => null);
-    this.voice = resolveVoice(agent, fallback?.externalId, studio);
+    // Voix maison retirée, consentement révoqué ou serveur d'inférence absent :
+    // on retombe sur la première voix du catalogue.
+    const inhouse = usesInhouseVoice(agent);
+    const inhouseOk =
+      inhouse && callpmeTtsConfigured() && (await inhouseVoiceAvailable(agent.config.voice.providerVoiceId).catch(() => false));
+    const needsFallback = (inhouse && !inhouseOk) || !(agent.config.voice.providerVoiceId || studio?.voiceId);
+    const fallback = needsFallback ? await defaultPlatformVoice().catch(() => null) : null;
+    this.voice = resolveVoice(agent, fallback?.externalId, studio, inhouseOk);
     if (!this.voice) {
       this.transport.sendEvent?.({ type: "error", message: "Aucune voix configurée pour le moteur vocal." });
       return this.end("failed");
@@ -658,7 +665,7 @@ ${CALLBACK_CONTEXT}` : CALLBACK_CONTEXT;
     return run;
   }
 
-  private async speakNow(text: string, gen: number) {
+  private async speakNow(text: string, gen: number): Promise<void> {
     // Phrase abandonnée si l'appelant a interrompu l'agent entre-temps.
     if (!this.voice || this.ended || gen !== this.speechGen) return;
     const ctrl = new AbortController();
@@ -680,6 +687,14 @@ ${CALLBACK_CONTEXT}` : CALLBACK_CONTEXT;
         this.playbackUntil = Math.max(this.playbackUntil, Date.now()) + (chunk.length / 8000) * 1000;
       }
     } catch (e) {
+      if (!ctrl.signal.aborted && this.voice?.provider === "callpme" && !this.ended && gen === this.speechGen) {
+        // Serveur de voix maison en panne : bascule définitive sur la voix du catalogue, phrase redite.
+        console.error("[voice] voix maison indisponible, repli :", e instanceof Error ? e.message : e);
+        const fallback = await defaultPlatformVoice().catch(() => null);
+        this.voice = resolveVoice(this.agent, fallback?.externalId, null, false);
+        if (this.speaking === ctrl) this.speaking = null;
+        if (this.voice && this.voice.provider !== "callpme") return this.speakNow(text, gen);
+      }
       if (!ctrl.signal.aborted) {
         // Détail technique dans les journaux serveur seulement.
         this.quality.ttsError();

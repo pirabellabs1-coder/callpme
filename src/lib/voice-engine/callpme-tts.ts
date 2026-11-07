@@ -1,0 +1,141 @@
+/**
+ * Fournisseur TTS « callpme » : notre propre serveur d'inférence (voix maison).
+ *
+ * Inactif tant que CALLPME_TTS_URL n'est pas défini : ElevenLabs reste le
+ * fournisseur par défaut et les voix maison ne sont ni proposées ni utilisées.
+ *
+ * Contrat HTTP (détaillé dans docs/voix-maison.md, annexe B) :
+ *   POST {CALLPME_TTS_URL}/v1/tts/stream
+ *   Authorization: Bearer {CALLPME_TTS_API_KEY}   (si défini)
+ *   { "text", "voice": "<modelRef>", "language": "fr", "speed": 1, "format": "ulaw_8000" }
+ *   -> 200, corps en flux (chunked) : octets µ-law 8 kHz mono bruts.
+ */
+
+export type CallpmeAudioFormat = "ulaw_8000";
+
+/** L'agent a choisi une voix maison (fournisseur « callpme »). */
+export function usesInhouseVoice(agent: { config: { voice: { provider: string } } }): boolean {
+  return agent.config.voice.provider === "callpme";
+}
+
+/** URL du serveur d'inférence (sans barre finale), ou null si absente ou invalide. */
+export function callpmeTtsUrl(): string | null {
+  const raw = process.env.CALLPME_TTS_URL?.trim();
+  if (!raw) return null;
+  try {
+    const u = new URL(raw);
+    if (u.protocol !== "https:" && u.protocol !== "http:") return null;
+    // En production, le flux vocal ne transite pas en clair sur Internet.
+    if (u.protocol === "http:" && process.env.NODE_ENV === "production" && !isPrivateHost(u.hostname)) return null;
+    return u.toString().replace(/\/+$/, "");
+  } catch {
+    return null;
+  }
+}
+
+/** Réseau privé (Fly.io .internal, localhost, RFC 1918) : http accepté. */
+function isPrivateHost(host: string): boolean {
+  return (
+    host === "localhost" ||
+    host.endsWith(".internal") ||
+    /^127\./.test(host) ||
+    /^10\./.test(host) ||
+    /^192\.168\./.test(host) ||
+    /^172\.(1[6-9]|2\d|3[01])\./.test(host) ||
+    host.startsWith("[fd")
+  );
+}
+
+export const callpmeTtsConfigured = () => callpmeTtsUrl() !== null;
+
+export interface CallpmeSpeechInput {
+  text: string;
+  modelRef: string;
+  language: string;
+  speed?: number;
+}
+
+/** Corps et en-têtes de la requête (séparé pour être testable sans réseau). */
+export function callpmeSpeechRequest(input: CallpmeSpeechInput, format: CallpmeAudioFormat = "ulaw_8000") {
+  const base = callpmeTtsUrl();
+  if (!base) throw new Error("Serveur de voix maison non configuré (CALLPME_TTS_URL).");
+  const headers: Record<string, string> = { "Content-Type": "application/json", Accept: "application/octet-stream" };
+  const key = process.env.CALLPME_TTS_API_KEY;
+  if (key) headers.Authorization = `Bearer ${key}`;
+  return {
+    url: `${base}/v1/tts/stream`,
+    init: {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        text: input.text,
+        voice: input.modelRef,
+        language: input.language.slice(0, 2),
+        speed: Math.min(1.5, Math.max(0.7, input.speed ?? 1)),
+        format,
+      }),
+    } satisfies RequestInit,
+  };
+}
+
+/** Délai maximal avant la réponse du serveur : au-delà, l'appelant entendrait un silence. */
+export const FIRST_BYTE_TIMEOUT_MS = 4_000;
+
+/**
+ * Lance la synthèse ; le corps de la réponse est le flux audio. Échoue si le
+ * serveur ne répond pas en FIRST_BYTE_TIMEOUT_MS (le moteur bascule alors sur
+ * la voix de secours).
+ */
+export async function callpmeSpeech(input: CallpmeSpeechInput, signal: AbortSignal): Promise<Response> {
+  const { url, init } = callpmeSpeechRequest(input);
+  const ctrl = new AbortController();
+  const forward = () => ctrl.abort();
+  if (signal.aborted) ctrl.abort();
+  signal.addEventListener("abort", forward, { once: true });
+  const timer = setTimeout(() => ctrl.abort(), FIRST_BYTE_TIMEOUT_MS);
+  try {
+    return await fetch(url, { ...init, signal: ctrl.signal });
+  } catch (e) {
+    if (!signal.aborted && ctrl.signal.aborted) throw new Error("Serveur de voix maison : pas de réponse à temps.");
+    throw e;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/** 2 minutes de µ-law 8 kHz : au-delà, la réponse est anormale. */
+export const MAX_BUFFERED_BYTES = 8000 * 120;
+
+/** Synthèse complète (aperçus, échantillon publié), bornée en taille et en temps. */
+export async function callpmeSpeechBuffer(input: CallpmeSpeechInput, timeoutMs = 30_000): Promise<Uint8Array> {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+  try {
+    const res = await callpmeSpeech(input, ctrl.signal);
+    if (!res.ok || !res.body) throw new Error(`Serveur de voix maison : HTTP ${res.status}.`);
+    // Lecture en flux, coupée dès le plafond : jamais tout en mémoire d'abord.
+    const reader = res.body.getReader();
+    const parts: Uint8Array[] = [];
+    let total = 0;
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      total += value.byteLength;
+      if (total > MAX_BUFFERED_BYTES) {
+        ctrl.abort();
+        throw new Error("Serveur de voix maison : audio trop long.");
+      }
+      parts.push(value);
+    }
+    if (total === 0) throw new Error("Serveur de voix maison : audio vide.");
+    const out = new Uint8Array(total);
+    let at = 0;
+    for (const p of parts) {
+      out.set(p, at);
+      at += p.byteLength;
+    }
+    return out;
+  } finally {
+    clearTimeout(timer);
+  }
+}

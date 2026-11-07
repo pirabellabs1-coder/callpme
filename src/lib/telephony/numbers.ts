@@ -23,6 +23,18 @@ export class NumberError extends Error {}
 const SIP_NUMBERS =
   "Avec la passerelle SIP, les numéros sont fournis par votre opérateur local : déclarez-les dans « Numéros », l'équipe les active une fois raccordés.";
 
+const NO_PLATFORM_SALES =
+  "Callpme ne vend pas de numéros pour l'instant : achetez votre numéro chez votre opérateur (Twilio, Telnyx…), puis ajoutez-le dans « Numéros ».";
+
+/**
+ * Vente de numéros par la plateforme (compte opérateur de Callpme). Coupée par
+ * défaut : chaque client achète son numéro chez son opérateur puis le déclare.
+ * PLATFORM_NUMBER_SALES=on la rouvre (ex. numéros d'un opérateur partenaire).
+ */
+export function platformSellsNumbers(): boolean {
+  return process.env.PLATFORM_NUMBER_SALES === "on";
+}
+
 const PURCHASE_REFUSED =
   "L'opérateur a refusé cet achat (un justificatif d'identité ou d'adresse peut être exigé pour ce pays). Contactez-nous si le problème persiste.";
 
@@ -43,6 +55,7 @@ export async function searchNumbers(opts: {
   type: "local" | "mobile" | "tollfree";
   contains?: string;
 }): Promise<AvailableNumber[]> {
+  if (!platformSellsNumbers()) throw new NumberError(NO_PLATFORM_SALES);
   const provider = telephonyProvider();
   const country = countryInfo(opts.country);
   if (!provider) throw new NumberError("Téléphonie non configurée sur la plateforme.");
@@ -96,6 +109,7 @@ export async function searchNumbers(opts: {
 
 /** Achète un numéro et le relie au moteur vocal ; renvoie la référence opérateur. */
 export async function buyNumber(phoneNumber: string): Promise<{ providerRef: string; provider: "twilio" | "telnyx" }> {
+  if (!platformSellsNumbers()) throw new NumberError(NO_PLATFORM_SALES);
   const provider = telephonyProvider();
   if (!provider) throw new NumberError("Téléphonie non configurée sur la plateforme.");
   if (provider === "sip") throw new NumberError(SIP_NUMBERS);

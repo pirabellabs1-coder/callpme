@@ -8,6 +8,7 @@ afterEach(() => {
 });
 
 function twilio() {
+  process.env.PLATFORM_NUMBER_SALES = "on";
   process.env.TELEPHONY_PROVIDER = "twilio";
   process.env.TWILIO_ACCOUNT_SID = "AC_test";
   process.env.TWILIO_AUTH_TOKEN = "tok";
@@ -59,5 +60,17 @@ describe("pays des numéros achetés", () => {
     expect(countryOfNumber("+33184801199")?.monthlyEur).toBe(3);
     expect(countryOfNumber("+2250701020304")?.code).toBe("CI");
     expect(countryOfNumber("+237612345678")).toBeNull(); // Cameroun : non proposé à l'achat
+  });
+});
+
+describe("vente de numéros par la plateforme", () => {
+  it("est coupée par défaut : le client apporte son numéro", async () => {
+    twilio();
+    delete process.env.PLATFORM_NUMBER_SALES;
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    await expect(searchNumbers({ country: "FR", type: "local" })).rejects.toThrow("ne vend pas de numéros");
+    await expect(buyNumber("+33184801199")).rejects.toThrow("ne vend pas de numéros");
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });

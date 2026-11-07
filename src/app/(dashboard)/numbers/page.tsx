@@ -6,6 +6,8 @@ import { Badge } from "@/components/ui/badge";
 import { NumbersManager } from "@/components/numbers/numbers-manager";
 import { BuyNumber } from "@/components/numbers/buy-number";
 import { telephonyProvider } from "@/lib/telephony/provider";
+import { platformSellsNumbers } from "@/lib/telephony/numbers";
+import { BringYourNumber } from "@/components/numbers/bring-your-number";
 
 export const metadata = { title: "Numéros" };
 export const dynamic = "force-dynamic";
@@ -30,11 +32,15 @@ export default async function NumbersPage() {
         </Badge>
       </PageHeader>
 
-      <BuyNumber
-        available={telephonyProvider() !== null}
-        isAdmin={isOrgAdmin(session)}
-        remaining={plan.maxNumbers - numbers.length}
-      />
+      {platformSellsNumbers() ? (
+        <BuyNumber
+          available={telephonyProvider() !== null}
+          isAdmin={isOrgAdmin(session)}
+          remaining={plan.maxNumbers - numbers.length}
+        />
+      ) : (
+        <BringYourNumber />
+      )}
 
       <NumbersManager
         initialNumbers={numbers}

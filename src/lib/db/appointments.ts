@@ -135,3 +135,30 @@ export async function leadCounts(orgId: string): Promise<Record<string, number>>
   });
   return Object.fromEntries(rows.map((r) => [r.kind, r._count]));
 }
+
+/** Rendez-vous et indisponibilités d'une période (vue calendrier). */
+export async function listAppointmentsBetween(orgId: string, from: Date, to: Date): Promise<AppointmentRow[]> {
+  const rows = await prisma.appointment.findMany({
+    where: { organizationId: orgId, isTest: false, status: "booked", startsAt: { gte: from, lt: to } },
+    orderBy: { startsAt: "asc" },
+    take: 1000,
+    include: { agent: { select: { name: true, config: true } } },
+  });
+  return rows.map((r) => ({
+    id: r.id,
+    reference: r.reference,
+    customerName: r.customerName,
+    customerPhone: r.customerPhone,
+    customerEmail: r.customerEmail,
+    notes: r.notes,
+    startsAt: r.startsAt.toISOString(),
+    durationMin: r.durationMin,
+    status: r.status,
+    isTest: r.isTest,
+    source: r.source,
+    agentId: r.agentId,
+    agentName: r.agent?.name ?? null,
+    synced: Boolean(r.googleEventId),
+    timezone: agentTimezone(r.agent?.config),
+  }));
+}

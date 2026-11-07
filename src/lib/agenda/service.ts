@@ -124,6 +124,8 @@ export interface BookInput {
   phone?: unknown;
   email?: unknown;
   notes?: unknown;
+  /** L'appelant confirme vouloir un rendez-vous de plus que celui qu'il a déjà. */
+  another?: unknown;
 }
 
 export interface BookResult {
@@ -164,14 +166,45 @@ export async function bookAppointment(
   if (start.getTime() > now.getTime() + cfg.maxDaysAhead * 86_400_000) {
     return { ok: false, message: `Les rendez-vous sont possibles jusqu'à ${cfg.maxDaysAhead} jours à l'avance.` };
   }
+  const phoneRaw = typeof input.phone === "string" && input.phone.trim() ? input.phone : ctx.callerNumber;
+  const phone = phoneRaw ? toE164(phoneRaw, await orgCountry(agent.organizationId)) : null;
+  const caller = ctx.callerNumber ? toE164(ctx.callerNumber) : null;
+
+  const wantsAnother = input.another === true || input.another === "true";
+  // Pas de double réservation : un rendez-vous déjà pris pendant CET appel, ou un rendez-vous
+  // à venir du même client, est rappelé à l'agent au lieu d'en créer un second.
+  const existing = await prisma.appointment.findFirst({
+    where: {
+      organizationId: agent.organizationId,
+      status: "booked",
+      isTest: Boolean(ctx.test),
+      OR: [
+        ...(ctx.callRef ? [{ callRef: ctx.callRef }] : []),
+        ...(phone && !wantsAnother ? [{ customerPhone: phone, startsAt: { gte: now } }] : []),
+      ],
+    },
+    orderBy: { startsAt: "asc" },
+    select: { reference: true, startsAt: true, customerName: true, callRef: true },
+  });
+  const sameSlot = existing ? existing.startsAt.getTime() === start.getTime() : false;
+  if (existing && (sameSlot || !wantsAnother)) {
+    const at = spokenDateTime(existing.startsAt, cfg.timezone);
+    const same = sameSlot;
+    return {
+      ok: false,
+      reference: existing.reference,
+      message: same
+        ? `Ce rendez-vous est déjà réservé (${at}, référence ${existing.reference}) : ne réserve pas une seconde fois, confirme simplement à l'appelant.`
+        : `${existing.customerName} a déjà un rendez-vous ${at} (référence ${existing.reference}). Ne réserve pas de second rendez-vous : ` +
+          `demande s'il veut le DÉPLACER (annule-le avec cancelAppointment puis réserve le nouveau créneau), ` +
+          `ou s'il veut un rendez-vous SUPPLÉMENTAIRE, par exemple pour une autre personne (alors seulement, réserve avec another=true).`,
+    };
+  }
   const busy = await busyBetween(agent, start, end, !ctx.test);
   if (busy.some((b) => start < b.end && b.start < end)) {
     return { ok: false, message: "Ce créneau vient d'être pris.", alternatives: await alternatives() };
   }
 
-  const phoneRaw = typeof input.phone === "string" && input.phone.trim() ? input.phone : ctx.callerNumber;
-  const phone = phoneRaw ? toE164(phoneRaw, await orgCountry(agent.organizationId)) : null;
-  const caller = ctx.callerNumber ? toE164(ctx.callerNumber) : null;
   // Anti-saturation : un même appel ou un même numéro ne bloque pas tout l'agenda.
   const [byCall, byPhone] = await Promise.all([
     ctx.callRef
@@ -310,10 +343,10 @@ export async function cancelAppointment(
 
   // Par référence, sinon par numéro de l'appelant (son prochain rendez-vous).
   const appt = ref
-    ? await prisma.appointment.findFirst({ where: { organizationId: orgId, reference: ref, status: "booked", isTest: Boolean(ctx.test) } })
+    ? await prisma.appointment.findFirst({ where: { organizationId: orgId, reference: ref, status: "booked", source: { not: "block" }, isTest: Boolean(ctx.test) } })
     : phone
       ? await prisma.appointment.findFirst({
-          where: { organizationId: orgId, customerPhone: phone, status: "booked", startsAt: { gte: now }, isTest: Boolean(ctx.test) },
+          where: { organizationId: orgId, customerPhone: phone, status: "booked", source: { not: "block" }, startsAt: { gte: now }, isTest: Boolean(ctx.test) },
           orderBy: { startsAt: "asc" },
         })
       : null;
@@ -360,7 +393,7 @@ export async function cancelAppointment(
  */
 export async function syncMissingGoogleEvents(organizationId: string): Promise<{ synced: number; failed: number }> {
   const rows = await prisma.appointment.findMany({
-    where: { organizationId, status: "booked", isTest: false, googleEventId: null, startsAt: { gt: new Date() } },
+    where: { organizationId, status: "booked", isTest: false, googleEventId: null, source: { not: "block" }, startsAt: { gt: new Date() } },
     include: { agent: { select: { config: true } } },
     orderBy: { startsAt: "asc" },
     take: 50,

@@ -32,7 +32,7 @@ export async function outcomesByAgent(orgId: string, since: Date): Promise<Agent
     }),
     prisma.appointment.groupBy({
       by: ["agentId"],
-      where: { organizationId: orgId, isTest: false, createdAt: { gte: since } },
+      where: { organizationId: orgId, isTest: false, source: { not: "block" }, createdAt: { gte: since } },
       _count: true,
     }),
     prisma.lead.groupBy({

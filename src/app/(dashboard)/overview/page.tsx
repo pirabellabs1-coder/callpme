@@ -42,7 +42,7 @@ export default async function OverviewPage() {
     listCalls(org.id, { limit: 6 }),
     getOnboardingSteps(org.id),
     getSession(),
-    prisma.appointment.count({ where: { organizationId: org.id, isTest: false, createdAt: { gte: since } } }),
+    prisma.appointment.count({ where: { organizationId: org.id, isTest: false, source: { not: "block" }, createdAt: { gte: since } } }),
     prisma.lead.count({ where: { organizationId: org.id, isTest: false, kind: "lead", createdAt: { gte: since } } }),
   ]);
   const doneCount = steps.filter((s) => s.done).length;

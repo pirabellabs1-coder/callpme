@@ -62,7 +62,7 @@ export async function collectDigestData(org: { id: string; name: string }, day: 
     prisma.call.count({ where: { ...orgCalls, direction: "outbound" } }),
     prisma.callback.count({ where: { organizationId: org.id, createdAt: range, status: "completed" } }),
     prisma.callback.count({ where: { organizationId: org.id, createdAt: range, status: { in: CALLBACK_UNREACHED } } }),
-    prisma.appointment.count({ where: { organizationId: org.id, createdAt: range, status: "booked", isTest: false } }),
+    prisma.appointment.count({ where: { organizationId: org.id, createdAt: range, status: "booked", isTest: false, source: { not: "block" } } }),
     prisma.lead.count({ where: { organizationId: org.id, createdAt: range, isTest: false } }),
     prisma.callback.findMany({
       where: { organizationId: org.id, createdAt: range, status: { in: CALLBACK_UNREACHED } },

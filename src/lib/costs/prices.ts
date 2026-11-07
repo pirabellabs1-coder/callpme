@@ -30,7 +30,7 @@ export function llmPrice(model: string) {
 }
 
 /** Deepgram, transcription en direct, $ par minute (nova-2 : 0,35 $ / heure). */
-export function sttUsdPerMinute(model = process.env.DEEPGRAM_MODEL || "nova-2"): number {
+export function sttUsdPerMinute(model = process.env.DEEPGRAM_MODEL || "nova-3"): number {
   return /nova-3/.test(model) ? 0.0077 : 0.35 / 60;
 }
 

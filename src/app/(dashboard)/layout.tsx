@@ -53,6 +53,7 @@ export default async function DashboardLayout({
         organizationId: orgId,
         isTest: false,
         status: "booked",
+        source: { not: "block" },
         startsAt: { gte: now, lt: new Date(now.getTime() + 24 * 3600_000) },
       },
     }),

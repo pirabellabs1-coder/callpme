@@ -61,7 +61,7 @@ export async function TodayPanel({ orgId }: { orgId: string }) {
   const now = new Date();
   const [appointments, callbacks, messages, counts] = await Promise.all([
     prisma.appointment.findMany({
-      where: { organizationId: orgId, isTest: false, status: "booked", startsAt: { gte: now } },
+      where: { organizationId: orgId, isTest: false, status: "booked", source: { not: "block" }, startsAt: { gte: now } },
       orderBy: { startsAt: "asc" },
       take: 4,
       include: { agent: { select: { config: true } } },
@@ -78,7 +78,7 @@ export async function TodayPanel({ orgId }: { orgId: string }) {
       take: 4,
     }),
     Promise.all([
-      prisma.appointment.count({ where: { organizationId: orgId, isTest: false, status: "booked", startsAt: { gte: now } } }),
+      prisma.appointment.count({ where: { organizationId: orgId, isTest: false, status: "booked", source: { not: "block" }, startsAt: { gte: now } } }),
       prisma.lead.count({ where: { organizationId: orgId, isTest: false, kind: "callback", status: { in: ["new", "contacted"] } } }),
       prisma.lead.count({ where: { organizationId: orgId, isTest: false, kind: { in: ["message", "ticket"] }, status: "new" } }),
     ]),

@@ -5,7 +5,7 @@
  * « parole détectée », transcriptions intermédiaires et finales, fin de tour.
  *
  * Le fournisseur dépend de la langue de l'agent (voir ./languages) :
- * - français : Deepgram en streaming WebSocket (DEEPGRAM_MODEL, défaut nova-2) ;
+ * - français : Deepgram en streaming WebSocket (DEEPGRAM_MODEL, défaut nova-3, mots-clés de l'appel) ;
  * - yoruba, haoussa, wolof : Google Chirp 3, ElevenLabs Scribe v2 ou Spitch,
  *   phrase par phrase (./stt-batch) : aucun ne documente de streaming pour ces langues.
  * Chaque fournisseur reste éteint tant que sa clé n'est pas posée.
@@ -58,11 +58,15 @@ export function sttProviderFor(language: string, bilingual = false): SttProvider
 }
 
 /** Ouvre la transcription adaptée à la langue de l'agent. */
-export function openStt(language: string, events: SttEvents, opts: { bilingual?: boolean } = {}): SttStream {
+export function openStt(
+  language: string,
+  events: SttEvents,
+  opts: { bilingual?: boolean; keyterms?: string[] } = {},
+): SttStream {
   const lang = language || "fr-FR";
   const provider = sttProviderFor(lang, Boolean(opts.bilingual));
   if (!provider) throw new Error(`Aucune transcription configurée pour la langue ${lang}.`);
-  if (provider === "deepgram") return openDeepgram(lang, events);
+  if (provider === "deepgram") return openDeepgram(lang, events, opts.keyterms);
   return openUtteranceStt(batchTranscriber(provider, lang, Boolean(opts.bilingual)), events);
 }
 
@@ -138,11 +142,42 @@ async function spitchTranscribe(wav: Buffer, languageCode: string, signal: Abort
   return body.text?.trim() ?? "";
 }
 
-export function openDeepgram(language: string, events: SttEvents): SttStream {
+/** Mots propres à l'appel (entreprise, noms…) que la transcription doit privilégier. */
+export function cleanKeyterms(terms: (string | null | undefined)[]): string[] {
+  const out = new Set<string>();
+  for (const t of terms) {
+    const v = (t ?? "").replace(/[^A-Za-z\u00C0-\u00D6\u00D8-\u00F6\u00F8-\u024F\u0250-\u02AF\u0300-\u036F\u1E00-\u1EFF0-9' -]/g, " ").replace(/\s+/g, " ").trim();
+    if (v.length >= 2 && v.length <= 40) out.add(v);
+  }
+  return Array.from(out).slice(0, 20);
+}
+
+export function openDeepgram(language: string, events: SttEvents, keyterms: string[] = []): SttStream {
+  // Repli automatique : si Deepgram refuse la connexion (modèle ou mots-clés non acceptés),
+  // on rouvre une fois sans mots-clés, en nova-2. L'appel n'est jamais privé de transcription.
+  let current = openDeepgramOnce(language, events, keyterms, undefined, () => {
+    console.error("[stt] connexion Deepgram refusée : nouvel essai en nova-2 sans mots-clés.");
+    current = openDeepgramOnce(language, events, [], "nova-2");
+  });
+  return {
+    send: (mulaw) => current.send(mulaw),
+    close: () => current.close(),
+  };
+}
+
+function openDeepgramOnce(
+  language: string,
+  events: SttEvents,
+  keyterms: string[],
+  forcedModel?: string,
+  onRefused?: () => void,
+): SttStream {
   const key = process.env.DEEPGRAM_API_KEY;
   if (!key) throw new Error("DEEPGRAM_API_KEY manquant : la transcription est indisponible.");
+  // nova-3 : meilleure reconnaissance au téléphone (noms, accents) et mots-clés (« keyterm »).
+  const model = forcedModel || process.env.DEEPGRAM_MODEL || "nova-3";
   const params = new URLSearchParams({
-    model: process.env.DEEPGRAM_MODEL || "nova-2",
+    model,
     language: (language || "fr").slice(0, 2),
     encoding: "mulaw",
     sample_rate: "8000",
@@ -154,6 +189,7 @@ export function openDeepgram(language: string, events: SttEvents): SttStream {
     endpointing: "300",
     utterance_end_ms: "1000",
   });
+  if (model.startsWith("nova-3")) for (const t of cleanKeyterms(keyterms)) params.append("keyterm", t);
   const ws = new WebSocket(`wss://api.deepgram.com/v1/listen?${params}`, {
     headers: { Authorization: `Token ${key}` },
   });
@@ -192,7 +228,27 @@ export function openDeepgram(language: string, events: SttEvents): SttStream {
     }
   });
 
-  ws.on("error", (e) => events.onError?.(e instanceof Error ? e : new Error(String(e))));
+  let opened = false;
+  ws.on("open", () => {
+    opened = true;
+  });
+  // Refus à l'ouverture (HTTP 400…) : repli plutôt qu'un agent sourd.
+  ws.on("unexpected-response", (_req, res) => {
+    console.error(`[stt] Deepgram a refusé la connexion (HTTP ${res.statusCode}, modèle ${model}).`);
+    if (onRefused && !closed) {
+      closed = true;
+      ws.terminate();
+      onRefused();
+    }
+  });
+  ws.on("error", (e) => {
+    if (!opened && onRefused && !closed) {
+      closed = true;
+      onRefused();
+      return;
+    }
+    events.onError?.(e instanceof Error ? e : new Error(String(e)));
+  });
   ws.on("close", () => keepAlive && clearInterval(keepAlive));
 
   return {

@@ -12,7 +12,7 @@ export async function POST(_req: NextRequest, { params }: { params: { id: string
     const session = await getSession();
     if (!session) return unauthorized();
     const appt = await prisma.appointment.findFirst({
-      where: { id: params.id, organizationId: session.org.id },
+      where: { id: params.id, organizationId: session.org.id, source: { not: "block" } },
       select: { reference: true, status: true, isTest: true },
     });
     if (!appt) return notFound("Rendez-vous introuvable");

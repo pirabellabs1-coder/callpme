@@ -125,7 +125,7 @@ const TOOLS: AgentToolDef[] = [
     name: "bookAppointment",
     label: "Prendre un rendez-vous",
     description:
-      "Réserve un créneau après accord explicite de l'appelant sur la date et l'heure. Renvoie une référence (RDV-…) : annonce-la toujours à l'appelant, lettre par lettre, avant de terminer l'appel.",
+      "Réserve un créneau après accord explicite de l'appelant sur la date et l'heure. Une seule fois par rendez-vous : si l'outil répond qu'un rendez-vous existe déjà, ne réserve pas à nouveau (confirme l'existant, ou annule-le puis réserve pour le déplacer). Renvoie une référence (RDV-…) : annonce-la une fois, sans l'épeler sauf si l'appelant le demande.",
     category: "agenda",
     icon: "CalendarPlus",
     parameters: {
@@ -137,6 +137,10 @@ const TOOLS: AgentToolDef[] = [
         phone: { type: "string", description: "Téléphone du client si différent du numéro appelant." },
         email: { type: "string", description: "E-mail si fourni." },
         notes: { type: "string", description: "Motif du rendez-vous." },
+        another: {
+          type: "boolean",
+          description: "true seulement si l'appelant a déjà un rendez-vous à venir et confirme en vouloir un SECOND en plus.",
+        },
       },
       required: ["name", "date", "time"],
     },

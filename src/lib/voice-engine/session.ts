@@ -71,7 +71,12 @@ const VOICE_STYLE =
   "## Mémoire de l'appel\nDès que l'appelant donne son nom, répète-le une fois pour le confirmer " +
   "(« C'est bien monsieur Dossou ? ») ; s'il est rare ou mal compris, demande-lui de l'épeler. " +
   "Ensuite, appelle-le par ce nom et ne le lui redemande jamais. Fais de même pour toute information " +
-  "déjà donnée (numéro, date, motif) : reprends-la, ne la redemande pas.";
+  "déjà donnée (numéro, date, motif) : reprends-la, ne la redemande pas.\n" +
+  "Les lettres épelées arrivent parfois déformées par la transcription (« l'i », « deux S », « S A L O N ») : " +
+  "reconstitue le nom le plus probable et relis-le une seule fois. Après deux essais, n'insiste plus : garde " +
+  "l'orthographe la plus probable et continue.\n\n" +
+  "## Rythme\nUne ou deux phrases par réponse, puis laisse parler. N'épelle une référence ou un numéro " +
+  "que si on te le demande.";
 
 const SILENCE_HANGUP_MS = 30_000;
 /** Délai après la dernière touche avant de transmettre la saisie à l'agent. */
@@ -243,7 +248,16 @@ ${CALLBACK_CONTEXT}` : CALLBACK_CONTEXT;
         onUtteranceEnd: () => void this.onUtteranceEnd(),
         onError: () => this.transport.sendEvent?.({ type: "error", message: "Transcription interrompue." }),
       },
-      { bilingual },
+      {
+        bilingual,
+        // Mots que la transcription doit bien reconnaître : entreprise, agent, prononciations du Studio, contact appelé.
+        keyterms: [
+          this.organizationName,
+          agent.name,
+          ...(studio?.pronunciations ?? []).map((p) => p.word),
+          this.vars?.nom,
+        ],
+      },
     );
 
     // 0 = pas de limite propre à l'agent, mais un plafond technique s'applique toujours.

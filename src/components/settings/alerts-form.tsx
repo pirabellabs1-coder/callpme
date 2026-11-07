@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { AlertCircle, Check, Loader2 } from "lucide-react";
 import { saveAlertSettings } from "@/app/actions/settings";
-import { ALERT_EVENTS, type AlertSettings } from "@/lib/alerts/settings";
+import { ALERT_EVENTS, DIGEST_MIN_HOUR, splitPhones, type AlertSettings } from "@/lib/alerts/settings";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -26,7 +26,6 @@ const TIME_ZONES: [string, string][] = [
 ];
 
 const splitList = (v: string) => v.split(/[\s,;]+/).map((r) => r.trim()).filter(Boolean);
-
 export function AlertsForm({ initial, canEdit, hasWhatsApp = false }: { initial: AlertSettings; canEdit: boolean; hasWhatsApp?: boolean }) {
   const [s, setS] = useState<AlertSettings>(initial);
   const [recipients, setRecipients] = useState(initial.recipients.join("\n"));
@@ -47,7 +46,7 @@ export function AlertsForm({ initial, canEdit, hasWhatsApp = false }: { initial:
           const r = await saveAlertSettings({
             ...s,
             recipients: splitList(recipients),
-            digest: { ...d, whatsappTo: splitList(waTo).map((n) => n.replace(/^00/, "+")) },
+            digest: { ...d, whatsappTo: splitPhones(waTo) },
           });
           setMsg(r.error ? { ok: false, text: r.error } : { ok: true, text: "Alertes enregistrées." });
         });
@@ -114,7 +113,7 @@ export function AlertsForm({ initial, canEdit, hasWhatsApp = false }: { initial:
               value={d.hour}
               onChange={(e) => setDigest({ hour: Number(e.target.value) })}
             >
-              {Array.from({ length: 24 }, (_, h) => (
+              {Array.from({ length: 24 - DIGEST_MIN_HOUR }, (_, i) => i + DIGEST_MIN_HOUR).map((h) => (
                 <option key={h} value={h}>
                   {String(h).padStart(2, "0")} h 00
                 </option>
@@ -149,7 +148,7 @@ export function AlertsForm({ initial, canEdit, hasWhatsApp = false }: { initial:
             disabled={digestOff}
             value={waTo}
             onChange={(e) => setWaTo(e.target.value)}
-            placeholder="+2290197123456"
+            placeholder="+229 01 97 12 34 56"
             aria-describedby="digest-wa-help"
           />
         </div>

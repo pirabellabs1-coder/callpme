@@ -138,26 +138,33 @@ export async function sendDailyDigest(org: OrgRow, now = new Date()): Promise<Di
 
   // 1. WhatsApp : canal actif, modèle approuvé et numéro(s) du gérant renseignés.
   const wa = org.whatsapp;
+  // Le verrou est pris : toute erreur ici (jeton illisible, quota…) doit laisser place au repli e-mail.
   if (wa?.enabled && d.whatsappTemplate && d.whatsappTo.length) {
-    const token = decryptSecret(wa.accessToken);
-    if (token) {
+    try {
+      const token = decryptSecret(wa.accessToken);
       let sent = 0;
-      for (const to of d.whatsappTo) {
+      for (const to of token ? d.whatsappTo : []) {
         if (!(await takeDailyQuota(org.id, "whatsapp"))) break;
-        const ok = await sendWhatsAppTemplate(wa.phoneNumberId, token, to, {
+        const ok = await sendWhatsAppTemplate(wa.phoneNumberId, token!, to, {
           name: d.whatsappTemplate,
           language: d.whatsappLanguage,
           params: [built.whatsappParam],
         });
         if (ok) sent++;
       }
+      // Meta accepte puis peut échouer plus tard (numéro absent de WhatsApp) : limite connue, voir DEPLOY.md.
       if (sent) return "whatsapp";
+    } catch (e) {
+      console.error("[digest] WhatsApp", org.id, e instanceof Error ? e.message : e);
     }
   }
 
   // 2. Repli e-mail (ou canal unique si WhatsApp n'est pas configuré).
   const to = await ownerEmails(org.id, settings.recipients);
-  if (!to.length || !(await takeDailyQuota(org.id, "email"))) return "failed";
+  if (!to.length || !(await takeDailyQuota(org.id, "email"))) {
+    console.error("[digest]", org.id, to.length ? "quota e-mail du jour atteint" : "aucun destinataire");
+    return "failed";
+  }
   const r = await sendEmail({ to, subject: built.subject, html: built.html, text: built.text }).catch(() => null);
   // Pas de nouvel essai en cas d'échec : mieux vaut un résumé manqué que des doublons.
   return r?.ok ? "email" : "failed";

@@ -49,10 +49,21 @@ describe("modèles clé en main — Afrique de l'Ouest", () => {
     expect(st.systemPrompt).toContain(p.guardrails[0]);
   });
 
-  it("rappel des bips activé par défaut ; la clinique décroche toujours (urgences)", () => {
-    for (const t of WEST_AFRICA_TEMPLATES) expect(initialState(undefined, t).callback.enabled).toBe(true);
-    expect(initialState(undefined, getTemplate("wa-clinic")).callback.mode).toBe("missed");
-    expect(initialState(undefined, getTemplate("wa-pharmacy")).callback.mode).toBe("flash");
+  it("rappel des bips activé par défaut, sans jamais refuser l'appel (pas de mode flash)", () => {
+    for (const t of WEST_AFRICA_TEMPLATES) {
+      const cb = initialState(undefined, t).callback;
+      expect(cb.enabled).toBe(true);
+      expect(cb.mode).toBe("missed");
+    }
+  });
+
+  it("pas de consigne « lookupOrder » sans l'outil", () => {
+    for (const id of ["wa-pharmacy", "wa-microfinance"]) {
+      const st = initialState(undefined, getTemplate(id));
+      expect(generateSystemPrompt(promptParams(st, "X"))).not.toContain("Utilise « lookupOrder »");
+    }
+    const transport = initialState(undefined, getTemplate("wa-transport"));
+    expect(generateSystemPrompt(promptParams(transport, "X"))).toContain("Utilise « lookupOrder »");
   });
 
   it("microfinance : aucune donnée sensible", () => {

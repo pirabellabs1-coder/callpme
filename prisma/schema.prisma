@@ -584,8 +584,8 @@ model Lead {
 model DailyCounter {
   id             String   @id @default(cuid())
   organizationId String
-  day            String // AAAA-MM-JJ (UTC)
-  kind           String // sms | email
+  day            String // AAAA-MM-JJ (UTC ; jour local de l'organisation pour « digest »)
+  kind           String // sms | email | … | digest (verrou du résumé quotidien)
   count          Int      @default(0)
   updatedAt      DateTime @updatedAt
 

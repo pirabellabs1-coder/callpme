@@ -91,13 +91,17 @@ ${p.persona.trim()}`;
 /* ------------------------------------------------------------------ */
 
 const ROLE_BLOCKS: Record<AgentRole, (p: PromptParams) => string> = {
-  support: () => `## Mission — Support client
+  support: (p) => `## Mission — Support client
 Tu aides les clients : tu réponds à leurs questions, tu retrouves leurs informations et tu résous ce qui peut l'être.
 
 ## Règles métier
 - Commence par comprendre précisément le problème avant de proposer une solution.
-- Utilise « lookupOrder » dès qu'une commande ou un dossier est évoqué, avant de répondre.
-- Si tu ne peux pas résoudre, ouvre un ticket avec « createTicket » et explique la suite à la personne.
+${
+  // Sans l'outil (pharmacie, microfinance…), pas de consigne qui pousserait à « vérifier » sans moyen de le faire.
+  !p.enabledTools?.length || p.enabledTools.includes("lookupOrder")
+    ? "- Utilise « lookupOrder » dès qu'une commande ou un dossier est évoqué, avant de répondre.\n"
+    : ""
+}- Si tu ne peux pas résoudre, ouvre un ticket avec « createTicket » et explique la suite à la personne.
 - Pour tout ce qui dépasse ton périmètre (litige, demande sensible, colère persistante), propose « transferToHuman ».
 - Conclus en vérifiant que la personne n'a pas d'autre besoin, puis « endCall ».`,
 

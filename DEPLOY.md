@@ -124,7 +124,13 @@ données de l'application.
   `GET /api/cron/digest` toutes les heures (même en-tête `CRON_SECRET`).
   WhatsApp : créez chez Meta un modèle de message (catégorie « Utilitaire »)
   dont le corps contient un seul paramètre `{{1}}`, puis saisissez son nom
-  dans les réglages ; sinon le résumé part par e-mail.
+  dans les réglages ; sinon le résumé part par e-mail. Gardez le texte fixe du
+  modèle court (moins de 120 caractères : Meta borne le corps à 1 024, le
+  résumé en prend jusqu'à 900). Limite connue : Meta accepte l'envoi puis peut
+  échouer plus tard (numéro absent de WhatsApp, modèle suspendu) ; dans ce
+  cas aucun e-mail de repli ne part. Fuseau par défaut : celui du pays de
+  l'organisation (Réglages › Organisation). Les conversations du widget web
+  ne sont pas comptées (appels téléphoniques uniquement).
 - **Touches du clavier** (« tapez 1 ») : transmises à l'agent pendant l'appel.
 - **Fin d'appel** : les appels sortants déclarent `${PUBLIC_URL}/api/telephony/status`
   comme rappel de statut (non-réponse, occupé, échec) ; rien à configurer.

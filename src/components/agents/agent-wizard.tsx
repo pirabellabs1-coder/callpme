@@ -184,14 +184,23 @@ export function AgentWizard({
   }
 
   function selectRole(role: AgentRole) {
-    setS((prev) => ({
-      ...prev,
-      role,
-      tools: ROLE_META[role].defaultTools,
-      firstMessage: firstMsgDirty
-        ? prev.firstMessage
-        : ROLE_META[role].firstMessage,
-    }));
+    // Recliquer sur le rôle choisi ne doit pas écraser les outils d'un modèle clé en main.
+    // Revenir au rôle du modèle rend ses outils et son accueil.
+    const fromTemplate = !isEdit && template && template.role === role;
+    setS((prev) =>
+      prev.role === role
+        ? prev
+        : {
+            ...prev,
+            role,
+            tools: fromTemplate && template.preset ? template.preset.tools : ROLE_META[role].defaultTools,
+            firstMessage: firstMsgDirty
+              ? prev.firstMessage
+              : fromTemplate
+                ? template.firstMessage
+                : ROLE_META[role].firstMessage,
+          },
+    );
   }
 
   function toggleTool(name: string) {

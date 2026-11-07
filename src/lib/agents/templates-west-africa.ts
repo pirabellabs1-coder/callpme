@@ -23,9 +23,12 @@ export interface TemplatePreset {
   callback?: CallbackConfig;
 }
 
-/** Bip (on laisse sonner puis on raccroche pour être rappelé) : très courant, rappel rapide. */
-const FLASH_CALLBACK: CallbackConfig = { enabled: true, mode: "flash", delaySec: 30, maxPerDay: 2 };
-/** L'agent décroche toujours, et rappelle si l'appelant a raccroché avant de parler. */
+/**
+ * L'agent décroche toujours, et rappelle les bips (on laisse sonner puis on
+ * raccroche pour être rappelé) et les appels coupés avant d'avoir parlé.
+ * Pas de mode « flash » par défaut : il refuse TOUS les appels entrants et les
+ * rappelle sur le crédit prépayé — à choisir en connaissance de cause.
+ */
 const MISSED_CALLBACK: CallbackConfig = { enabled: true, mode: "missed", delaySec: 30, maxPerDay: 2 };
 
 const COMMON_GUARDRAILS = [
@@ -65,7 +68,7 @@ export const WEST_AFRICA_TEMPLATES: AgentTemplate[] = [
         { key: "motif", label: "Motif de l'appel", type: "choice", options: ["Garde", "Horaires", "Disponibilité", "Commande", "Autre"] },
       ],
       successCriteria: "L'appelant a obtenu la pharmacie de garde ou les horaires, ou sa demande de médicament a été notée avec un numéro de rappel.",
-      callback: FLASH_CALLBACK,
+      callback: MISSED_CALLBACK,
     },
   },
   {
@@ -136,7 +139,7 @@ export const WEST_AFRICA_TEMPLATES: AgentTemplate[] = [
         { key: "rdv_conseiller", label: "Rendez-vous conseiller pris", type: "boolean" },
       ],
       successCriteria: "L'appelant a obtenu une réponse générale ou un rendez-vous avec un conseiller, sans qu'aucune donnée sensible ne soit échangée.",
-      callback: FLASH_CALLBACK,
+      callback: MISSED_CALLBACK,
     },
   },
   {
@@ -171,7 +174,7 @@ export const WEST_AFRICA_TEMPLATES: AgentTemplate[] = [
         { key: "demande", label: "Demande", type: "choice", options: ["Inscription", "Frais de scolarité", "Suivi d'un élève", "Visite", "Autre"] },
       ],
       successCriteria: "La demande d'inscription est relevée avec la classe visée et un numéro de rappel, ou le message a été transmis à l'administration.",
-      callback: FLASH_CALLBACK,
+      callback: MISSED_CALLBACK,
     },
   },
   {
@@ -207,7 +210,7 @@ export const WEST_AFRICA_TEMPLATES: AgentTemplate[] = [
         { key: "demande", label: "Demande", type: "choice", options: ["Suivi", "Réservation", "Enlèvement", "Réclamation", "Autre"] },
       ],
       successCriteria: "Le statut a été donné, la réservation relevée en entier, ou l'incident enregistré dans un ticket.",
-      callback: FLASH_CALLBACK,
+      callback: MISSED_CALLBACK,
     },
   },
   {
@@ -242,7 +245,7 @@ export const WEST_AFRICA_TEMPLATES: AgentTemplate[] = [
         { key: "demande_speciale", label: "Demande spéciale", type: "text" },
       ],
       successCriteria: "La réservation est confirmée avec nom, date et nombre de personnes, ou la demande de groupe est transmise.",
-      callback: FLASH_CALLBACK,
+      callback: MISSED_CALLBACK,
     },
   },
 ];

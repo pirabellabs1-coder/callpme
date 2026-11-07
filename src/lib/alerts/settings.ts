@@ -20,11 +20,21 @@ export function isValidTimeZone(tz: string): boolean {
   }
 }
 
+export const DIGEST_MIN_HOUR = 12;
+
+/** « +229 01 97 12 34 56 » : un numéro par ligne (ou séparés par , ;), espaces, points et tirets ignorés. */
+export function splitPhones(v: string): string[] {
+  return v
+    .split(/[\n,;]+/)
+    .map((n) => n.replace(/[\s.()-]/g, "").replace(/^00/, "+"))
+    .filter(Boolean);
+}
+
 /** Résumé quotidien envoyé au gérant (WhatsApp si possible, sinon e-mail). */
 export const digestSettingsSchema = z.object({
   enabled: z.boolean(),
-  /** Heure locale d'envoi (0–23). */
-  hour: z.number().int().min(0).max(23),
+  /** Heure locale d'envoi, le soir (12–23) : le résumé couvre minuit → l'heure d'envoi. */
+  hour: z.number().int().min(DIGEST_MIN_HOUR).max(23),
   /** Fuseau IANA ; vide = celui du pays de l'organisation. */
   timeZone: z
     .string()
@@ -74,7 +84,12 @@ export const DEFAULT_ALERTS: AlertSettings = {
 
 export function parseAlertSettings(raw: string | null | undefined): AlertSettings {
   try {
-    const r = alertSettingsSchema.safeParse(raw ? JSON.parse(raw) : null);
+    const data = raw ? JSON.parse(raw) : null;
+    // Réglages antérieurs au résumé : qui avait coupé les e-mails ne reçoit pas de résumé.
+    if (data && typeof data === "object" && !("digest" in data)) {
+      data.digest = { ...DEFAULT_DIGEST, enabled: data.email !== false };
+    }
+    const r = alertSettingsSchema.safeParse(data);
     return r.success ? r.data : DEFAULT_ALERTS;
   } catch {
     return DEFAULT_ALERTS;

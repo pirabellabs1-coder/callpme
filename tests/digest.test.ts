@@ -42,9 +42,14 @@ const sendTemplate = vi.hoisted(() => vi.fn(async (..._args: unknown[]) => true)
 vi.mock("@/lib/db/client", () => ({ prisma: db.prisma }));
 vi.mock("@/lib/email/resend", () => ({ sendEmail }));
 vi.mock("@/lib/whatsapp/cloud", () => ({ sendWhatsAppTemplate: sendTemplate }));
-vi.mock("@/lib/crypto/secrets", () => ({ decryptSecret: (v: string | null) => v }));
+vi.mock("@/lib/crypto/secrets", () => ({
+  decryptSecret: (v: string | null) => {
+    if (v === "corrompu") throw new Error("Unsupported state or unable to authenticate data");
+    return v;
+  },
+}));
 
-import { DEFAULT_DIGEST, parseAlertSettings } from "@/lib/alerts/settings";
+import { DEFAULT_DIGEST, parseAlertSettings, splitPhones } from "@/lib/alerts/settings";
 import { claimDigest, digestTimeZone, sendDailyDigest } from "@/lib/digest/digest";
 import { isDigestDue, localParts, startOfLocalDay } from "@/lib/digest/schedule";
 import { buildDigest, hasActivity, oneLine, type DigestData } from "@/lib/digest/summary";
@@ -69,6 +74,11 @@ describe("résumé quotidien — heure d'envoi par fuseau", () => {
     expect(isDigestDue(new Date("2026-12-01T17:00:00Z"), 19, "Europe/Paris")).toBe(false);
   });
 
+  it("minuit local les jours de changement d'heure (Paris)", () => {
+    expect(startOfLocalDay(new Date("2026-03-29T18:00:00Z"), "Europe/Paris").toISOString()).toBe("2026-03-28T23:00:00.000Z");
+    expect(startOfLocalDay(new Date("2026-10-25T18:00:00Z"), "Europe/Paris").toISOString()).toBe("2026-10-24T22:00:00.000Z");
+  });
+
   it("jour local et minuit local", () => {
     // 23 h 30 UTC le 7 = 00 h 30 le 8 à Porto-Novo.
     expect(localParts(new Date("2026-11-07T23:30:00Z"), BENIN)).toEqual({ day: "2026-11-08", hour: 0, minute: 30 });
@@ -89,6 +99,24 @@ describe("résumé quotidien — réglages", () => {
     expect(s.digest).toEqual(DEFAULT_DIGEST);
     expect(s.digest.enabled).toBe(true);
     expect(s.digest.hour).toBe(19);
+  });
+
+  it("anciens réglages avec e-mails coupés : pas de résumé non plus", () => {
+    expect(parseAlertSettings(JSON.stringify({ email: false, events: [], recipients: [] })).digest.enabled).toBe(false);
+  });
+
+  it("numéros WhatsApp saisis avec espaces, points ou 00", () => {
+    expect(splitPhones("+229 01 97 12 34 56\n00229.01.96.00.00.00 ; +33 6 12 34 56 78")).toEqual([
+      "+2290197123456",
+      "+2290196000000",
+      "+33612345678",
+    ]);
+  });
+
+  it("heure d'envoi le soir uniquement (le résumé couvre minuit → l'heure d'envoi)", () => {
+    const base = { email: true, events: [], recipients: [] };
+    expect(parseAlertSettings(JSON.stringify({ ...base, digest: { ...DEFAULT_DIGEST, hour: 7 } })).events).toEqual(["lead", "appointment", "transfer"]);
+    expect(parseAlertSettings(JSON.stringify({ ...base, digest: { ...DEFAULT_DIGEST, hour: 12 } })).digest.hour).toBe(12);
   });
 
   it("refuse un fuseau inconnu, une heure hors bornes ou un numéro sans indicatif", () => {
@@ -211,6 +239,13 @@ describe("résumé quotidien — envoi et dédoublonnage", () => {
     expect(await sendDailyDigest(org(alerts, { phoneNumberId: "pn1", accessToken: "tok", enabled: true }), AT_19H)).toBe("whatsapp");
     expect(sendTemplate).toHaveBeenCalledWith("pn1", "tok", "+2290197123456", expect.objectContaining({ name: "resume_quotidien", language: "fr" }));
     expect(sendEmail).not.toHaveBeenCalled();
+  });
+
+  it("jeton WhatsApp illisible après le verrou : repli e-mail quand même", async () => {
+    const alerts = { email: true, events: [], recipients: [], digest: { ...DEFAULT_DIGEST, whatsappTo: ["+2290197123456"], whatsappTemplate: "resume_quotidien" } };
+    expect(await sendDailyDigest(org(alerts, { phoneNumberId: "pn1", accessToken: "corrompu", enabled: true }), AT_19H)).toBe("email");
+    expect(sendTemplate).not.toHaveBeenCalled();
+    expect(sendEmail).toHaveBeenCalledTimes(1);
   });
 
   it("repli e-mail si le modèle WhatsApp est refusé, ou s'il n'y a pas de modèle", async () => {

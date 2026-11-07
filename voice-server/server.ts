@@ -464,7 +464,7 @@ for (const sig of ["SIGINT", "SIGTERM"] as const) {
     audioSocketServer?.close();
     if (campaignTimer) clearInterval(campaignTimer);
     if (callbackTimer) clearInterval(callbackTimer);
-  if (digestTimer) clearInterval(digestTimer);
+    if (digestTimer) clearInterval(digestTimer);
     // Filet de sécurité si un enregistrement reste bloqué.
     setTimeout(() => process.exit(0), 15_000).unref();
     void Promise.allSettled(Array.from(sessions).map((s) => s.end("completed"))).then(() => {
